@@ -2197,6 +2197,24 @@ histórico de chamadas anteriores pra cruzar).
 contra o mesmo cenário (ou parecido) ainda. Próximo lote real decide
 se o Esc realmente evita a cascata.
 
+### 0.53 Tesseract "não instalado" mesmo instalado — PATH nem sempre pega
+
+Achado no computador do operador: rodando a automação, pytesseract
+acusa Tesseract não instalado/não encontrado no PATH, mesmo com o
+Tesseract já instalado — instalador às vezes não marca "adicionar ao
+PATH" sozinho, ou o Windows só aplica a mudança de PATH numa janela de
+terminal nova, nunca na que já estava aberta.
+
+**Corrigido em `app/tela.py`**: se `shutil.which("tesseract")` não
+achar nada no PATH, tenta os dois caminhos padrão de instalação do
+instalador oficial (UB-Mannheim) — `C:\Program Files\Tesseract-OCR\`
+e a versão `(x86)` — e configura `pytesseract.pytesseract.tesseract_cmd`
+direto, sem depender do PATH. Não muda nada se o Tesseract já é achado
+pelo PATH normalmente (só entra nesse caminho quando falha).
+
+**Ainda não confirmado se resolve o caso real do operador** — corrige
+a causa mais comum desse erro, mas só um teste de verdade lá confirma.
+
 ---
 
 ## 1. Análise do projeto

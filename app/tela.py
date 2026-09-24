@@ -15,11 +15,28 @@ suposição:
 """
 
 import ctypes
+import shutil
 from pathlib import Path
 
 from PIL import Image, ImageGrab, ImageOps
 import pytesseract
 from pytesseract import Output
+
+# Achado real, seção 0.53: o instalador do Tesseract às vezes não
+# adiciona ao PATH (ou o Windows só aplica isso numa janela nova, nunca
+# na que já estava aberta) — pytesseract quebra com "tesseract is not
+# installed or it's not in your PATH", mesmo com o Tesseract instalado
+# de verdade. Se não achar no PATH, tenta os dois caminhos padrão do
+# instalador oficial (UB-Mannheim) antes de desistir — não depende mais
+# só do PATH estar certo.
+if shutil.which("tesseract") is None:
+    for _caminho_padrao in (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ):
+        if Path(_caminho_padrao).exists():
+            pytesseract.pytesseract.tesseract_cmd = _caminho_padrao
+            break
 
 ctypes.windll.user32.SetProcessDPIAware()
 
