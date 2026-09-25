@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Segredos e dados locais — nunca versionar
+.env
+*.pfx
+*.p12
+data/*
+!data/empresas.exemplo.csv
+logs/
+screenshots/
+capturas/
+
+# SO
+.DS_Store
+Thumbs.db
