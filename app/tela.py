@@ -38,6 +38,7 @@ if shutil.which("tesseract") is None:
     if _arquivo_caminho_tesseract.exists():
         _caminho_configurado = _arquivo_caminho_tesseract.read_text(encoding="utf-8").strip() or None
 
+    _achou_tesseract_fallback = False
     for _caminho_padrao in filter(None, (
         _caminho_configurado,
         r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -45,7 +46,52 @@ if shutil.which("tesseract") is None:
     )):
         if Path(_caminho_padrao).exists():
             pytesseract.pytesseract.tesseract_cmd = _caminho_padrao
+            _achou_tesseract_fallback = True
             break
+
+    # Achado real, seção 0.56: pedido do usuário — buscar sozinho em
+    # vez de só conferir 2 caminhos fixos, pro caso do instalador ter
+    # posto numa subpasta um pouco diferente (nome com versão, etc.).
+    # Não busca o C:\ inteiro (demoraria minutos toda vez que abrisse)
+    # — só dentro de "Program Files"/"Program Files (x86)", onde
+    # praticamente todo instalador do Windows põe as coisas; rápido
+    # (segundos, não minutos) porque é uma fração pequena do disco.
+    # Achando, salva em data/tesseract_caminho.txt pra não precisar
+    # buscar de novo nas próximas vezes (essa busca só roda quando os
+    # caminhos fixos acima falham).
+    if not _achou_tesseract_fallback:
+        for _pasta_busca in (r"C:\Program Files", r"C:\Program Files (x86)"):
+            if not Path(_pasta_busca).is_dir():
+                continue
+            _encontrados = list(Path(_pasta_busca).glob("**/tesseract.exe"))
+            if not _encontrados:
+                continue
+            _caminho_achado = str(_encontrados[0])
+            pytesseract.pytesseract.tesseract_cmd = _caminho_achado
+            _achou_tesseract_fallback = True
+            try:
+                _arquivo_caminho_tesseract.parent.mkdir(parents=True, exist_ok=True)
+                _arquivo_caminho_tesseract.write_text(_caminho_achado, encoding="utf-8")
+            except OSError:
+                pass
+            break
+
+    # Achado real, seção 0.55: sem isso, não achar o Tesseract em lugar
+    # nenhum só quebrava depois, num erro cru do pytesseract, na
+    # primeira leitura de tela — confuso pra quem não é programador.
+    # Avisa direto, assim que o programa abre, com o que fazer.
+    if not _achou_tesseract_fallback:
+        print(
+            "AVISO: Tesseract OCR não encontrado (nem no PATH, nem nos "
+            "caminhos padrão, nem buscando em Program Files). A "
+            "automação não vai conseguir ler a tela até ele ser "
+            "instalado:\n"
+            "  https://github.com/UB-Mannheim/tesseract/wiki\n"
+            "Se já instalou num lugar bem diferente do padrão (outra "
+            "unidade, por exemplo), crie o arquivo "
+            "data/tesseract_caminho.txt com o caminho completo do "
+            "tesseract.exe."
+        )
 
 ctypes.windll.user32.SetProcessDPIAware()
 
