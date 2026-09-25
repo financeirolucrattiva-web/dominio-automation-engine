@@ -1,19 +1,34 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-*.egg-info/
+# dependencies
+/node_modules
 
-# Segredos e dados locais — nunca versionar
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# env
 .env
-*.pfx
-*.p12
-data/*
-!data/empresas.exemplo.csv
-logs/
-screenshots/
-capturas/
+.env*.local
 
-# SO
+# banco local (caso alguém rode com SQLite num teste rápido)
+*.db
+*.db-journal
+
+# vercel
+.env.production.local
+.vercel
+
+# misc
 .DS_Store
-Thumbs.db
+*.pem
+npm-debug.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# vitest
+/coverage
+.env*
