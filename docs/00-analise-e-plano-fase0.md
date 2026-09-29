@@ -2269,6 +2269,265 @@ realmente não tem.
 de C: ou fora de Program Files de propósito — nesse caso o aviso da
 seção 0.55 ainda aparece, com a saída manual (`tesseract_caminho.txt`).
 
+### 0.57 `Instalar.bat` ganha checagem de idioma, aviso de falha do pip, e abrir a interface no final
+
+Pedido do usuário: `Instalar.bat` deveria cobrir todos os passos
+necessários pra ferramenta funcionar, não só o que já tinha. Três
+lacunas reais encontradas e corrigidas:
+
+1. **Confere o idioma português do Tesseract, não só o executável** —
+   `where tesseract`/os caminhos padrão só confirmam que o programa
+   existe, não que o pacote de idioma "Portuguese" foi instalado
+   junto (checkbox separado no instalador, fácil de esquecer). Sem o
+   idioma `por`, toda leitura de tela falha mesmo com o Tesseract
+   "encontrado". Agora roda `tesseract --list-langs` e confere se
+   `por` aparece na lista, avisando claramente se não.
+2. **Avisa se o `pip install` falhar** — antes seguia direto pra
+   "Instalação concluída" mesmo se a instalação de dependência tivesse
+   falhado (sem internet, permissão, etc.), passando confiança falsa.
+3. **Oferece abrir a interface no final** — pergunta (S/N) se quer
+   abrir `Abrir Interface Gráfica (Operador).bat` na hora, pra
+   confirmar visualmente que funcionou sem precisar procurar o atalho
+   separado depois.
+
+Mesma limitação de sempre pra `.bat`: não dá pra rodar/testar neste
+ambiente (sem Windows) — validação real só no computador do usuário.
+
+### 0.58 `.bat` quebrava com "Program Files (x86)" — parênteses em caminho confundem o cmd
+
+Primeiro teste real de `Instalar.bat` (num clone limpo, "como se fosse
+computador novo", pedido explícito do usuário pra ter certeza que
+funciona): `. foi inesperado neste momento.` — erro de sintaxe do cmd,
+morrendo antes até do primeiro aviso aparecer. Causa: o caminho padrão
+de 32 bits do Tesseract, `C:\Program Files (x86)\Tesseract-OCR\...`,
+tem parênteses — e o cmd confunde parênteses dentro de um caminho com
+abertura/fechamento de bloco `if/else`, mesmo dentro de aspas
+(limitação conhecida e chata do interpretador de `.bat`, não bug meu
+nem do Windows do usuário). O mesmo valia pro nome do atalho "Abrir
+Interface Gráfica (Operador).bat", usado dentro de um bloco `if`.
+
+**Corrigido:** todo caminho/nome de arquivo com parênteses virou
+variável, definida sozinha no topo do arquivo (linha própria, sem
+nenhum outro comando ou bloco) — daí pra frente só usa `%VARIAVEL%`,
+nunca o texto literal com parênteses, principalmente perto de
+`if`/`else`. Também tirei parênteses de dentro de texto de `echo`
+que ficava dentro de blocos (ex.: "(por)"), por segurança, mesmo sem
+certeza se aqueles especificamente causariam problema.
+
+**Achado à parte, do mesmo teste:** dar duplo clique (ou "Executar
+como administrador") num `.bat` que falha faz a janela abrir e fechar
+rápido demais pra ler o erro — só digitando o comando dentro de um
+`cmd` já aberto (não um novo, aberto pelo próprio duplo clique) é que
+o erro fica visível. Vale lembrar isso em qualquer instrução futura de
+"roda esse .bat e me manda o erro".
+
+### 0.59 Nome de arquivo acentuado corrompido ao ser usado dentro do próprio `.bat`
+
+Depois do fix da seção 0.58, novo erro real: "Windows não pode
+encontrar 'Abrir Interface Gr[caractere ilegível]áfica (Operador).bat'".
+A tela final de `Instalar.bat` guardava esse nome (com "á") numa
+variável pra abrir a interface no fim, e o "á" chegava corrompido no
+`start` — página de código do console não batendo com a codificação
+salva do arquivo. Achado diferente do "texto acentuado ilegível no
+`echo`" já conhecido: aqui o problema é numa operação real de arquivo,
+não só exibição na tela.
+
+**Corrigido:** eliminei a variável e o nome literal por completo — em
+vez de abrir o atalho pelo nome, `Instalar.bat` replica direto a
+lógica interna dele (`set DOMINIO_MODO=operador` + `start "" python
+scripts\gui.py`). Zero caractere acentuado em `Instalar.bat` a partir
+daqui (conferido por script, não só de olho outra vez).
+
+### 0.60 `Instalar.bat` vira arquivo único: pede administrador e baixa Git/Python/Tesseract/projeto sozinho
+
+Pedido do usuário: "se puder fazer ele puxar tudo de um arquivo só
+seria incrível" — um único `.bat`, colado numa pasta vazia, deixa a
+máquina pronta pra rodar a automação sem nenhum passo manual. É o
+nível de "software replicável" que o projeto vinha buscando: instalar
+significa deixar funcional, não só copiar arquivo.
+
+Mecanismo:
+- Pede elevação de administrador uma vez, no início (`net session`
+  testa; `Start-Process -Verb RunAs` reabre o próprio arquivo já
+  elevado, se precisar) — instalar Git/Python/Tesseract pra máquina
+  toda exige isso.
+- Detecta cada ferramenta (`where`/caminho padrão) antes de tentar
+  instalar — nunca reinstala o que já existe.
+- Instala cada uma de forma silenciosa, com flags e versões
+  confirmadas por pesquisa (não chute):
+  - Git for Windows 2.55.0(5): `/VERYSILENT /NORESTART /NOCANCEL /SP-
+    /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`.
+  - Python 3.14.7: `/quiet InstallAllUsers=1 PrependPath=1
+    Include_test=0`.
+  - Tesseract (UB-Mannheim) 5.5.3.20260724: `/S` (instalador NSIS).
+- **Limitação confirmada** (issue aberta
+  `UB-Mannheim/tesseract#91`): o instalador silencioso do Tesseract
+  não deixa escolher pacote de idioma por linha de comando. Contornado
+  baixando `por.traineddata` direto (URL estável, branch `main` do
+  repositório `tessdata`) pra dentro da pasta `tessdata` da
+  instalação.
+- Se o projeto ainda não estiver na pasta (`app\dominio.py` não
+  existe), clona de `URL_REPO` antes de seguir.
+
+Ainda sem teste real de ponta a ponta nesta seção — mudança bem maior
+que qualquer `.bat` anterior deste projeto (elevação + três
+instalações silenciosas). Teste real e seu resultado: seção 0.61.
+
+### 0.61 Primeiro teste real do instalador único: download recusado pelo servidor (403), falha seguia sem avisar
+
+Teste pedido pelo próprio usuário, do jeito certo: pasta
+`teste-instalacao` esvaziada, só o `.bat` novo dentro, "como se fosse
+PC novo". Git já instalado nessa máquina, clone do projeto funcionou.
+Tesseract não encontrado → tentou baixar → **o servidor da
+UB-Mannheim recusou com 403 Forbidden** (bloqueio do lado do
+servidor, não erro de configuração local — provável filtro pelo
+identificador padrão do `Invoke-WebRequest`). Sem o instalador
+baixado, a linha seguinte tentou rodar um `.exe` que não existia —
+Windows mostrou popup de "não encontrado" no meio da instalação, sem
+nenhum aviso explicando o motivo real.
+
+**Corrigido:**
+- Todo download passa um `-UserAgent` de navegador comum (variável
+  isolada, `AGENTE_HTTP` — mesma regra da seção 0.58 pros parênteses
+  no valor).
+- Depois de cada download (Git, Python, Tesseract, idioma português,
+  clone do projeto), confere se o arquivo esperado existe antes de
+  tentar usá-lo — nunca mais assume que baixou só porque pediu. Falha
+  em Git/Python/Tesseract vira aviso com o link pra instalar manual e
+  o script segue; falha no clone do projeto para tudo (sem o projeto,
+  nada mais funciona).
+- Efeito colateral corrigido: se o Tesseract não foi baixado, o
+  script agora pula a checagem de idioma em vez de rodar um
+  `tesseract.exe` que não existe e mostrar o aviso errado ("encontrado,
+  mas sem idioma").
+
+Ainda não confirmado: se a instalação completa (Git + Python +
+Tesseract + idioma + projeto, tudo baixando do zero numa máquina de
+verdade) roda ponta a ponta sem nenhum outro bloqueio — este teste
+parou no primeiro download que falhou. Próximo teste do usuário decide
+isso.
+
+### 0.62 Segundo teste real: com o User-Agent corrigido, mesmo download falhou de outro jeito — TLS, não bloqueio
+
+Teste seguinte, mesma pasta: com a correção da seção 0.61 aplicada, o
+download do Tesseract falhou de novo, mas com erro diferente —
+"Invoke-WebRequest: Impossível conectar-se ao servidor remoto" (falha
+de conexão, não mais 403). `git clone` (GitHub) funcionou normal no
+mesmo teste — não é falta geral de internet, é algo específico desse
+host. Causa provável: PowerShell/.NET mais antigo às vezes não negocia
+TLS 1.2 por padrão, e esse servidor exige.
+
+**Corrigido:** toda chamada `Invoke-WebRequest` agora força
+`[Net.ServicePointManager]::SecurityProtocol = Tls12` antes do pedido
+(precisa repetir em cada uma — cada `powershell -Command` é um
+processo novo, a configuração não persiste entre eles). Além disso,
+cada download (Git, Python, Tesseract, idioma português) tenta até 3
+vezes, com 3s de espera entre tentativas, antes de cair no aviso de
+instalar manual — cobre falha de rede passageira em geral, não só a
+causa específica vista aqui.
+
+Ainda não confirmado: instalação completa ponta a ponta sem nenhum
+bloqueio. Dois testes reais seguidos pararam no mesmo download
+(Tesseract, servidor externo da UB-Mannheim) por dois motivos
+diferentes — não impossível que apareça um terceiro.
+
+### 0.63 `winget` baixa o mesmo Tesseract sem erro onde `Invoke-WebRequest` falhou duas vezes — vira o método preferido
+
+Pesquisei alternativa ao site da UB-Mannheim (não existe instalador
+Windows atualizado em nenhum outro lugar oficial — GitHub só tem o
+código-fonte, SourceForge só uma versão antiga, 3.02). A alternativa
+real não é outra URL, é outro cliente: pedi pro usuário testar `winget
+install --id UB-Mannheim.TesseractOCR -e --silent` na mesma máquina/
+rede onde `Invoke-WebRequest` tinha acabado de falhar duas vezes
+seguidas (seções 0.61/0.62) — **funcionou, baixou e instalou sem
+erro**. Confirma que o bloqueio é específico de como o PowerShell
+acessa aquele host (User-Agent/TLS/padrão de requisição), não da rede
+em geral nem do Tesseract em si.
+
+**Adicionado:** antes de cair no download direto, `Instalar.bat` agora
+testa `where winget` e, se existir, tenta `winget install --id
+UB-Mannheim.TesseractOCR -e --silent --accept-package-agreements
+--accept-source-agreements` (os dois `--accept-*` evitam qualquer
+prompt na primeira vez que winget roda numa máquina). Confere se
+`tesseract.exe` apareceu no caminho padrão antes de seguir — nunca
+assume sucesso só pelo comando ter rodado. Só cai pro jeito antigo
+(`Invoke-WebRequest` com 3 tentativas, seções 0.60-0.62) se `winget`
+não existir ou não deixar o arquivo no lugar esperado — mantido como
+rede de segurança pra máquina sem `winget` (Windows mais antigo).
+
+Ainda não testado: se esse caminho winget se comporta igual quando
+rodado de dentro do `Instalar.bat` (elevado, sem interação) e não só
+digitado direto pelo usuário.
+
+### 0.64 Instalação completa rodou a automação de verdade — e achou um bug real de runtime: idioma português nunca baixado, sem aviso nenhum
+
+Marco: `Instalar.bat` (com o fix da seção 0.63) instalou tudo — Git,
+projeto, Python, Tesseract via winget — e a automação chegou a rodar
+de verdade contra empresas reais (`executar_lote`). Isso valida o
+objetivo original de "um arquivo só deixa pronto pra rodar".
+
+Erro real encontrado nessa mesma rodada: `pytesseract` falhou com
+"Error opening data file .../tessdata/por.traineddata ... Tesseract
+couldn't load any languages!" — o pacote de idioma nunca foi baixado,
+e **nenhum aviso apareceu na tela** durante a instalação (nem o de
+sucesso, nem o `AVISO` de falha). Evidência coletada antes de mexer no
+código, do jeito de sempre:
+- `dir` na pasta `tessdata`: só `eng`/`osd`, sem `por` — confirma que o
+  arquivo nunca chegou lá.
+- `echo %TESSDATA_PREFIX%` devolveu o nome da variável sem expandir —
+  confirma que não tem valor setado, não é caminho errado por causa
+  disso.
+
+Suspeita, sem reprodução local possível (sem Windows neste ambiente):
+a checagem antiga (`tesseract --list-langs 2>nul | findstr /i /x
+"por"`) depende de o Tesseract escrever essa lista no **stdout** — mas
+várias versões escrevem parte disso no **stderr**, que a própria linha
+descarta (`2>nul`) antes de chegar no pipe. Isso bastaria pra fazer a
+checagem sempre concluir "idioma ausente" (o que, nesse caso, até
+bateria com a realidade) ou o inverso, dependendo da versão — de um
+jeito ou de outro, é uma pergunta frágil demais pra decidir se baixa um
+arquivo.
+
+**Corrigido:** a checagem não roda mais `tesseract.exe` pra decidir
+nada. Pergunta direto ao sistema de arquivos: `por.traineddata` existe
+ou não existe em `Tesseract-OCR\tessdata` (só quando o Tesseract está
+no caminho padrão — fora dele, continua sem como confirmar, mesmo
+aviso de sempre). Mais simples e sem depender de interpretar saída de
+processo nenhum.
+
+Ainda não confirmado: se esse fix resolve de fato — pede um novo teste
+completo do zero (o usuário já indicou que vai desinstalar tudo de
+novo pra isso).
+
+### 0.65 Fix da seção 0.64 não resolveu — mesmo erro se repetiu; causa real era outra
+
+Teste do zero, com o fix da seção 0.64: **mesmo erro de novo**, idioma
+português faltando. Descartado por evidência real antes de mexer de
+novo: `TESSDATA_PREFIX` sem valor (não é a causa), e a comparação nova
+(existência do arquivo, não mais `--list-langs`) parecia correta lendo
+o código. Achei o bug relendo a lógica com calma, sem precisar de novo
+teste: a seção 0.64 comparava `TESSERACT_EXE` com
+`CAMINHO_TESSERACT_PADRAO` **como texto**, pra decidir se sabia onde
+ficava a pasta `tessdata`. Mas quando o Tesseract está no `PATH` do
+Windows — exatamente o que acontece depois de instalar via winget —
+`TESSERACT_EXE` vira só a palavra `tesseract` (resolvido pelo próprio
+Windows na hora de rodar), nunca o caminho completo. Essa comparação
+**nunca bate, mesmo com o Tesseract instalado no lugar certo**, e o
+script caía direto no aviso de "fora do lugar padrão" sem nunca tentar
+baixar o idioma — silencioso o bastante pra passar despercebido.
+
+**Corrigido:** parou de comparar com `TESSERACT_EXE` pra decidir onde
+fica a `tessdata`. Agora checa direto no disco quais dos dois caminhos
+padrão (`Program Files` / `Program Files (x86)`) realmente têm
+`tesseract.exe`, guarda a pasta `tessdata` correspondente numa
+variável própria (`TESSDATA_REAL`), e usa só ela daqui pra frente —
+funciona igual estando o Tesseract no `PATH` ou não.
+
+Lição registrada: dessa vez o bug foi achado **sem precisar de um
+terceiro teste real** — só de reler a lógica com mais calma depois de
+ela falhar do mesmo jeito duas vezes. Vale sempre tentar isso antes de
+pedir mais um teste do usuário.
+
 ---
 
 ## 1. Análise do projeto
