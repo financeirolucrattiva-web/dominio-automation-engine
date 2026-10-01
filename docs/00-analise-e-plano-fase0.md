@@ -2269,264 +2269,200 @@ realmente não tem.
 de C: ou fora de Program Files de propósito — nesse caso o aviso da
 seção 0.55 ainda aparece, com a saída manual (`tesseract_caminho.txt`).
 
-### 0.57 `Instalar.bat` ganha checagem de idioma, aviso de falha do pip, e abrir a interface no final
+### 0.57 Primeira rotina nova fora do SPED: Registro de Saídas (Livro Fiscal) — caminho mapeado por print, implementado, ainda não executado
 
-Pedido do usuário: `Instalar.bat` deveria cobrir todos os passos
-necessários pra ferramenta funcionar, não só o que já tinha. Três
-lacunas reais encontradas e corrigidas:
+Pedido do usuário (escopo diferente do SPED Fiscal/EFD Contribuições):
+exportar o relatório de notas de saída (Livro Registro de Saídas) pra
+uma empresa do Simples Nacional, com competência já conferida
+manualmente. Mapeado por uma sequência de 4 prints reais enviados
+nesta conversa (não por suposição) — cada um pedido depois do anterior,
+só a próxima tela necessária:
 
-1. **Confere o idioma português do Tesseract, não só o executável** —
-   `where tesseract`/os caminhos padrão só confirmam que o programa
-   existe, não que o pacote de idioma "Portuguese" foi instalado
-   junto (checkbox separado no instalador, fácil de esquecer). Sem o
-   idioma `por`, toda leitura de tela falha mesmo com o Tesseract
-   "encontrado". Agora roda `tesseract --list-langs` e confere se
-   `por` aparece na lista, avisando claramente se não.
-2. **Avisa se o `pip install` falhar** — antes seguia direto pra
-   "Instalação concluída" mesmo se a instalação de dependência tivesse
-   falhado (sem internet, permissão, etc.), passando confiança falsa.
-3. **Oferece abrir a interface no final** — pergunta (S/N) se quer
-   abrir `Abrir Interface Gráfica (Operador).bat` na hora, pra
-   confirmar visualmente que funcionou sem precisar procurar o atalho
-   separado depois.
+1. `Relatórios → Livros → Livros Fiscais` abre uma tela **com abas**
+   (Geral, Termos, Entradas, Saídas, ICMS, IPI, ISS, Inventário...) —
+   estrutura bem diferente do formulário único do SPED Fiscal.
+2. Na aba Geral: lista de caixas de seleção (uma por livro —
+   "Registro de Entradas", "Registro de Saídas", "Registro de ICMS"
+   etc.) + campos "Inicial"/"Final" (não "Data inicial"/"Data final"
+   como no SPED).
+3. OK abre uma **pré-visualização de livro impresso** (não uma caixa
+   de confirmação de texto) — identificada pelo corpo mostrar
+   "LIVRO REGISTRO DE SAÍDAS - RS - MODELO P2" e os dados reais da
+   empresa (confirmado contra a SPRAYAGRO CONSULTORIA LTDA, Lucro
+   Presumido — não é a empresa-alvo do piloto, serviu só pra mapear o
+   caminho, já que gerar esse relatório não altera nenhum dado).
+4. A pré-visualização tem uma barra de ferramentas vertical **só com
+   ícones, sem texto** — um deles (confirmado "X" verde, estilo
+   Excel) abre um diálogo **nativo do Windows** ("Selecione o
+   arquivo"/"Save as") com campo de nome de arquivo editável e tipo já
+   em "Arquivos do Excel (*.xls)".
 
-Mesma limitação de sempre pra `.bat`: não dá pra rodar/testar neste
-ambiente (sem Windows) — validação real só no computador do usuário.
+**Dois achados técnicos novos, por medição de pixel nos próprios
+prints** (não por execução — ver ressalva abaixo):
 
-### 0.58 `.bat` quebrava com "Program Files (x86)" — parênteses em caminho confundem o cmd
+- **OCR lê "Inicial"/"Final" como "Iniciat"/"Finat"** nesta tela, na
+  escala usada (2x) — troca de "l" por "t" no fim da palavra, mesma
+  categoria de erro já vista noutro lugar ("SPED Fiscal" → "spEo",
+  seção 0.26). Corrigido buscando só o prefixo comum "Inicia"/"Fina",
+  mesmo padrão já usado pra "Informativ" em `gerar_sped()`.
+- **O diálogo "Salvar como" desta tela é nativo do Windows**, não
+  desenhado pelo Domínio — confirmado porque mostra pastas reais em
+  inglês ("Downloads", "Desktop", "This PC"), ao contrário do resto da
+  interface (português, desenhada pelo Domínio). Isso simplifica bastante
+  essa etapa: aceita caminho completo digitado direto no campo de nome,
+  e a confirmação de sucesso pode ser feita **checando o arquivo no
+  disco** (existe + tamanho > 0) em vez de OCR — primeira vez neste
+  projeto que a verificação de sucesso não depende de ler a tela.
 
-Primeiro teste real de `Instalar.bat` (num clone limpo, "como se fosse
-computador novo", pedido explícito do usuário pra ter certeza que
-funciona): `. foi inesperado neste momento.` — erro de sintaxe do cmd,
-morrendo antes até do primeiro aviso aparecer. Causa: o caminho padrão
-de 32 bits do Tesseract, `C:\Program Files (x86)\Tesseract-OCR\...`,
-tem parênteses — e o cmd confunde parênteses dentro de um caminho com
-abertura/fechamento de bloco `if/else`, mesmo dentro de aspas
-(limitação conhecida e chata do interpretador de `.bat`, não bug meu
-nem do Windows do usuário). O mesmo valia pro nome do atalho "Abrir
-Interface Gráfica (Operador).bat", usado dentro de um bloco `if`.
+**Ícone sem texto — primeira vez que o projeto implementa casamento de
+imagem** (`tela.achar_icone()`, `cv2.matchTemplate`, reaproveitando o
+`opencv-python` que já estava no `requirements.txt` mas nunca tinha
+sido usado): recorte do ícone "exportar" salvo em
+`app/icones/exportar_excel.png` (a partir do mesmo print real usado
+pra mapear o caminho), casado contra a tela ao vivo com limiar de
+confiança 0.75 — testado só contra o print estático de onde veio o
+recorte (confiança 1.0, esperado, é a mesma imagem), **ainda não
+testado contra a tela ao vivo via GO-Global**, onde anti-aliasing/cor
+podem renderizar levemente diferente. Mantém o deslocamento calculado
+por pixel (a partir da âncora "LIVRO REGISTRO", medido no mesmo print)
+como plano B, caso o casamento de imagem não ache nada.
 
-**Corrigido:** todo caminho/nome de arquivo com parênteses virou
-variável, definida sozinha no topo do arquivo (linha própria, sem
-nenhum outro comando ou bloco) — daí pra frente só usa `%VARIAVEL%`,
-nunca o texto literal com parênteses, principalmente perto de
-`if`/`else`. Também tirei parênteses de dentro de texto de `echo`
-que ficava dentro de blocos (ex.: "(por)"), por segurança, mesmo sem
-certeza se aqueles especificamente causariam problema.
+**Atualização, mesma sessão:** implementada uma segunda opinião de OCR
+pra resolver a categoria "Iniciat"/"Finat" acima de vez — motor nativo
+do Windows (`Windows.Media.Ocr`, pacote `winocr`, grátis e local, sem
+chamada de rede), em `tela.achar_texto_windows()`, com a mesma
+interface de `tela.achar_texto()`. **Testado ao vivo** contra o print
+real desta investigação (não só por leitura): Tesseract não achou
+"Inicial" (palavra inteira) nesse recorte; o motor do Windows achou,
+de primeira, na posição certa (confirmada batendo com a medição manual
+de pixel feita antes). `preencher_periodo_livros_fiscais()` agora tenta
+Tesseract → OCR do Windows → prefixo truncado do Tesseract, nessa
+ordem, antes de desistir. A mesma segunda opinião também virou mais
+uma estratégia de retry (`OUTRO_MOTOR_OCR`) que a IA pode escolher em
+`achar_ou_parar()` — nunca troca o Tesseract como motor principal, só
+reforça quando ele falha. Depende do pacote de idioma Português do
+Windows estar instalado (confirmado presente nesta máquina,
+`OcrEngine.is_language_supported`); sem ele (ou sem o pacote `winocr`
+instalado), a função devolve `None` sem quebrar nada, mesmo padrão de
+funcionalidade opcional já usado pra `ia.disponivel()`.
 
-**Achado à parte, do mesmo teste:** dar duplo clique (ou "Executar
-como administrador") num `.bat` que falha faz a janela abrir e fechar
-rápido demais pra ler o erro — só digitando o comando dentro de um
-`cmd` já aberto (não um novo, aberto pelo próprio duplo clique) é que
-o erro fica visível. Vale lembrar isso em qualquer instrução futura de
-"roda esse .bat e me manda o erro".
+**Primeira execução real, 01/10/2026 — parcialmente confirmado:**
+navegação completa (Relatórios → Livros → Livros Fiscais), clique na
+caixa "Registro de Saídas" e preenchimento do período **confirmados
+funcionando** contra o Domínio real (inclusive a segunda opinião de
+OCR do Windows, que entrou em ação de verdade — Tesseract não achou
+"Inicial"/"Final" sozinho). Parou no cálculo do "OK": `achar_texto`
+direto por "OK" de fato não achou (confirma a suspeita, só por
+inspeção visual não dava pra saber com certeza), e o cálculo por
+"Fechar" também falhou — **causa raiz, não ambiguidade**: o recorte da
+área do diálogo (`recortar_a_partir_de`) usou a largura padrão de
+650px, herdada do diálogo (bem mais estreito) do SPED Fiscal; a tela
+"Livros Fiscais" é larga o bastante pra a coluna de botões
+OK/Fechar/Concluir Atividade ficar a ~900px do título, fora do recorte
+de 650px — cortava a coluna de botões inteira antes mesmo de tentar
+ler "Fechar". Corrigido aumentando a largura/altura do recorte pra
+1300×600 nesta chamada específica.
 
-### 0.59 Nome de arquivo acentuado corrompido ao ser usado dentro do próprio `.bat`
+**Segunda execução real, mesmo dia** (depois da correção acima): parou
+um passo antes do esperado — nem chegou a confirmar a caixa "Registro
+de Saídas", porque não achou o **título** "Livros Fiscais" logo depois
+de clicar no item de menu. O print de debug mostrou só a barra de menu
+do Domínio (Relatórios/Livros/Informativos ainda visíveis), não o
+diálogo — a tela "Livros Fiscais" simplesmente ainda não tinha
+terminado de abrir no momento em que o código checou. Causa raiz: o
+passo 4 (confirmar que a tela abriu) usava `time.sleep(2)` fixo +
+checagem única, em vez de **esperar por estado** — exatamente a
+categoria de erro que `esperar_e_achar()` já existe pra resolver desde
+o SPED Fiscal (seção 0.12), só não tinha sido reaproveitado nesta
+função nova ainda. Corrigido trocando pra `esperar_e_achar()` (até 15
+tentativas, 1s entre elas).
 
-Depois do fix da seção 0.58, novo erro real: "Windows não pode
-encontrar 'Abrir Interface Gr[caractere ilegível]áfica (Operador).bat'".
-A tela final de `Instalar.bat` guardava esse nome (com "á") numa
-variável pra abrir a interface no fim, e o "á" chegava corrompido no
-`start` — página de código do console não batendo com a codificação
-salva do arquivo. Achado diferente do "texto acentuado ilegível no
-`echo`" já conhecido: aqui o problema é numa operação real de arquivo,
-não só exibição na tela.
+**Terceira execução real, mesmo dia** (depois da segunda correção):
+passou de navegação, checkbox e período — chegou a clicar OK de
+verdade (o cálculo a partir de "Fechar", corrigido na execução
+anterior, funcionou). Parou numa caixa de aviso real do Domínio:
+**"Falta apurar saldo dos impostos neste intervalo de data!"** — a
+competência escolhida automaticamente (mês anterior ao atual, por
+data) ainda não teve a apuração de ICMS fechada no Domínio pra essa
+empresa. Achado conceitual importante: "mês anterior por calendário"
+não é o mesmo que "mês já apurado no Domínio" — pro Registro de
+Saídas (que mostra totais de ICMS) precisa de uma competência
+**realmente fechada**, não só a mais recente por data.
 
-**Corrigido:** eliminei a variável e o nome literal por completo — em
-vez de abrir o atalho pelo nome, `Instalar.bat` replica direto a
-lógica interna dele (`set DOMINIO_MODO=operador` + `start "" python
-scripts\gui.py`). Zero caractere acentuado em `Instalar.bat` a partir
-daqui (conferido por script, não só de olho outra vez).
+Duas correções: (1) `TITULOS_ERRO` não reconhecia o título "Aviso"
+sozinho (só "Atenção"/"Aviso Empresa") — por isso o motor ficaria
+martelando até 90s sem entender que era um aviso, em vez de reconhecer
+na hora; adicionado "Aviso" à lista. (2) Essa mensagem já estava
+prevista no catálogo de `app/erros.py` (decisão: PULAR), mas com um
+texto diferente do real ("saldo dos impostos não foram calculados",
+nunca confirmado ao vivo até agora) — adicionada a entrada com o texto
+**confirmado de verdade**: "falta apurar saldo dos impostos". Também
+corrigida a diferenciação de ação em `gerar_registro_saidas()` (antes
+tratava qualquer ação do catálogo igual, sempre desistindo — agora
+distingue CONTINUAR/TENTAR_DE_NOVO/PARAR_LOTE/PULAR, mesmo padrão de
+`gerar_sped()`).
 
-### 0.60 `Instalar.bat` vira arquivo único: pede administrador e baixa Git/Python/Tesseract/projeto sozinho
+Ainda falta: (a) re-testar com essas correções, (b) escolher, com o
+usuário, uma competência da empresa de teste que já tenha apuração de
+ICMS fechada no Domínio — não dá pra confiar na regra "mês anterior"
+pra esse relatório específico.
 
-Pedido do usuário: "se puder fazer ele puxar tudo de um arquivo só
-seria incrível" — um único `.bat`, colado numa pasta vazia, deixa a
-máquina pronta pra rodar a automação sem nenhum passo manual. É o
-nível de "software replicável" que o projeto vinha buscando: instalar
-significa deixar funcional, não só copiar arquivo.
+**Atualização após a 3ª execução real:** navegação, marcar a caixa,
+preencher período, clicar OK e abrir a pré-visualização — tudo
+confirmado contra o Domínio real. O ícone de exportar foi achado por
+casamento de imagem com confiança 1.0 — mas abriu **"Salvar em PDF"**,
+não Excel (suposição inicial errada, corrigida: formato de saída
+trocado pra `.pdf`, `app/verificacao.py` reescrito pra `pypdf` em vez
+de `xlrd`). A tentativa de salvar com extensão `.xls` num diálogo
+travado em `*.pdf` deu "Path does not exist." — corrigido gerando
+sempre nome com extensão `.pdf`, mais uma checagem defensiva desse
+aviso específico. **Ainda não confirmado**: se a correção de extensão
+resolve o salvamento de ponta a ponta — próximo passo é rodar de novo
+e confirmar que o arquivo .pdf aparece em disco com conteúdo
+reconhecível (`verificar_registro_saidas_pdf()`).
 
-Mecanismo:
-- Pede elevação de administrador uma vez, no início (`net session`
-  testa; `Start-Process -Verb RunAs` reabre o próprio arquivo já
-  elevado, se precisar) — instalar Git/Python/Tesseract pra máquina
-  toda exige isso.
-- Detecta cada ferramenta (`where`/caminho padrão) antes de tentar
-  instalar — nunca reinstala o que já existe.
-- Instala cada uma de forma silenciosa, com flags e versões
-  confirmadas por pesquisa (não chute):
-  - Git for Windows 2.55.0(5): `/VERYSILENT /NORESTART /NOCANCEL /SP-
-    /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`.
-  - Python 3.14.7: `/quiet InstallAllUsers=1 PrependPath=1
-    Include_test=0`.
-  - Tesseract (UB-Mannheim) 5.5.3.20260724: `/S` (instalador NSIS).
-- **Limitação confirmada** (issue aberta
-  `UB-Mannheim/tesseract#91`): o instalador silencioso do Tesseract
-  não deixa escolher pacote de idioma por linha de comando. Contornado
-  baixando `por.traineddata` direto (URL estável, branch `main` do
-  repositório `tessdata`) pra dentro da pasta `tessdata` da
-  instalação.
-- Se o projeto ainda não estiver na pasta (`app\dominio.py` não
-  existe), clona de `URL_REPO` antes de seguir.
+**Interface gráfica reescrita, mesmo dia** — pedido do usuário ("tá
+feia e sem tanta utilidade"): `scripts/gui.py` passou a usar
+`ttkbootstrap` (tema "flatly", skin plana moderna sobre o mesmo
+Tkinter de sempre, sem infraestrutura nova) e ganhou duas coisas que
+não existiam: aba "Histórico" (lista as últimas execuções, lidas de
+`app/historico.py` → `data/historico_execucoes.json`, novo, gitignored
+— com botão pra abrir o arquivo gerado ou a pasta de saída) e uma
+seção própria pro Registro de Saídas (campos de competência + botão),
+em vez de só os botões de "empresa já selecionada" que já existiam.
+Testado só visualmente (construção da janela real + print automático,
+seção descrita no histórico de conversa) — **nunca clicado de verdade
+contra o Domínio**, os botões por trás continuam os mesmos já
+documentados acima. Também corrigido um gap de LGPD encontrado nessa
+mesma revisão: `saida/` (pasta com os PDFs/arquivos gerados, pode
+conter dado fiscal real) não estava no `.gitignore` — adicionado.
 
-Ainda sem teste real de ponta a ponta nesta seção — mudança bem maior
-que qualquer `.bat` anterior deste projeto (elevação + três
-instalações silenciosas). Teste real e seu resultado: seção 0.61.
+**Pesquisa de priorização, mesmo dia** (pedido do usuário: "aprender
+os caminhos e o que deve ser útil em rotinas"): cruzando o que os
+próprios 57 agentes fiscais já documentam sobre obrigatoriedade por
+regime — SPED Fiscal "dispensado em geral" pro Simples Nacional
+(`06-sped-fiscal.md`) e EFD Contribuições só pra "Real/Presumido"
+(`32-efd-contribuicoes.md`) — com a composição real da carteira (23
+Simples, 15 Presumido, 3 Real): **as duas rotinas já prontas (SPED
+Fiscal, EFD Contribuições) não servem pras 23 empresas do Simples**,
+só pras 18 de Presumido/Real. O Registro de Saídas/Entradas (livro
+fiscal, não vinculado a regime) é a peça que mais fecha essa lacuna —
+confirma que a escolha de continuar nessa frente, em vez de trocar de
+rotina, está certa.
 
-### 0.61 Primeiro teste real do instalador único: download recusado pelo servidor (403), falha seguia sem avisar
-
-Teste pedido pelo próprio usuário, do jeito certo: pasta
-`teste-instalacao` esvaziada, só o `.bat` novo dentro, "como se fosse
-PC novo". Git já instalado nessa máquina, clone do projeto funcionou.
-Tesseract não encontrado → tentou baixar → **o servidor da
-UB-Mannheim recusou com 403 Forbidden** (bloqueio do lado do
-servidor, não erro de configuração local — provável filtro pelo
-identificador padrão do `Invoke-WebRequest`). Sem o instalador
-baixado, a linha seguinte tentou rodar um `.exe` que não existia —
-Windows mostrou popup de "não encontrado" no meio da instalação, sem
-nenhum aviso explicando o motivo real.
-
-**Corrigido:**
-- Todo download passa um `-UserAgent` de navegador comum (variável
-  isolada, `AGENTE_HTTP` — mesma regra da seção 0.58 pros parênteses
-  no valor).
-- Depois de cada download (Git, Python, Tesseract, idioma português,
-  clone do projeto), confere se o arquivo esperado existe antes de
-  tentar usá-lo — nunca mais assume que baixou só porque pediu. Falha
-  em Git/Python/Tesseract vira aviso com o link pra instalar manual e
-  o script segue; falha no clone do projeto para tudo (sem o projeto,
-  nada mais funciona).
-- Efeito colateral corrigido: se o Tesseract não foi baixado, o
-  script agora pula a checagem de idioma em vez de rodar um
-  `tesseract.exe` que não existe e mostrar o aviso errado ("encontrado,
-  mas sem idioma").
-
-Ainda não confirmado: se a instalação completa (Git + Python +
-Tesseract + idioma + projeto, tudo baixando do zero numa máquina de
-verdade) roda ponta a ponta sem nenhum outro bloqueio — este teste
-parou no primeiro download que falhou. Próximo teste do usuário decide
-isso.
-
-### 0.62 Segundo teste real: com o User-Agent corrigido, mesmo download falhou de outro jeito — TLS, não bloqueio
-
-Teste seguinte, mesma pasta: com a correção da seção 0.61 aplicada, o
-download do Tesseract falhou de novo, mas com erro diferente —
-"Invoke-WebRequest: Impossível conectar-se ao servidor remoto" (falha
-de conexão, não mais 403). `git clone` (GitHub) funcionou normal no
-mesmo teste — não é falta geral de internet, é algo específico desse
-host. Causa provável: PowerShell/.NET mais antigo às vezes não negocia
-TLS 1.2 por padrão, e esse servidor exige.
-
-**Corrigido:** toda chamada `Invoke-WebRequest` agora força
-`[Net.ServicePointManager]::SecurityProtocol = Tls12` antes do pedido
-(precisa repetir em cada uma — cada `powershell -Command` é um
-processo novo, a configuração não persiste entre eles). Além disso,
-cada download (Git, Python, Tesseract, idioma português) tenta até 3
-vezes, com 3s de espera entre tentativas, antes de cair no aviso de
-instalar manual — cobre falha de rede passageira em geral, não só a
-causa específica vista aqui.
-
-Ainda não confirmado: instalação completa ponta a ponta sem nenhum
-bloqueio. Dois testes reais seguidos pararam no mesmo download
-(Tesseract, servidor externo da UB-Mannheim) por dois motivos
-diferentes — não impossível que apareça um terceiro.
-
-### 0.63 `winget` baixa o mesmo Tesseract sem erro onde `Invoke-WebRequest` falhou duas vezes — vira o método preferido
-
-Pesquisei alternativa ao site da UB-Mannheim (não existe instalador
-Windows atualizado em nenhum outro lugar oficial — GitHub só tem o
-código-fonte, SourceForge só uma versão antiga, 3.02). A alternativa
-real não é outra URL, é outro cliente: pedi pro usuário testar `winget
-install --id UB-Mannheim.TesseractOCR -e --silent` na mesma máquina/
-rede onde `Invoke-WebRequest` tinha acabado de falhar duas vezes
-seguidas (seções 0.61/0.62) — **funcionou, baixou e instalou sem
-erro**. Confirma que o bloqueio é específico de como o PowerShell
-acessa aquele host (User-Agent/TLS/padrão de requisição), não da rede
-em geral nem do Tesseract em si.
-
-**Adicionado:** antes de cair no download direto, `Instalar.bat` agora
-testa `where winget` e, se existir, tenta `winget install --id
-UB-Mannheim.TesseractOCR -e --silent --accept-package-agreements
---accept-source-agreements` (os dois `--accept-*` evitam qualquer
-prompt na primeira vez que winget roda numa máquina). Confere se
-`tesseract.exe` apareceu no caminho padrão antes de seguir — nunca
-assume sucesso só pelo comando ter rodado. Só cai pro jeito antigo
-(`Invoke-WebRequest` com 3 tentativas, seções 0.60-0.62) se `winget`
-não existir ou não deixar o arquivo no lugar esperado — mantido como
-rede de segurança pra máquina sem `winget` (Windows mais antigo).
-
-Ainda não testado: se esse caminho winget se comporta igual quando
-rodado de dentro do `Instalar.bat` (elevado, sem interação) e não só
-digitado direto pelo usuário.
-
-### 0.64 Instalação completa rodou a automação de verdade — e achou um bug real de runtime: idioma português nunca baixado, sem aviso nenhum
-
-Marco: `Instalar.bat` (com o fix da seção 0.63) instalou tudo — Git,
-projeto, Python, Tesseract via winget — e a automação chegou a rodar
-de verdade contra empresas reais (`executar_lote`). Isso valida o
-objetivo original de "um arquivo só deixa pronto pra rodar".
-
-Erro real encontrado nessa mesma rodada: `pytesseract` falhou com
-"Error opening data file .../tessdata/por.traineddata ... Tesseract
-couldn't load any languages!" — o pacote de idioma nunca foi baixado,
-e **nenhum aviso apareceu na tela** durante a instalação (nem o de
-sucesso, nem o `AVISO` de falha). Evidência coletada antes de mexer no
-código, do jeito de sempre:
-- `dir` na pasta `tessdata`: só `eng`/`osd`, sem `por` — confirma que o
-  arquivo nunca chegou lá.
-- `echo %TESSDATA_PREFIX%` devolveu o nome da variável sem expandir —
-  confirma que não tem valor setado, não é caminho errado por causa
-  disso.
-
-Suspeita, sem reprodução local possível (sem Windows neste ambiente):
-a checagem antiga (`tesseract --list-langs 2>nul | findstr /i /x
-"por"`) depende de o Tesseract escrever essa lista no **stdout** — mas
-várias versões escrevem parte disso no **stderr**, que a própria linha
-descarta (`2>nul`) antes de chegar no pipe. Isso bastaria pra fazer a
-checagem sempre concluir "idioma ausente" (o que, nesse caso, até
-bateria com a realidade) ou o inverso, dependendo da versão — de um
-jeito ou de outro, é uma pergunta frágil demais pra decidir se baixa um
-arquivo.
-
-**Corrigido:** a checagem não roda mais `tesseract.exe` pra decidir
-nada. Pergunta direto ao sistema de arquivos: `por.traineddata` existe
-ou não existe em `Tesseract-OCR\tessdata` (só quando o Tesseract está
-no caminho padrão — fora dele, continua sem como confirmar, mesmo
-aviso de sempre). Mais simples e sem depender de interpretar saída de
-processo nenhum.
-
-Ainda não confirmado: se esse fix resolve de fato — pede um novo teste
-completo do zero (o usuário já indicou que vai desinstalar tudo de
-novo pra isso).
-
-### 0.65 Fix da seção 0.64 não resolveu — mesmo erro se repetiu; causa real era outra
-
-Teste do zero, com o fix da seção 0.64: **mesmo erro de novo**, idioma
-português faltando. Descartado por evidência real antes de mexer de
-novo: `TESSDATA_PREFIX` sem valor (não é a causa), e a comparação nova
-(existência do arquivo, não mais `--list-langs`) parecia correta lendo
-o código. Achei o bug relendo a lógica com calma, sem precisar de novo
-teste: a seção 0.64 comparava `TESSERACT_EXE` com
-`CAMINHO_TESSERACT_PADRAO` **como texto**, pra decidir se sabia onde
-ficava a pasta `tessdata`. Mas quando o Tesseract está no `PATH` do
-Windows — exatamente o que acontece depois de instalar via winget —
-`TESSERACT_EXE` vira só a palavra `tesseract` (resolvido pelo próprio
-Windows na hora de rodar), nunca o caminho completo. Essa comparação
-**nunca bate, mesmo com o Tesseract instalado no lugar certo**, e o
-script caía direto no aviso de "fora do lugar padrão" sem nunca tentar
-baixar o idioma — silencioso o bastante pra passar despercebido.
-
-**Corrigido:** parou de comparar com `TESSERACT_EXE` pra decidir onde
-fica a `tessdata`. Agora checa direto no disco quais dos dois caminhos
-padrão (`Program Files` / `Program Files (x86)`) realmente têm
-`tesseract.exe`, guarda a pasta `tessdata` correspondente numa
-variável própria (`TESSDATA_REAL`), e usa só ela daqui pra frente —
-funciona igual estando o Tesseract no `PATH` ou não.
-
-Lição registrada: dessa vez o bug foi achado **sem precisar de um
-terceiro teste real** — só de reler a lógica com mais calma depois de
-ela falhar do mesmo jeito duas vezes. Vale sempre tentar isso antes de
-pedir mais um teste do usuário.
+Generalização de baixo custo, mesmo dia: `gerar_registro_saidas()`
+virou um wrapper fino sobre uma função interna genérica
+(`_gerar_livro_fiscal()`), e ganhou um irmão, `gerar_registro_entradas()`
+— mesma tela, mesmo mecanismo (OK calculado, pré-visualização, ícone
+de exportar, "Salvar em PDF"), só muda qual caixa marcar na aba Geral.
+**"Registro de Entradas" nunca rodou contra o Domínio real** — é só
+generalização de código, o deslocamento do checkbox (calibrado pra
+"Registro de Saídas") pode precisar de ajuste fino quando for testado
+pela primeira vez. `app/verificacao.py` também generalizado
+(`verificar_livro_fiscal_pdf()`, com `verificar_registro_saidas_pdf()`
+como wrapper de compatibilidade). Interface gráfica ganhou um combo
+"Registro de Saídas"/"Registro de Entradas" na mesma seção, em vez de
+dois botões separados.
 
 ---
 

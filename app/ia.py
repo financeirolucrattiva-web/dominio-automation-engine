@@ -256,6 +256,11 @@ ESTRATEGIAS_RETRY = {
                         "tela inteira se perde.",
     "NOVA_TELA": "Tira um novo print e tenta de novo — ajuda se a tela "
                  "ainda estava mudando/repintando.",
+    "OUTRO_MOTOR_OCR": "Tenta de novo a mesma busca com o motor de OCR "
+                       "nativo do Windows em vez do Tesseract — ajuda "
+                       "quando o texto existe e está legível, mas o "
+                       "Tesseract especificamente lê errado (ex.: troca "
+                       "de letra no fim da palavra).",
     "DESISTIR": "Não tenta de novo — deixa como falha, pra uma pessoa "
                 "olhar.",
 }

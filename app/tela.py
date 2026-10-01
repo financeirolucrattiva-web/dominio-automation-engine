@@ -11,7 +11,8 @@ suposição:
   tons de cinza. Texto da barra de menu externa (fundo cinza claro) lê
   direto, sem precisar disso.
 - Ícone (sem texto) não é achado por OCR — precisa de casamento de
-  imagem (ainda não implementado aqui).
+  imagem (`achar_icone()`, seção 0.57 — implementado, ainda não
+  confirmado contra o Domínio real).
 """
 
 import ctypes
@@ -163,6 +164,72 @@ def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
 
     if debug:
         print("Palavras vistas:", [dados["text"][i].strip() for i in indices_validos])
+    return None
+
+
+def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lang="pt"):
+    """Mesma interface de `achar_texto()` (mesmo recorte/escala, mesma
+    busca por substring em janelas de 1..`max_palavras` palavras
+    consecutivas, mesmo retorno `(x, y)` já na escala da imagem
+    original, ou `None`), mas usa o motor de OCR **nativo do Windows**
+    (`Windows.Media.Ocr`, pacote `winocr`) em vez do Tesseract.
+
+    Serve de **segunda opinião**, não de substituto: o Tesseract já tem
+    muito ajuste fino acumulado neste projeto (seções 0.3/0.7) e
+    continua sendo o motor principal. Esta função existe pra quando
+    `achar_texto()` falha num texto que devia estar visível — achado
+    real medido nesta mesma investigação (seção 0.57): o Tesseract leu
+    "Inicial"/"Final" (rótulos da tela "Livros Fiscais") como
+    "Iniciat"/"Finat" (troca de "l" por "t"); o motor do Windows leu os
+    dois certos, de primeira, no mesmo recorte — sem precisar do truque
+    de buscar só o prefixo comum ("Inicia"/"Fina") que o resto do
+    código usa pra contornar esse tipo de erro.
+
+    Precisa do pacote `winocr` instalado (`pip install winocr`) e do
+    pacote de idioma Português do Windows (Configurações → Hora e
+    Idioma → Idioma → Adicionar um idioma → Português) — se qualquer
+    um dos dois faltar, devolve `None` em vez de quebrar (mesmo padrão
+    de `ia.disponivel()`: funcionalidade opcional, o motor principal
+    continua funcionando sem ela).
+    """
+    try:
+        import winocr
+    except ImportError:
+        if debug:
+            print("winocr não instalado — pulando segunda opinião do OCR do Windows.")
+        return None
+
+    imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
+
+    try:
+        resultado = winocr.recognize_pil_sync(imagem_ocr, lang=lang)
+    except Exception as erro:
+        if debug:
+            print(f"OCR do Windows falhou: {erro!r}")
+        return None
+
+    palavras = [
+        (palavra["text"], palavra["bounding_rect"])
+        for linha in resultado["lines"]
+        for palavra in linha["words"]
+    ]
+    alvo_lower = alvo.lower()
+
+    for tam in range(1, max_palavras + 1):
+        for ini in range(len(palavras) - tam + 1):
+            janela = palavras[ini : ini + tam]
+            texto = " ".join(p[0] for p in janela)
+            if alvo_lower in texto.lower():
+                esquerdas = [r["x"] for _, r in janela]
+                topos = [r["y"] for _, r in janela]
+                direitas = [r["x"] + r["width"] for _, r in janela]
+                baixos = [r["y"] + r["height"] for _, r in janela]
+                x_centro = (min(esquerdas) + max(direitas)) / 2
+                y_centro = (min(topos) + max(baixos)) / 2
+                return int(x_centro // escala), int(y_centro // escala)
+
+    if debug:
+        print("OCR do Windows não achou:", repr(alvo), "— palavras vistas:", [p[0] for p in palavras])
     return None
 
 
@@ -350,6 +417,55 @@ def recortar_a_partir_de(imagem, x, y, largura=650, altura=420, margem_cima=20, 
     direita = min(imagem.width, x + largura)
     baixo = min(imagem.height, y + altura)
     return imagem.crop((esquerda, topo, direita, baixo)), esquerda, topo
+
+
+def achar_icone(imagem, caminho_template, limiar=0.75, debug=False):
+    """Acha um ícone (sem texto, impossível achar por OCR — ver aviso
+    no topo deste arquivo) por casamento de imagem (`cv2.matchTemplate`),
+    não por leitura de texto.
+
+    `caminho_template`: caminho de um recorte pequeno e já salvo do
+    ícone (ex.: `app/icones/exportar_excel.png`), recortado uma única
+    vez a partir de um print real — ver seção 0.57 do documento pra
+    como esse recorte foi feito e calibrado.
+
+    `limiar` (0 a 1, padrão 0.75): confiança mínima do casamento pra
+    aceitar — `cv2.TM_CCOEFF_NORMED` devolve 1.0 pra um casamento
+    perfeito. Calibrado conservador de propósito: melhor devolver
+    `None` (e quem chamou decide o que fazer, ex.: cair pra um
+    deslocamento calculado como plano B) do que aceitar um casamento
+    fraco e clicar no lugar errado.
+
+    Devolve o centro `(x, y)` do melhor casamento, ou `None` se nada
+    passou do limiar. **Ainda não confirmado contra o Domínio real**
+    (só testado com template recortado de um print estático) — o
+    ícone pode renderizar com leve diferença de cor/anti-aliasing na
+    tela ao vivo via GO-Global, o que pode exigir ajustar `limiar` pra
+    baixo depois do primeiro teste real.
+    """
+    import cv2
+    import numpy as np
+
+    template = cv2.imread(str(caminho_template))
+    if template is None:
+        if debug:
+            print(f"Não consegui abrir o template: {caminho_template}")
+        return None
+
+    alvo = cv2.cvtColor(np.array(imagem.convert("RGB")), cv2.COLOR_RGB2BGR)
+    resultado = cv2.matchTemplate(alvo, template, cv2.TM_CCOEFF_NORMED)
+    _, confianca, _, local_max = cv2.minMaxLoc(resultado)
+
+    if debug:
+        print(f"achar_icone({Path(caminho_template).name}): confiança={confianca:.3f} (limiar={limiar})")
+
+    if confianca < limiar:
+        return None
+
+    th, tw = template.shape[:2]
+    x_centro = local_max[0] + tw // 2
+    y_centro = local_max[1] + th // 2
+    return x_centro, y_centro
 
 
 def salvar(imagem, caminho):
