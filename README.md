@@ -91,11 +91,13 @@ GitHub — ele já confere/instala dependência nova sozinho
 (`pip install -r requirements.txt`), não precisa rodar isso à parte.
 
 **Novo, ainda em teste:** `Abrir Interface Gráfica.bat` — mesmas ações,
-em janela com botão em vez de menu numerado, e o andamento aparece
-numa caixa de texto na própria janela (seção 0.33 do documento). Não
-substitui `Abrir Motor SPED.bat` ainda — os dois convivem até a
-interface gráfica ser validada contra o Domínio real pela primeira
-vez.
+em janela com botão em vez de menu numerado, visual modernizado
+(`ttkbootstrap`), abas "Rotinas"/"Histórico" (lista as últimas
+execuções, com botão pra abrir o arquivo gerado ou a pasta de saída —
+seção 0.57 do documento), e o andamento aparece numa caixa de texto na
+própria janela. Não substitui `Abrir Motor SPED.bat` ainda — os dois
+convivem até a interface gráfica ser validada contra o Domínio real
+pela primeira vez.
 
 Precisa de `data/empresas.csv` (separado por `;`) pras opções de lote —
 copie `data/empresas.exemplo.csv` e preencha com as empresas de
@@ -117,11 +119,20 @@ Cada opção do menu também roda direto por comando, se preferir:
 ```bash
 python scripts\explorar.py               # gera o SPED Fiscal (ICMS) na empresa já selecionada
 python scripts\explorar_contribuicoes.py # gera a EFD Contribuições na empresa já selecionada
+python scripts\explorar_registro_saidas.py # gera o Livro Registro de Saídas (ver aviso abaixo)
 python scripts\trocar_empresa.py         # troca de empresa via F8 (código fixo no arquivo)
 python scripts\selecionar_empresas.py    # só carrega e filtra a lista por regime, não roda nada
 python scripts\executar_lote.py          # troca de empresa + gera, para cada empresa de um regime
 python scripts\executar_lote.py --real   # idem, mas com data/empresas.csv (planilha real)
 ```
+
+**`explorar_registro_saidas.py` parcialmente testado contra o Domínio
+real** (seção 0.57 do documento, 3 execuções em 01/10/2026) —
+navegação, marcar "Registro de Saídas", preencher período e clicar OK
+já confirmados; falta confirmar a exportação completa pra PDF (ícone
+achado por casamento de imagem, confiança 1.0, mas a geração do
+arquivo em disco ainda não terminou numa execução real). Rode com
+atenção, leia o log, e espere precisar de mais algum ajuste.
 
 `explorar.py` navega Relatórios → Informativos → Federais → SPED
 Fiscal, clica OK, confirma o aviso "Final da exportação." e fecha a
@@ -158,10 +169,11 @@ documento):
   técnico, a partir só de código de empresa e resultado (nunca o
   apelido).
 - **Nova tentativa quando uma busca de texto na tela falha**
-  (`achar_ou_parar()`) — a IA escolhe entre 4 técnicas de releitura já
-  usadas neste projeto (mais zoom, recorte central, print novo, ou
-  desistir); nunca escreve código nem decide onde clicar — só como ler
-  a tela de novo. Até 2 tentativas antes de desistir de vez.
+  (`achar_ou_parar()`) — a IA escolhe entre 5 técnicas de releitura já
+  usadas neste projeto (mais zoom, recorte central, print novo, OCR
+  nativo do Windows como segunda opinião, ou desistir); nunca escreve
+  código nem decide onde clicar — só como ler a tela de novo. Até 2
+  tentativas antes de desistir de vez.
 - **Palpite final**, se nem assim resolver — hipótese em texto do que
   pode ter acontecido, pra ajudar a corrigir à mão.
 
@@ -201,6 +213,11 @@ Os três somem sozinhos sem chave configurada, sem afetar o resto.
   precisar, consulta `app/ia.py`.
 - `app/ia.py` — chamada à API da Anthropic (Claude Haiku), só com
   texto anonimizado, resposta restrita a uma lista fechada de ações.
+- `app/historico.py` — registro local de cada execução rodada pela
+  interface gráfica (`data/historico_execucoes.json`, gitignored),
+  consultado na aba "Histórico" (seção 0.57).
+- `app/verificacao.py` — confere o conteúdo de um arquivo exportado
+  (empresa/período batem com o esperado), não só se o arquivo existe.
 - `scripts/explorar.py` — gera o SPED Fiscal numa empresa só (a que já
   estiver selecionada no Domínio).
 - `scripts/trocar_empresa.py` — troca a empresa selecionada via F8.
@@ -210,8 +227,13 @@ Os três somem sozinhos sem chave configurada, sem afetar o resto.
   pra cada empresa do regime escolhido.
 - `scripts/app.py` — menu único (texto) que reúne as opções acima; é o
   que `Abrir Motor SPED.bat` roda.
-- `scripts/gui.py` — mesmas ações, em janela (Tkinter); é o que
-  `Abrir Interface Gráfica.bat` roda (seção 0.33, ainda em teste).
+- `scripts/explorar_registro_saidas.py` — gera o Livro Registro de
+  Saídas numa empresa só (ver aviso na seção "Scripts individuais"
+  acima — parcialmente validado).
+- `scripts/gui.py` — mesmas ações, em janela (`ttkbootstrap`, abas
+  Rotinas/Histórico); é o que `Abrir Interface Gráfica.bat` roda
+  (seção 0.33, reescrita visualmente na seção 0.57 — ainda em teste
+  contra o Domínio real).
 - `scripts/gravar.py` — grava clique manual no Domínio e gera o
   rascunho de uma automação nova (seção 0.35; pipeline completo
   validado de ponta a ponta na seção 0.47) — gera rascunho pra

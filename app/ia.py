@@ -65,6 +65,13 @@ def _chave_api():
         return None
 
 
+def obter_chave_api():
+    """Versão pública de `_chave_api()` — reaproveitada por `app/visao.py`
+    pra não duplicar a lógica de onde a chave mora (variável de ambiente
+    ou `data/chave_api.txt`)."""
+    return _chave_api()
+
+
 def _registrar(texto, resultado):
     try:
         PASTA_DADOS.mkdir(parents=True, exist_ok=True)
@@ -256,6 +263,19 @@ ESTRATEGIAS_RETRY = {
                         "tela inteira se perde.",
     "NOVA_TELA": "Tira um novo print e tenta de novo — ajuda se a tela "
                  "ainda estava mudando/repintando.",
+    "OUTRO_MOTOR_OCR": "Tenta de novo a mesma busca com o motor de OCR "
+                       "nativo do Windows em vez do Tesseract — ajuda "
+                       "quando o texto existe e está legível, mas o "
+                       "Tesseract especificamente lê errado (ex.: troca "
+                       "de letra no fim da palavra).",
+    "VISAO_IA": "Última tentativa, mais lenta e só usada se as outras "
+                "falharem: pergunta pra um modelo de IA com visão onde "
+                "está o elemento, na mesma imagem. Útil quando o "
+                "elemento é um ícone sem texto, ou quando o texto "
+                "existe mas nenhum motor de OCR consegue ler (ex.: "
+                "'OK' de 2 letras). A imagem só é enviada se uma "
+                "verificação local não achar nada que pareça dado real "
+                "de empresa nela — pode ser recusada automaticamente.",
     "DESISTIR": "Não tenta de novo — deixa como falha, pra uma pessoa "
                 "olhar.",
 }

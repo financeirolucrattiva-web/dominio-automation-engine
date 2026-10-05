@@ -13,6 +13,7 @@ data/*
 logs/
 screenshots/
 capturas/
+saida/
 
 # SO
 .DS_Store

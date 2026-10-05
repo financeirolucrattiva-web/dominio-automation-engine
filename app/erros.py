@@ -72,6 +72,14 @@ ERROS_CONHECIDOS = {
     # período" (só OK) — decisão do usuário: apertar OK mas não gerar
     # sem a apuração feita, pular a empresa pra revisão.
     "saldo dos impostos nao foram calculados": PULAR,
+    # Seção 0.57, texto CONFIRMADO ao vivo (a entrada acima era um
+    # texto antecipado, nunca visto de verdade até agora — a redação
+    # real é diferente): "Falta apurar saldo dos impostos neste
+    # intervalo de data!" — visto na tela "Livros Fiscais" ao marcar
+    # "Registro de Saídas" numa competência cuja apuração de ICMS
+    # ainda não foi fechada no Domínio. Mesma decisão: PULAR, nunca
+    # força a geração sem a apuração feita.
+    "falta apurar saldo dos impostos": PULAR,
 }
 
 # Textos conhecidos de caixa Sim/Não onde o botão certo pra fechar

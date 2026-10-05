@@ -2269,6 +2269,273 @@ realmente não tem.
 de C: ou fora de Program Files de propósito — nesse caso o aviso da
 seção 0.55 ainda aparece, com a saída manual (`tesseract_caminho.txt`).
 
+### 0.57 Primeira rotina nova fora do SPED: Registro de Saídas (Livro Fiscal) — caminho mapeado por print, implementado, ainda não executado
+
+Pedido do usuário (escopo diferente do SPED Fiscal/EFD Contribuições):
+exportar o relatório de notas de saída (Livro Registro de Saídas) pra
+uma empresa do Simples Nacional, com competência já conferida
+manualmente. Mapeado por uma sequência de 4 prints reais enviados
+nesta conversa (não por suposição) — cada um pedido depois do anterior,
+só a próxima tela necessária:
+
+1. `Relatórios → Livros → Livros Fiscais` abre uma tela **com abas**
+   (Geral, Termos, Entradas, Saídas, ICMS, IPI, ISS, Inventário...) —
+   estrutura bem diferente do formulário único do SPED Fiscal.
+2. Na aba Geral: lista de caixas de seleção (uma por livro —
+   "Registro de Entradas", "Registro de Saídas", "Registro de ICMS"
+   etc.) + campos "Inicial"/"Final" (não "Data inicial"/"Data final"
+   como no SPED).
+3. OK abre uma **pré-visualização de livro impresso** (não uma caixa
+   de confirmação de texto) — identificada pelo corpo mostrar
+   "LIVRO REGISTRO DE SAÍDAS - RS - MODELO P2" e os dados reais da
+   empresa (confirmado contra a SPRAYAGRO CONSULTORIA LTDA, Lucro
+   Presumido — não é a empresa-alvo do piloto, serviu só pra mapear o
+   caminho, já que gerar esse relatório não altera nenhum dado).
+4. A pré-visualização tem uma barra de ferramentas vertical **só com
+   ícones, sem texto** — um deles (confirmado "X" verde, estilo
+   Excel) abre um diálogo **nativo do Windows** ("Selecione o
+   arquivo"/"Save as") com campo de nome de arquivo editável e tipo já
+   em "Arquivos do Excel (*.xls)".
+
+**Dois achados técnicos novos, por medição de pixel nos próprios
+prints** (não por execução — ver ressalva abaixo):
+
+- **OCR lê "Inicial"/"Final" como "Iniciat"/"Finat"** nesta tela, na
+  escala usada (2x) — troca de "l" por "t" no fim da palavra, mesma
+  categoria de erro já vista noutro lugar ("SPED Fiscal" → "spEo",
+  seção 0.26). Corrigido buscando só o prefixo comum "Inicia"/"Fina",
+  mesmo padrão já usado pra "Informativ" em `gerar_sped()`.
+- **O diálogo "Salvar como" desta tela é nativo do Windows**, não
+  desenhado pelo Domínio — confirmado porque mostra pastas reais em
+  inglês ("Downloads", "Desktop", "This PC"), ao contrário do resto da
+  interface (português, desenhada pelo Domínio). Isso simplifica bastante
+  essa etapa: aceita caminho completo digitado direto no campo de nome,
+  e a confirmação de sucesso pode ser feita **checando o arquivo no
+  disco** (existe + tamanho > 0) em vez de OCR — primeira vez neste
+  projeto que a verificação de sucesso não depende de ler a tela.
+
+**Ícone sem texto — primeira vez que o projeto implementa casamento de
+imagem** (`tela.achar_icone()`, `cv2.matchTemplate`, reaproveitando o
+`opencv-python` que já estava no `requirements.txt` mas nunca tinha
+sido usado): recorte do ícone "exportar" salvo em
+`app/icones/exportar_excel.png` (a partir do mesmo print real usado
+pra mapear o caminho), casado contra a tela ao vivo com limiar de
+confiança 0.75 — testado só contra o print estático de onde veio o
+recorte (confiança 1.0, esperado, é a mesma imagem), **ainda não
+testado contra a tela ao vivo via GO-Global**, onde anti-aliasing/cor
+podem renderizar levemente diferente. Mantém o deslocamento calculado
+por pixel (a partir da âncora "LIVRO REGISTRO", medido no mesmo print)
+como plano B, caso o casamento de imagem não ache nada.
+
+**Atualização, mesma sessão:** implementada uma segunda opinião de OCR
+pra resolver a categoria "Iniciat"/"Finat" acima de vez — motor nativo
+do Windows (`Windows.Media.Ocr`, pacote `winocr`, grátis e local, sem
+chamada de rede), em `tela.achar_texto_windows()`, com a mesma
+interface de `tela.achar_texto()`. **Testado ao vivo** contra o print
+real desta investigação (não só por leitura): Tesseract não achou
+"Inicial" (palavra inteira) nesse recorte; o motor do Windows achou,
+de primeira, na posição certa (confirmada batendo com a medição manual
+de pixel feita antes). `preencher_periodo_livros_fiscais()` agora tenta
+Tesseract → OCR do Windows → prefixo truncado do Tesseract, nessa
+ordem, antes de desistir. A mesma segunda opinião também virou mais
+uma estratégia de retry (`OUTRO_MOTOR_OCR`) que a IA pode escolher em
+`achar_ou_parar()` — nunca troca o Tesseract como motor principal, só
+reforça quando ele falha. Depende do pacote de idioma Português do
+Windows estar instalado (confirmado presente nesta máquina,
+`OcrEngine.is_language_supported`); sem ele (ou sem o pacote `winocr`
+instalado), a função devolve `None` sem quebrar nada, mesmo padrão de
+funcionalidade opcional já usado pra `ia.disponivel()`.
+
+**Primeira execução real, 01/10/2026 — parcialmente confirmado:**
+navegação completa (Relatórios → Livros → Livros Fiscais), clique na
+caixa "Registro de Saídas" e preenchimento do período **confirmados
+funcionando** contra o Domínio real (inclusive a segunda opinião de
+OCR do Windows, que entrou em ação de verdade — Tesseract não achou
+"Inicial"/"Final" sozinho). Parou no cálculo do "OK": `achar_texto`
+direto por "OK" de fato não achou (confirma a suspeita, só por
+inspeção visual não dava pra saber com certeza), e o cálculo por
+"Fechar" também falhou — **causa raiz, não ambiguidade**: o recorte da
+área do diálogo (`recortar_a_partir_de`) usou a largura padrão de
+650px, herdada do diálogo (bem mais estreito) do SPED Fiscal; a tela
+"Livros Fiscais" é larga o bastante pra a coluna de botões
+OK/Fechar/Concluir Atividade ficar a ~900px do título, fora do recorte
+de 650px — cortava a coluna de botões inteira antes mesmo de tentar
+ler "Fechar". Corrigido aumentando a largura/altura do recorte pra
+1300×600 nesta chamada específica.
+
+**Segunda execução real, mesmo dia** (depois da correção acima): parou
+um passo antes do esperado — nem chegou a confirmar a caixa "Registro
+de Saídas", porque não achou o **título** "Livros Fiscais" logo depois
+de clicar no item de menu. O print de debug mostrou só a barra de menu
+do Domínio (Relatórios/Livros/Informativos ainda visíveis), não o
+diálogo — a tela "Livros Fiscais" simplesmente ainda não tinha
+terminado de abrir no momento em que o código checou. Causa raiz: o
+passo 4 (confirmar que a tela abriu) usava `time.sleep(2)` fixo +
+checagem única, em vez de **esperar por estado** — exatamente a
+categoria de erro que `esperar_e_achar()` já existe pra resolver desde
+o SPED Fiscal (seção 0.12), só não tinha sido reaproveitado nesta
+função nova ainda. Corrigido trocando pra `esperar_e_achar()` (até 15
+tentativas, 1s entre elas).
+
+**Terceira execução real, mesmo dia** (depois da segunda correção):
+passou de navegação, checkbox e período — chegou a clicar OK de
+verdade (o cálculo a partir de "Fechar", corrigido na execução
+anterior, funcionou). Parou numa caixa de aviso real do Domínio:
+**"Falta apurar saldo dos impostos neste intervalo de data!"** — a
+competência escolhida automaticamente (mês anterior ao atual, por
+data) ainda não teve a apuração de ICMS fechada no Domínio pra essa
+empresa. Achado conceitual importante: "mês anterior por calendário"
+não é o mesmo que "mês já apurado no Domínio" — pro Registro de
+Saídas (que mostra totais de ICMS) precisa de uma competência
+**realmente fechada**, não só a mais recente por data.
+
+Duas correções: (1) `TITULOS_ERRO` não reconhecia o título "Aviso"
+sozinho (só "Atenção"/"Aviso Empresa") — por isso o motor ficaria
+martelando até 90s sem entender que era um aviso, em vez de reconhecer
+na hora; adicionado "Aviso" à lista. (2) Essa mensagem já estava
+prevista no catálogo de `app/erros.py` (decisão: PULAR), mas com um
+texto diferente do real ("saldo dos impostos não foram calculados",
+nunca confirmado ao vivo até agora) — adicionada a entrada com o texto
+**confirmado de verdade**: "falta apurar saldo dos impostos". Também
+corrigida a diferenciação de ação em `gerar_registro_saidas()` (antes
+tratava qualquer ação do catálogo igual, sempre desistindo — agora
+distingue CONTINUAR/TENTAR_DE_NOVO/PARAR_LOTE/PULAR, mesmo padrão de
+`gerar_sped()`).
+
+Ainda falta: (a) re-testar com essas correções, (b) escolher, com o
+usuário, uma competência da empresa de teste que já tenha apuração de
+ICMS fechada no Domínio — não dá pra confiar na regra "mês anterior"
+pra esse relatório específico.
+
+**Atualização após a 3ª execução real:** navegação, marcar a caixa,
+preencher período, clicar OK e abrir a pré-visualização — tudo
+confirmado contra o Domínio real. O ícone de exportar foi achado por
+casamento de imagem com confiança 1.0 — mas abriu **"Salvar em PDF"**,
+não Excel (suposição inicial errada, corrigida: formato de saída
+trocado pra `.pdf`, `app/verificacao.py` reescrito pra `pypdf` em vez
+de `xlrd`). A tentativa de salvar com extensão `.xls` num diálogo
+travado em `*.pdf` deu "Path does not exist." — corrigido gerando
+sempre nome com extensão `.pdf`, mais uma checagem defensiva desse
+aviso específico. **Ainda não confirmado**: se a correção de extensão
+resolve o salvamento de ponta a ponta — próximo passo é rodar de novo
+e confirmar que o arquivo .pdf aparece em disco com conteúdo
+reconhecível (`verificar_registro_saidas_pdf()`).
+
+**Interface gráfica reescrita, mesmo dia** — pedido do usuário ("tá
+feia e sem tanta utilidade"): `scripts/gui.py` passou a usar
+`ttkbootstrap` (tema "flatly", skin plana moderna sobre o mesmo
+Tkinter de sempre, sem infraestrutura nova) e ganhou duas coisas que
+não existiam: aba "Histórico" (lista as últimas execuções, lidas de
+`app/historico.py` → `data/historico_execucoes.json`, novo, gitignored
+— com botão pra abrir o arquivo gerado ou a pasta de saída) e uma
+seção própria pro Registro de Saídas (campos de competência + botão),
+em vez de só os botões de "empresa já selecionada" que já existiam.
+Testado só visualmente (construção da janela real + print automático,
+seção descrita no histórico de conversa) — **nunca clicado de verdade
+contra o Domínio**, os botões por trás continuam os mesmos já
+documentados acima. Também corrigido um gap de LGPD encontrado nessa
+mesma revisão: `saida/` (pasta com os PDFs/arquivos gerados, pode
+conter dado fiscal real) não estava no `.gitignore` — adicionado.
+
+**Pesquisa de priorização, mesmo dia** (pedido do usuário: "aprender
+os caminhos e o que deve ser útil em rotinas"): cruzando o que os
+próprios 57 agentes fiscais já documentam sobre obrigatoriedade por
+regime — SPED Fiscal "dispensado em geral" pro Simples Nacional
+(`06-sped-fiscal.md`) e EFD Contribuições só pra "Real/Presumido"
+(`32-efd-contribuicoes.md`) — com a composição real da carteira (23
+Simples, 15 Presumido, 3 Real): **as duas rotinas já prontas (SPED
+Fiscal, EFD Contribuições) não servem pras 23 empresas do Simples**,
+só pras 18 de Presumido/Real. O Registro de Saídas/Entradas (livro
+fiscal, não vinculado a regime) é a peça que mais fecha essa lacuna —
+confirma que a escolha de continuar nessa frente, em vez de trocar de
+rotina, está certa.
+
+Generalização de baixo custo, mesmo dia: `gerar_registro_saidas()`
+virou um wrapper fino sobre uma função interna genérica
+(`_gerar_livro_fiscal()`), e ganhou um irmão, `gerar_registro_entradas()`
+— mesma tela, mesmo mecanismo (OK calculado, pré-visualização, ícone
+de exportar, "Salvar em PDF"), só muda qual caixa marcar na aba Geral.
+**"Registro de Entradas" nunca rodou contra o Domínio real** — é só
+generalização de código, o deslocamento do checkbox (calibrado pra
+"Registro de Saídas") pode precisar de ajuste fino quando for testado
+pela primeira vez. `app/verificacao.py` também generalizado
+(`verificar_livro_fiscal_pdf()`, com `verificar_registro_saidas_pdf()`
+como wrapper de compatibilidade). Interface gráfica ganhou um combo
+"Registro de Saídas"/"Registro de Entradas" na mesma seção, em vez de
+dois botões separados.
+
+---
+
+### 0.58 Complemento de percepção pedido pelo usuário: mais uma técnica sem IA (ORB) + fingerprint de tela pra velocidade + exceção controlada pra visão por IA como último recurso
+
+Pedido do usuário (05/10/2026), depois do diagnóstico de arquitetura
+(seção anterior desta conversa, não numerada no documento): "complemente
+o OCR com identificação visual de outra forma, pelo menos mais uma
+técnica, pra esse RPA funcionar bem e mais rápido." Três entregas:
+
+**1. `tela.achar_icone_orb()` + `achar_icone_robusto()`** — segunda
+técnica de casamento de ícone, por características (ORB), não só por
+correlação de pixel (`achar_icone()`, que já tinha a ressalva própria:
+"o ícone pode renderizar com leve diferença de cor/anti-aliasing na
+tela ao vivo via GO-Global"). `achar_icone_robusto()` tenta pixel
+primeiro, cai pra ORB só se o primeiro falhar — nenhum código existente
+quebra, é aditivo. **Ainda não testado contra o Domínio real** (mesma
+limitação de sempre deste ambiente de desenvolvimento) — calibrar
+`minimo_bons` depois do primeiro uso real.
+
+**2. `tela.assinatura_tela()` + `tela.tela_mudou()`** — "impressão
+digital" barata da tela (average hash 8×8, só Pillow, sem dependência
+nova) usada em `dominio.esperar_e_achar()` pra pular OCR (a parte mais
+lenta de cada tentativa de espera) quando a tela não mudou nada desde a
+tentativa anterior — rodar OCR de novo sobre uma imagem idêntica nunca
+muda a resposta. **Testado por lógica pura neste ambiente** (imagens
+sintéticas: assinatura igual pra imagem idêntica, diferente pra imagem
+bem distinta, `tela_mudou(None, ...)` sempre True na primeira tentativa)
+— comportamento confirmado correto; impacto real de velocidade só
+confirma contra o Domínio de verdade.
+
+**3. `app/visao.py` — fallback de visão por IA, exceção controlada.**
+O usuário escolheu explicitamente (pergunta direta, não decisão minha)
+abrir uma exceção à regra "nunca manda print pra IA" (seção 5.5),
+restrita a: só como último recurso (depois de OCR e OpenCV falharem,
+nova entrada `VISAO_IA` em `ia.ESTRATEGIAS_RETRY`, mesmo padrão fechado
+de sempre); resposta sempre em formato fechado (coordenada ou estado,
+nunca ação); toda imagem enviada fica salva local em
+`data/visao_enviado/` pra auditoria. A trava central é
+`visao._contem_dado_sensivel()` — roda OCR local na imagem antes de
+decidir se envia.
+
+**Achado real, testando a própria trava** (05/10/2026): a primeira
+versão reaproveitava só `erros.anonimizar()` pra decidir o que é dado
+sensível — mas aquela função, de propósito (comentário no próprio
+código), NÃO mascara um texto 100% em maiúsculo, pra não apagar a
+mensagem inteira de uma caixa de erro. Testei com o texto
+`"SPRAYAGRO CONSULTORIA LTDA"` (nome de empresa real já usado neste
+documento, seção 0.57) e `anonimizar()` sozinho **não barrou** — esse é
+exatamente o formato mais provável de nome de empresa aparecendo
+sozinho num título/cabeçalho de tela do Domínio. Corrigido com uma
+checagem própria, mais conservadora, que roda ANTES: qualquer sequência
+de 2+ dígitos, ou qualquer palavra de 4+ letras toda maiúscula que não
+esteja numa lista pequena de vocabulário de interface já visto
+(`_PALAVRAS_SEGURAS`), barra o envio — `anonimizar()` entra só como
+rede adicional depois. Testado com 7 casos (texto vazio, barra de
+ferramentas, título de diálogo já conhecido, o nome de empresa do bug
+achado, CNPJ, caminho de arquivo, palavra maiúscula desconhecida) via
+mock do OCR (`unittest.mock`, sem precisar de Tesseract de verdade
+neste ambiente) — todos os 7 se comportaram como esperado depois da
+correção, incluindo o caso que motivou a correção.
+
+`docs/HANDOFF.md` atualizado com a exceção descrita por extenso (seção
+de segurança) — a regra geral continua sendo "nunca manda print pra
+IA", com `app/visao.py` como única exceção documentada e isolada.
+
+**Nenhuma das três entregas foi testada contra o Domínio real ainda**
+— só validação de sintaxe e lógica pura (limitação de sempre deste
+ambiente de nuvem). Próximo passo natural: testar `achar_icone_robusto()`
+no mesmo ponto onde `achar_icone()` já é usado (ícone "Salvar em PDF"
+do Registro de Saídas, seção 0.57), e observar se `VISAO_IA` chega a
+ser escolhida pela IA de retry em alguma falha real de OCR.
+
 ---
 
 ## 1. Análise do projeto

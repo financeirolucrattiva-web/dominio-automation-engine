@@ -98,6 +98,9 @@ app/
                    gerar_sped_fiscal(), gerar_efd_contribuicoes(),
                    competencia_anterior(), selecionar_competencia_anterior(),
                    executar_lote() (loop por empresa/documento com resumo final)
+  visao.py       — fallback de visão por IA (seção 0.58), ÚLTIMO recurso de
+                   percepção, só depois de OCR/OpenCV falharem — ver regra de
+                   segurança acima antes de mexer aqui
 scripts/
   app.py                    — menu único (o que `Abrir Motor SPED.bat` roda)
   explorar.py                — SPED Fiscal numa empresa só (já selecionada)
@@ -240,13 +243,26 @@ coordenada fixa, sempre recalcula pela OCR de cada rodada.
   dado fiscal) também é local, nunca versionado.
 - **IA/LLM**: uso permitido só pra classificação estruturada de erro
   (texto/estatística anonimizada), nunca decisão autônoma sobre ação
-  no Domínio, nunca envio de screenshot ou dado real de cliente pra
-  qualquer IA (seção 5.5) — implementado em `app/erros.py`/`app/ia.py`:
+  no Domínio (seção 5.5) — implementado em `app/erros.py`/`app/ia.py`:
   a IA só escolhe entre 4 ações fixas (`erros.ACOES`), só recebe texto
-  já anonimizado (`erros.anonimizar()`, nunca a imagem da tela), e
+  já anonimizado (`erros.anonimizar()`), e
   `data/chave_api.txt`/`data/erros_aprendidos.json`/
   `data/ia_envios.log` ficam locais (gitignored), nunca sobem pro
   GitHub.
+  - **Exceção controlada, decisão do usuário em 05/10/2026 (seção
+    0.58)**: `app/visao.py` pode enviar uma IMAGEM (não só texto) pra
+    IA, mas só como ÚLTIMO recurso de percepção (depois de OCR e
+    casamento de imagem OpenCV já falharem) e só depois de uma
+    verificação LOCAL (`visao._contem_dado_sensivel()`, OCR + checagem
+    própria — mais conservadora que `erros.anonimizar()`, ver
+    docstring do módulo) não achar nada que pareça dado real (número,
+    nome de empresa em maiúsculo, caminho, e-mail) na imagem. Se achar,
+    recusa automaticamente, sem exceção. A resposta da IA é sempre de
+    um formato fechado (coordenada ou classificação de estado, nunca
+    ação) e toda imagem efetivamente enviada fica salva em
+    `data/visao_enviado/` (gitignored) pra auditoria. **Esta é a única
+    exceção à regra "nunca manda print pra IA"** — qualquer uso de
+    imagem fora de `app/visao.py` continua proibido.
 - **Operação sempre reversível**: o motor só **gera** (nunca calcula
   do zero, nunca transmite) obrigação, e a validação de conteúdo real
   só deve ser feita sobre competência **já fechada e já entregue no

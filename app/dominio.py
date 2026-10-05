@@ -17,15 +17,20 @@ import datetime
 import time
 from pathlib import Path
 
-from . import empresas, erros, ia, interacao, tela
+from . import empresas, erros, ia, interacao, tela, visao
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
 # Títulos de caixa já vistos contra o Domínio real que sinalizam erro/
-# aviso, não sucesso (seção 0.25/0.32). "Atenção" é o padrão; "Aviso
-# Empresa" tem o código da empresa no resto do título (ex.: "Aviso
-# Empresa: 52") — comparado só pelo prefixo fixo, nunca pelo código.
-TITULOS_ERRO = ("Atenção", "Aviso Empresa")
+# aviso, não sucesso (seção 0.25/0.32/0.57). "Atenção" é o padrão;
+# "Aviso Empresa" tem o código da empresa no resto do título (ex.:
+# "Aviso Empresa: 52") — comparado só pelo prefixo fixo, nunca pelo
+# código. "Aviso" sozinho (sem "Empresa" atrás) é outro título visto
+# de verdade na tela "Livros Fiscais" (ex.: "Falta apurar saldo dos
+# impostos neste intervalo de data!", achado real, seção 0.57) — mais
+# genérico, por isso checado por último (`TITULOS_ERRO` é percorrido
+# em ordem em `esperar_e_achar()`), depois dos títulos mais específicos.
+TITULOS_ERRO = ("Atenção", "Aviso Empresa", "Aviso")
 
 
 class LoteInterrompido(Exception):
@@ -90,6 +95,34 @@ def achar_ou_parar(imagem, alvo, nome_erro, escala=2, _tentativas_ia=2):
         time.sleep(1)
         return achar_ou_parar(tela.capturar_tela(), alvo, nome_erro, escala=escala, _tentativas_ia=_tentativas_ia - 1)
 
+    if estrategia == "OUTRO_MOTOR_OCR":
+        # Segunda opinião (seção 0.57) — só troca COMO a tela é lida de
+        # novo, nunca o que é clicado depois (mesmo princípio das
+        # outras estratégias). Devolve None sem quebrar se `winocr` ou
+        # o pacote de idioma não estiverem instalados.
+        pos_windows = tela.achar_texto_windows(imagem, alvo, escala=escala, debug=True)
+        if pos_windows is not None:
+            print(f"Achou '{alvo}' com o OCR do Windows, depois da sugestão da IA.")
+            return pos_windows
+        return achar_ou_parar(imagem, alvo, nome_erro, escala=escala, _tentativas_ia=_tentativas_ia - 1)
+
+    if estrategia == "VISAO_IA":
+        # Último recurso (seção 0.58) — exceção controlada à regra de
+        # nunca mandar print pra IA: `visao.localizar_elemento()` roda
+        # uma verificação local ANTES de enviar qualquer coisa e recusa
+        # sozinha se achar algo que pareça dado real de empresa na
+        # imagem. `imagem` aqui pode ser a tela inteira (não um recorte
+        # garantido pequeno) — por isso a recusa automática é esperada
+        # e correta na maioria das vezes; funciona melhor quando quem
+        # chamou `achar_ou_parar()` já está operando sobre um recorte
+        # pequeno (ex.: área de um diálogo), não a tela inteira.
+        resultado_visao = visao.localizar_elemento(imagem, alvo, contexto=f"achar_ou_parar:{alvo}")
+        if resultado_visao is not None:
+            x, y, confianca, motivo = resultado_visao
+            print(f"IA de visão achou '{alvo}' em ({x}, {y}), confiança {confianca}: {motivo}")
+            return x, y
+        return achar_ou_parar(imagem, alvo, nome_erro, escala=escala, _tentativas_ia=_tentativas_ia - 1)
+
     # DESISTIR (ou qualquer coisa fora do esperado) — desiste de vez.
     _sugerir_diagnostico(alvo, imagem)
     return None
@@ -147,11 +180,30 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     - `(imagem, posição_do_erro, True)` — achou `texto_erro` antes do
       alvo (erro do Domínio, não sucesso).
     - `(None, None, False)` — esgotou as tentativas sem achar nada.
+
+    **Otimização de velocidade (seção 0.58):** antes de rodar OCR (a
+    parte mais lenta de cada tentativa), compara a assinatura da tela
+    atual (`tela.assinatura_tela()`) com a da tentativa anterior — se
+    forem iguais (`tela.tela_mudou()` devolve False), a tela não mudou
+    nada desde a última vez que o OCR já disse "não achei", então rodar
+    OCR de novo sobre a mesma imagem não traria resposta diferente;
+    pula direto pra espera do próximo intervalo. Só roda OCR quando a
+    tela muda de verdade (ou na primeira tentativa) — sem isso, cada
+    segundo parado numa tela de "processando" gastava um ciclo de OCR
+    completo à toa.
     """
     print(f"Esperando pelo menos {espera_minima}s antes de checar...")
     time.sleep(espera_minima)
+    assinatura_anterior = None
     for tentativa in range(1, tentativas + 1):
         imagem = tela.capturar_tela()
+        assinatura_atual = tela.assinatura_tela(imagem)
+        if not tela.tela_mudou(assinatura_anterior, assinatura_atual):
+            print(f"Tela igual à tentativa anterior, pulando OCR (tentativa {tentativa}/{tentativas})...")
+            time.sleep(intervalo)
+            continue
+        assinatura_anterior = assinatura_atual
+
         pos = tela.achar_texto_ou_no_centro(imagem, alvo, escala=escala, debug=True)
         if pos is not None:
             return imagem, pos, False
@@ -721,6 +773,516 @@ def selecionar_competencia_anterior(prefixo=""):
 
     print("Competência anterior confirmada nos dois campos.")
     return True
+
+
+def _achar_rotulo_com_segunda_opiniao(imagem, alvo_completo, alvo_prefixo):
+    """Acha um rótulo tentando, nessa ordem: (1) Tesseract com a
+    palavra inteira, (2) OCR nativo do Windows com a palavra inteira
+    (segunda opinião, seção 0.57 — confirmado ao vivo lendo certo onde
+    o Tesseract erra), (3) Tesseract só com `alvo_prefixo` (prefixo
+    comum que sobrevive ao erro conhecido de troca de letra no fim da
+    palavra). Devolve `(x, y)` ou `None` se as três falharem."""
+    pos = tela.achar_texto_ou_no_centro(imagem, alvo_completo, escala=2, debug=True)
+    if pos is not None:
+        return pos
+    pos = tela.achar_texto_windows(imagem, alvo_completo, escala=2, debug=True)
+    if pos is not None:
+        print(f"Tesseract não achou '{alvo_completo}' — OCR do Windows achou.")
+        return pos
+    return tela.achar_texto_ou_no_centro(imagem, alvo_prefixo, escala=2, debug=True)
+
+
+def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
+    """Preenche Inicial/Final na aba 'Geral' da tela 'Livros Fiscais'
+    (seção 0.57) — mesma técnica de `selecionar_competencia_anterior()`
+    (clica no rótulo + deslocamento calibrado, `selecionar_tudo_alternativo()`,
+    digita só dígitos, Tab), mas com rótulos e deslocamento diferentes:
+    essa tela usa "Inicial:"/"Final:" (não "Data inicial:"/"Data
+    final:" do SPED Fiscal).
+
+    No OCR, a escala usada aqui (2x) lê "Inicial"/"Final" como
+    "Iniciat"/"Finat" — achado real (medido num print real desta tela,
+    troca de "l" por "t" no fim da palavra). Testado ao vivo (seção
+    0.57): o motor de OCR nativo do Windows (`tela.achar_texto_windows()`)
+    lê os dois rótulos certos, de primeira, no mesmo recorte — por
+    isso esta função tenta, nessa ordem, pra cada rótulo: (1) Tesseract
+    com a palavra inteira, (2) OCR do Windows com a palavra inteira,
+    (3) Tesseract só com o prefixo comum que sobrevive à troca
+    ("Inicia"/"Fina", mesmo padrão já usado em `gerar_sped()` pra
+    "Informativ") — só desiste se as três falharem.
+
+    Deslocamento rótulo→campo (57px, centro a centro, mesma linha)
+    calibrado por medição de pixel num print real desta tela — **ainda
+    não confirmado rodando de verdade** (só por medição, não por
+    execução).
+
+    Ao contrário de `selecionar_competencia_anterior()` (que confia
+    que Tab leva pro campo Final sozinho), esta função clica de novo
+    no rótulo "Final" explicitamente antes de preenchê-lo — a ordem de
+    tabulação desta tela nunca foi confirmada, clicar de novo custa
+    pouco e evita digitar no campo errado se a suposição estiver
+    errada.
+    """
+    print(f"Preenchendo período (Livros Fiscais): {data_inicial} a {data_final}")
+    imagem = tela.capturar_tela()
+
+    pos_label_inicial = _achar_rotulo_com_segunda_opiniao(imagem, "Inicial", "Inicia")
+    if pos_label_inicial is None:
+        print("Não achei o rótulo 'Inicial' (Livros Fiscais).")
+        salvar(imagem, f"{prefixo}erro_inicial_livros_fiscais.png")
+        return False
+
+    deslocamento_x = 57
+    campo_inicial = (pos_label_inicial[0] + deslocamento_x, pos_label_inicial[1])
+    print(f"Clicando no campo Inicial: {campo_inicial}")
+    interacao.clicar(*campo_inicial)
+    time.sleep(0.3)
+    interacao.selecionar_tudo_alternativo()
+    interacao.digitar(data_inicial.replace("/", ""))
+    interacao.pressionar_tecla("tab")
+    time.sleep(0.3)
+
+    imagem2 = tela.capturar_tela()
+    pos_label_final = _achar_rotulo_com_segunda_opiniao(imagem2, "Final", "Fina")
+    if pos_label_final is None:
+        print("Não achei o rótulo 'Final' (Livros Fiscais).")
+        salvar(imagem2, f"{prefixo}erro_final_livros_fiscais.png")
+        return False
+    campo_final = (pos_label_final[0] + deslocamento_x, pos_label_final[1])
+    print(f"Clicando no campo Final: {campo_final}")
+    interacao.clicar(*campo_final)
+    time.sleep(0.3)
+    interacao.selecionar_tudo_alternativo()
+    interacao.digitar(data_final.replace("/", ""))
+    interacao.pressionar_tecla("tab")
+    time.sleep(0.3)
+
+    imagem_depois = tela.capturar_tela()
+    salvar(imagem_depois, f"{prefixo}depois_periodo_livros_fiscais.png")
+
+    achou_inicial = tela.achar_texto_ou_no_centro(imagem_depois, data_inicial, escala=2, debug=True)
+    achou_final = tela.achar_texto_ou_no_centro(imagem_depois, data_final, escala=2, debug=True)
+    if achou_inicial is None or achou_final is None:
+        print(f"Não confirmei os dois campos com o período certo ({data_inicial} / {data_final}).")
+        salvar(imagem_depois, f"{prefixo}erro_periodo_nao_confirmado.png")
+        return False
+
+    print("Período confirmado nos dois campos (Livros Fiscais).")
+    return True
+
+
+def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+    """Gera um Livro Fiscal (Relatórios > Livros > Livros Fiscais >
+    aba Geral: marca `rotulo_checkbox` > preenche Inicial/Final > OK)
+    e exporta a pré-visualização pra **PDF** em `pasta_destino` (seção
+    0.57 do documento).
+
+    Função interna genérica por trás de `gerar_registro_saidas()` e
+    `gerar_registro_entradas()` — as duas únicas diferenças entre os
+    dois livros são qual caixa marcar na aba Geral (`rotulo_checkbox`)
+    e o prefixo do nome do arquivo salvo (`prefixo_arquivo`); todo o
+    resto da tela (período, OK, pré-visualização, ícone de exportar,
+    diálogo "Salvar em PDF") é idêntico pros dois, mesma tela mesma
+    mecânica. **Generalização ainda não testada pro caso "Registro de
+    Entradas" especificamente** — só "Registro de Saídas" rodou contra
+    o Domínio real até agora; o deslocamento do checkbox (calibrado
+    pra "Registro de Saídas") pode precisar de ajuste fino quando
+    "Registro de Entradas" for testado pela primeira vez (as duas
+    legendas têm comprimento um pouco diferente).
+
+    **Parcialmente validado contra o Domínio real** (3 execuções reais,
+    01/10/2026, cada uma corrigindo o passo seguinte onde parou):
+    navegação, marcar a caixa, preencher período, clicar OK (calculado
+    a partir de "Fechar") e abrir a pré-visualização — todos
+    confirmados funcionando. **Ainda não confirmado**: o clique no
+    ícone de exportar gera um arquivo completo no disco de ponta a
+    ponta (parou um passo depois, num erro de caminho que a correção
+    de extensão abaixo deve resolver, mas isso ainda não rodou).
+
+    Diferenças importantes em relação a `gerar_sped()`
+    (SPED Fiscal/EFD Contribuições):
+
+    - É uma tela com abas (não um formulário único) — mexe só na aba
+      Geral (marca a caixa); a aba "Saídas" fica nos valores padrão.
+    - O "OK" aqui **não é legível pro OCR** (confirmado ao vivo — a
+      suspeita inicial, por inspeção visual, era que fosse legível;
+      não era). Sempre cai pro cálculo a partir de "Fechar" (mesmo
+      truque da seção 0.13), que funcionou nas 3 execuções reais.
+    - Depois do OK abre uma **pré-visualização de livro impresso**, não
+      uma caixa de confirmação de texto — a confirmação de sucesso
+      aqui é a própria pré-visualização aparecer (achada pelo texto do
+      corpo do relatório, "LIVRO REGISTRO", específico o bastante pra
+      não confundir com a tela de configuração que a precede).
+      **Confirmado ao vivo.**
+    - Exportar é um **ícone sem texto** (impossível achar por OCR) na
+      barra de ferramentas vertical da pré-visualização — achado por
+      casamento de imagem (`tela.achar_icone()`, confiança 1.0 na
+      execução real) contra `app/icones/salvar_pdf.png`, com
+      deslocamento calculado a partir da âncora "LIVRO REGISTRO" como
+      plano B. **O ícone abre "Salvar em PDF", não Excel** — achado
+      real: a primeira suposição (ícone = Exportar pra Excel, de uma
+      exploração manual anterior) estava errada; não tem como
+      distinguir ícones por imagem sem legenda com certeza total, por
+      isso a confirmação só veio ao ver o diálogo real abrir.
+    - O "Salvar em PDF" que abre depois parece um diálogo **nativo do
+      Windows** (mostra pastas reais como "Downloads"/"Desktop"/
+      "This PC", em inglês) mas é mais rígido que um diálogo comum:
+      **rejeitou um caminho terminado em ".xls" com "Path does not
+      exist."** quando o tipo already estava travado em "*.pdf"
+      (suspeita, não 100% confirmada: provavelmente rejeita extensão
+      que não bate com o tipo da tela) — por isso o nome do arquivo
+      agora sempre termina em ".pdf". Verificação de sucesso é
+      **checar o arquivo no disco** (existe + tamanho > 0), não OCR.
+
+    `data_inicial`/`data_final` (formato "DD/MM/AAAA"): competência a
+    gerar. Se nenhuma for passada, usa `competencia_anterior()` (mesma
+    regra de segurança do SPED Fiscal — nunca a competência corrente
+    por padrão) — mas aqui dá pra pedir explicitamente uma competência
+    passada específica, porque o pedido original é gerar sobre uma
+    "competência já conferida manualmente", que não precisa ser
+    necessariamente o mês fechado mais recente.
+
+    `pasta_destino`: pasta onde salvar o .pdf exportado (criada se não
+    existir). O nome do arquivo é gerado automaticamente a partir da
+    competência — esta função não sabe qual empresa está selecionada
+    (quem chama já deve ter confirmado isso antes, com
+    `trocar_empresa()` + checagem visual, do mesmo jeito que
+    `executar_lote()` já faz pro SPED Fiscal).
+
+    Devolve `(True, caminho_arquivo_gerado)` em caso de sucesso,
+    `(False, None)` em qualquer falha no caminho (print de erro salvo,
+    como sempre).
+    """
+    if data_inicial is None or data_final is None:
+        data_inicial, data_final = competencia_anterior()
+
+    interacao.focar_dominio()
+
+    # 1. Relatórios (barra de menu — sem pré-processamento, já funciona)
+    imagem = tela.capturar_tela()
+    pos = tela.achar_texto(tela.recortar_topo(imagem), "Relatórios")
+    if pos is None:
+        print("Não achei 'Relatórios'. O Domínio está aberto e visível?")
+        salvar(imagem, f"{prefixo}erro_relatorios.png")
+        return False, None
+    print(f"Clicando em Relatórios: {pos}")
+    interacao.clicar(*pos)
+    time.sleep(2)
+
+    # 2. Livros (hover, pra abrir "Livros Fiscais" / "Pedido de Uso")
+    imagem = tela.capturar_tela()
+    area = tela.recortar_area_menu(imagem)
+    pos = achar_ou_parar(area, "Livros", f"{prefixo}erro_livros.png")
+    if pos is None:
+        return False, None
+    print(f"Passando o mouse em Livros: {pos}")
+    interacao.passar_mouse(*pos)
+    time.sleep(2)
+
+    # 3. Livros Fiscais (clique — abre a tela de configuração, não mais
+    # um submenu). clicar_com_desvio porque "Informativos" é vizinho
+    # logo abaixo de "Livros" na primeira coluna do menu Relatórios, e
+    # uma linha reta até "Livros Fiscais" pode cruzar essa linha e
+    # trocar o submenu aberto sem querer (mesmo risco documentado na
+    # seção 0.24 pra "Federais"/"Estaduais" — visto acontecer de novo
+    # nesta própria investigação, por isso o cuidado aqui).
+    imagem = tela.capturar_tela()
+    area = tela.recortar_area_menu(imagem)
+    pos = achar_ou_parar(area, "Livros Fiscais", f"{prefixo}erro_livros_fiscais.png")
+    if pos is None:
+        return False, None
+    print(f"Clicando em Livros Fiscais: {pos}")
+    interacao.clicar_com_desvio(*pos)
+    time.sleep(2)
+
+    salvar(tela.capturar_tela(), f"{prefixo}depois_abrir_livros_fiscais.png")
+
+    # 4. Confirma que a tela "Livros Fiscais" abriu de verdade antes de
+    # mexer em qualquer campo — espera por ESTADO (como todo o resto
+    # do projeto), não por um `time.sleep()` fixo seguido de checagem
+    # única. Achado real, primeira execução ao vivo (seção 0.57): com
+    # checagem única, uma tela que demorou um pouco mais que o normal
+    # pra abrir foi lida ainda com o menu Relatórios na tela (a
+    # dump de debug mostrou só a barra de menu, não o diálogo) — mesmo
+    # erro de categoria que `esperar_e_achar()` já resolve no SPED
+    # Fiscal/EFD Contribuições há tempos; só não tinha sido reaproveitado
+    # aqui ainda.
+    imagem, titulo, houve_erro = esperar_e_achar(
+        "Livros Fiscais", escala=2, espera_minima=1, tentativas=15, intervalo=1,
+    )
+    if houve_erro:
+        print("O Domínio mostrou uma caixa de erro/aviso em vez da tela 'Livros Fiscais'.")
+        salvar(imagem, f"{prefixo}erro_dominio_abrir_livros_fiscais.png")
+        texto_lido = _ler_texto_caixa(imagem, titulo)
+        acao = erros.decidir(texto_lido, documento="Livros Fiscais (abrir)")
+        _fechar_caixa_erro(texto_lido, prefixo)
+        if acao == erros.PARAR_LOTE:
+            raise LoteInterrompido(texto_lido)
+        return False, None
+    if titulo is None:
+        print("Não achei o título 'Livros Fiscais' depois de esperar. A tela abriu mesmo?")
+        salvar(tela.capturar_tela(), f"{prefixo}erro_titulo_livros_fiscais.png")
+        return False, None
+
+    # 5. Marca a caixa pedida (`rotulo_checkbox`, aba Geral, já aberta
+    # por padrão). O quadrado da caixa fica à ESQUERDA do texto, não em
+    # cima — deslocamento calibrado por medição de pixel (texto
+    # "Registro de Saídas", 3 palavras, tem centro ~60px à direita de
+    # onde fica o quadrado — mesmo valor usado aqui pra "Registro de
+    # Entradas", ainda não confirmado se precisa de ajuste fino pra
+    # essa legenda especificamente). Não há como confirmar por OCR que
+    # um checkbox pequeno ficou marcado de verdade — só que o clique
+    # acertou essa posição calculada.
+    pos_label = tela.achar_texto_ou_no_centro(imagem, rotulo_checkbox, escala=2, debug=True)
+    if pos_label is None:
+        print(f"Não achei o rótulo '{rotulo_checkbox}'.")
+        salvar(imagem, f"{prefixo}erro_checkbox_livro.png")
+        return False, None
+    deslocamento_checkbox = 60
+    pos_checkbox = (pos_label[0] - deslocamento_checkbox, pos_label[1])
+    print(f"Clicando na caixa '{rotulo_checkbox}': {pos_checkbox}")
+    interacao.clicar(*pos_checkbox)
+    time.sleep(0.3)
+
+    # 6. Preenche o período — nunca confia no que já estiver na tela
+    # (mesma regra de segurança do SPED Fiscal, seção 0.23/5.7).
+    if not preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=prefixo):
+        print("Não consegui preencher o período. Parando.")
+        return False, None
+
+    # 7. OK — ao contrário do SPED Fiscal, o texto "OK" parece legível
+    # pro OCR nesta tela (confirmado só por inspeção visual do print,
+    # não por execução). Tenta achar direto; só cai pro cálculo a
+    # partir de "Fechar" (mesmo truque da seção 0.13) se não achar.
+    imagem = tela.capturar_tela()
+    pos_ok = tela.achar_texto_ou_no_centro(imagem, "OK", escala=2, debug=True)
+    if pos_ok is None:
+        print("'OK' não achado direto — calculando a partir de 'Fechar'.")
+        titulo = tela.achar_texto_ou_no_centro(imagem, "Livros Fiscais", escala=2, debug=True)
+        if titulo is None:
+            print("Não achei o título 'Livros Fiscais' pra calcular o OK.")
+            salvar(imagem, f"{prefixo}erro_ok_sem_titulo.png")
+            return False, None
+        xt, yt = titulo
+        # largura maior que o padrão (650) — achado real, primeira
+        # execução ao vivo (seção 0.57): a tela "Livros Fiscais" é bem
+        # mais larga que o diálogo do SPED Fiscal (de onde veio o
+        # padrão de 650px); a coluna "OK/Fechar/Concluir Atividade..."
+        # fica a ~900px do título, não ~650px — com a largura padrão, o
+        # recorte cortava a coluna de botões inteira antes mesmo de
+        # tentar ler "Fechar" (não achava nem um nem outro, não era
+        # problema de OCR).
+        area_dialogo, dxd, dyd = tela.recortar_a_partir_de(imagem, xt, yt, largura=1300, altura=600)
+        ancora_fechar = tela.achar_texto(area_dialogo, "Fechar", escala=4, debug=True)
+        if ancora_fechar is None:
+            print("Não achei 'Fechar' pra calcular o OK. Parando.")
+            salvar(area_dialogo, f"{prefixo}erro_ok.png")
+            return False, None
+        # Medido num print real desta tela: "OK" fica ~31px acima de
+        # "Fechar", praticamente na mesma coluna x.
+        pos_ok = (ancora_fechar[0] + dxd, ancora_fechar[1] + dyd - 31)
+
+    print(f"Clicando em OK: {pos_ok}")
+    interacao.clicar(*pos_ok)
+    time.sleep(2)
+
+    # 8. Confirma que a pré-visualização abriu — procurando o texto do
+    # CORPO do relatório ("LIVRO REGISTRO"), que é específico o
+    # bastante pra não bater com a tela de configuração anterior.
+    # Espera por estado, não tempo fixo (mesmo motivo de
+    # esperar_e_achar() no resto do projeto) — gerar o livro pode
+    # demorar mais numa empresa com bastante movimento (seção 0.27).
+    print("Aguardando a pré-visualização do livro abrir...")
+    imagem, ancora_titulo_livro, houve_erro = esperar_e_achar(
+        "LIVRO REGISTRO", escala=2, espera_minima=2, tentativas=45, intervalo=2,
+    )
+    if houve_erro:
+        print("O Domínio mostrou uma caixa de erro/aviso em vez da pré-visualização.")
+        salvar(imagem, f"{prefixo}erro_dominio_registro_saidas.png")
+        texto_lido = _ler_texto_caixa(imagem, ancora_titulo_livro)
+        acao = erros.decidir(texto_lido, documento="Registro de Saídas")
+        _fechar_caixa_erro(texto_lido, prefixo)
+        time.sleep(1)
+
+        # Mesma diferenciação de ação de gerar_sped() (nunca só
+        # PULAR/PARAR_LOTE) — achado real, seção 0.57: a primeira
+        # versão desta função tratava qualquer ação igual (sempre
+        # desistia), o que por acaso deu certo pro caso já visto
+        # (PULAR), mas ignorava CONTINUAR/TENTAR_DE_NOVO, que esse
+        # mesmo catálogo já usa pra outros erros conhecidos.
+        if acao == erros.CONTINUAR:
+            print("Aviso dispensado — voltando a esperar a pré-visualização abrir.")
+            imagem, ancora_titulo_livro, houve_erro_de_novo = esperar_e_achar(
+                "LIVRO REGISTRO", escala=2, espera_minima=1, tentativas=30, intervalo=2,
+            )
+            if houve_erro_de_novo or ancora_titulo_livro is None:
+                print("Depois do aviso, a pré-visualização ainda não abriu. Parando.")
+                salvar(tela.capturar_tela(), f"{prefixo}erro_apos_aviso.png")
+                return False, None
+            # segue o fluxo normal a partir daqui, como se tivesse achado de primeira
+        else:
+            if acao == erros.PARAR_LOTE:
+                raise LoteInterrompido(texto_lido)
+            if acao == erros.TENTAR_DE_NOVO and not prefixo.endswith("retry_"):
+                print(f"Tentando gerar o livro ({prefixo_arquivo}) mais uma vez.")
+                return _gerar_livro_fiscal(
+                    rotulo_checkbox, prefixo_arquivo, pasta_destino,
+                    data_inicial=data_inicial, data_final=data_final,
+                    prefixo=f"{prefixo}retry_",
+                )
+            return False, None
+    if ancora_titulo_livro is None:
+        print("A pré-visualização não abriu (ou o texto não foi reconhecido). Parando.")
+        salvar(tela.capturar_tela(), f"{prefixo}erro_previa_nao_abriu.png")
+        return False, None
+
+    print(f"Pré-visualização aberta, âncora 'LIVRO REGISTRO' em: {ancora_titulo_livro}")
+    xt, yt = ancora_titulo_livro
+
+    # 9. Ícone de exportar (sem texto — impossível achar por OCR, ver
+    # aviso no topo de app/tela.py). Tenta casamento de imagem primeiro,
+    # por pixel e depois por característica se o pixel falhar
+    # (tela.achar_icone_robusto(), seção 0.58 — upgrade de
+    # tela.achar_icone() sozinho, seção 0.57) contra um recorte real do
+    # ícone salvo em app/icones/salvar_pdf.png — mais robusto que
+    # coordenada fixa, porque não depende da janela estar exatamente na
+    # mesma posição/resolução de quando o recorte foi feito, nem de
+    # renderização de pixel idêntica (ponto fraco já previsto do
+    # casamento por pixel sozinho, via GO-Global). Só cai pro
+    # deslocamento calculado a partir da âncora "LIVRO REGISTRO"
+    # (medido por pixel num print real de 1439×899) se as duas técnicas
+    # de imagem não acharem nada.
+    #
+    # Formato de saída É PDF, não Excel — achado real, primeira
+    # execução ao vivo (seção 0.57): esse ícone específico abre
+    # "Salvar em PDF" (confirmado pelo diálogo real, tipo travado em
+    # "Documento de formato portátil (PDF) (*.pdf)"), não o diálogo de
+    # Excel visto numa exploração manual anterior (ícone diferente,
+    # nunca localizado de volta). Decisão: ficar com PDF — já
+    # confirmado funcionando mecanicamente, e mais confiável pra
+    # conferência de conteúdo depois (.xls de sistema antigo às vezes
+    # nem é Excel de verdade por dentro, é tabela HTML disfarçada).
+    caminho_template = Path(__file__).resolve().parent / "icones" / "salvar_pdf.png"
+    pos_icone_exportar = tela.achar_icone_robusto(imagem, caminho_template, debug=True)
+    if pos_icone_exportar is None:
+        print("Casamento de imagem (pixel e característica) não achou o ícone de exportar — usando deslocamento calculado.")
+        pos_icone_exportar = (xt - 562, yt + 210)
+    print(f"Clicando no ícone de exportar (Salvar em PDF): {pos_icone_exportar}")
+    interacao.clicar(*pos_icone_exportar)
+    time.sleep(2)
+
+    salvar(tela.capturar_tela(), f"{prefixo}depois_clicar_exportar.png")
+
+    # 10. Diálogo "Salvar em PDF" — parece nativo do Windows (mostra
+    # "Downloads"/"Desktop"/"This PC", em inglês, de verdade — diferente
+    # do resto da interface, toda em português e desenhada pelo próprio
+    # Domínio), mas é mais rígido que um diálogo comum: a primeira
+    # tentativa, digitando caminho terminado em ".xls" com o tipo
+    # travado em "*.pdf", devolveu "Path does not exist." (achado real,
+    # seção 0.57 — suspeita, não confirmada com certeza: rejeita
+    # extensão que não bate com o tipo travado). Agora sempre gera
+    # nome com extensão ".pdf", que deve bater com o tipo da tela.
+    pasta_destino = Path(pasta_destino)
+    pasta_destino.mkdir(parents=True, exist_ok=True)
+    nome_arquivo = (
+        f"{prefixo_arquivo}_{data_inicial.replace('/', '')}_{data_final.replace('/', '')}.pdf"
+    )
+    caminho_completo = pasta_destino / nome_arquivo
+
+    print(f"Preenchendo caminho completo no 'Salvar como': {caminho_completo}")
+    interacao.selecionar_tudo_alternativo()
+    interacao.digitar(str(caminho_completo))
+    time.sleep(0.3)
+    interacao.pressionar_enter()
+    time.sleep(1)
+
+    # Trata "Path does not exist." (achado real, seção 0.57) — mesmo
+    # com extensão corrigida, confere por segurança: se aparecer esse
+    # aviso, fecha com Enter e desiste cedo com evidência salva, em vez
+    # de seguir cego pro resto do fluxo (que ia só travar depois, sem
+    # explicar por quê).
+    imagem_apos_salvar = tela.capturar_tela()
+    pos_erro_caminho = tela.achar_texto_ou_no_centro(imagem_apos_salvar, "does not exist", escala=2, debug=True)
+    if pos_erro_caminho is not None:
+        print("Diálogo de salvar recusou o caminho ('Path does not exist.'). Parando.")
+        salvar(imagem_apos_salvar, f"{prefixo}erro_caminho_invalido.png")
+        interacao.pressionar_enter()
+        return False, None
+
+    # Se já existir um arquivo com esse nome, o Windows pergunta se
+    # quer substituir (diálogo nativo padrão, texto legível de
+    # verdade). O nome com a competência embutida já reduz bastante
+    # essa chance, mas trata o caso mesmo assim, confirmando por OCR
+    # antes de assumir que é isso que apareceu.
+    imagem_confirma = tela.capturar_tela()
+    pos_confirmar_sim = (
+        tela.achar_texto_ou_no_centro(imagem_confirma, "Yes", escala=2, debug=True)
+        or tela.achar_texto_ou_no_centro(imagem_confirma, "Sim", escala=2, debug=True)
+    )
+    if pos_confirmar_sim is not None:
+        print("Arquivo já existia — confirmando substituição.")
+        interacao.clicar(*pos_confirmar_sim)
+        time.sleep(1)
+
+    # 11. Confirma no disco — não por OCR. O arquivo existir e ter
+    # tamanho > 0 é prova direta, sem depender de nenhuma leitura de
+    # tela (bem mais confiável que o texto de confirmação do SPED
+    # Fiscal, que não existe nesse fluxo).
+    for _ in range(10):
+        if caminho_completo.exists() and caminho_completo.stat().st_size > 0:
+            break
+        time.sleep(1)
+    else:
+        print(f"Arquivo não apareceu em disco depois de esperar: {caminho_completo}")
+        salvar(tela.capturar_tela(), f"{prefixo}erro_arquivo_nao_gerado.png")
+        return False, None
+
+    print(f"Arquivo gerado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
+
+    # 12. Fecha a pré-visualização. Os controles da janela MDI filha
+    # (restaurar/minimizar/fechar, vistos num print real no canto
+    # superior esquerdo dela) nunca foram medidos com precisão — em
+    # vez de arriscar uma posição não calibrada, usa Esc (recurso
+    # genérico de último recurso, seção 0.34), que não gera nenhuma
+    # ação indesejada se errar o alvo.
+    interacao.pressionar_esc_repetidas(vezes=2)
+
+    return True, str(caminho_completo)
+
+
+def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+    """Livro Registro de Saídas — **parcialmente validado** contra o
+    Domínio real (3 execuções reais, 01/10/2026): navegação, marcar a
+    caixa, preencher período, OK e abrir a pré-visualização
+    confirmados; exportação completa pra PDF ainda não confirmada de
+    ponta a ponta (ver `_gerar_livro_fiscal()` pra detalhe de cada
+    achado). Wrapper fino — toda a lógica está em
+    `_gerar_livro_fiscal()`.
+
+    Busca "Registro de Sa" (não "Registro de Saídas" inteiro) porque o
+    Tesseract lê "Saídas" com o acento corrompido nessa tela
+    especificamente — achado real, seção 0.57; esse prefixo é um
+    trecho seguro que bate com a leitura real do OCR.
+    """
+    return _gerar_livro_fiscal(
+        "Registro de Sa", "registro_saidas", pasta_destino,
+        data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
+    )
+
+
+def gerar_registro_entradas(pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+    """Livro Registro de Entradas — mesma tela do Registro de Saídas,
+    só muda a caixa marcada. **Nunca rodou contra o Domínio real** —
+    generalizado a partir de `gerar_registro_saidas()` (seção 0.57),
+    não testado. O rótulo "Registro de Entradas" leu certo e inteiro
+    no Tesseract nas capturas já vistas (sem o problema de acento
+    corrompido que afeta "Saídas"), por isso busca o texto completo
+    aqui, diferente do wrapper de Saídas.
+    """
+    return _gerar_livro_fiscal(
+        "Registro de Entradas", "registro_entradas", pasta_destino,
+        data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
+    )
 
 
 # Qual função gera cada documento (seção 0.20) — usado por

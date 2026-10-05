@@ -11,7 +11,8 @@ suposição:
   tons de cinza. Texto da barra de menu externa (fundo cinza claro) lê
   direto, sem precisar disso.
 - Ícone (sem texto) não é achado por OCR — precisa de casamento de
-  imagem (ainda não implementado aqui).
+  imagem (`achar_icone()`, seção 0.57 — implementado, ainda não
+  confirmado contra o Domínio real).
 """
 
 import ctypes
@@ -163,6 +164,72 @@ def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
 
     if debug:
         print("Palavras vistas:", [dados["text"][i].strip() for i in indices_validos])
+    return None
+
+
+def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lang="pt"):
+    """Mesma interface de `achar_texto()` (mesmo recorte/escala, mesma
+    busca por substring em janelas de 1..`max_palavras` palavras
+    consecutivas, mesmo retorno `(x, y)` já na escala da imagem
+    original, ou `None`), mas usa o motor de OCR **nativo do Windows**
+    (`Windows.Media.Ocr`, pacote `winocr`) em vez do Tesseract.
+
+    Serve de **segunda opinião**, não de substituto: o Tesseract já tem
+    muito ajuste fino acumulado neste projeto (seções 0.3/0.7) e
+    continua sendo o motor principal. Esta função existe pra quando
+    `achar_texto()` falha num texto que devia estar visível — achado
+    real medido nesta mesma investigação (seção 0.57): o Tesseract leu
+    "Inicial"/"Final" (rótulos da tela "Livros Fiscais") como
+    "Iniciat"/"Finat" (troca de "l" por "t"); o motor do Windows leu os
+    dois certos, de primeira, no mesmo recorte — sem precisar do truque
+    de buscar só o prefixo comum ("Inicia"/"Fina") que o resto do
+    código usa pra contornar esse tipo de erro.
+
+    Precisa do pacote `winocr` instalado (`pip install winocr`) e do
+    pacote de idioma Português do Windows (Configurações → Hora e
+    Idioma → Idioma → Adicionar um idioma → Português) — se qualquer
+    um dos dois faltar, devolve `None` em vez de quebrar (mesmo padrão
+    de `ia.disponivel()`: funcionalidade opcional, o motor principal
+    continua funcionando sem ela).
+    """
+    try:
+        import winocr
+    except ImportError:
+        if debug:
+            print("winocr não instalado — pulando segunda opinião do OCR do Windows.")
+        return None
+
+    imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
+
+    try:
+        resultado = winocr.recognize_pil_sync(imagem_ocr, lang=lang)
+    except Exception as erro:
+        if debug:
+            print(f"OCR do Windows falhou: {erro!r}")
+        return None
+
+    palavras = [
+        (palavra["text"], palavra["bounding_rect"])
+        for linha in resultado["lines"]
+        for palavra in linha["words"]
+    ]
+    alvo_lower = alvo.lower()
+
+    for tam in range(1, max_palavras + 1):
+        for ini in range(len(palavras) - tam + 1):
+            janela = palavras[ini : ini + tam]
+            texto = " ".join(p[0] for p in janela)
+            if alvo_lower in texto.lower():
+                esquerdas = [r["x"] for _, r in janela]
+                topos = [r["y"] for _, r in janela]
+                direitas = [r["x"] + r["width"] for _, r in janela]
+                baixos = [r["y"] + r["height"] for _, r in janela]
+                x_centro = (min(esquerdas) + max(direitas)) / 2
+                y_centro = (min(topos) + max(baixos)) / 2
+                return int(x_centro // escala), int(y_centro // escala)
+
+    if debug:
+        print("OCR do Windows não achou:", repr(alvo), "— palavras vistas:", [p[0] for p in palavras])
     return None
 
 
@@ -350,6 +417,169 @@ def recortar_a_partir_de(imagem, x, y, largura=650, altura=420, margem_cima=20, 
     direita = min(imagem.width, x + largura)
     baixo = min(imagem.height, y + altura)
     return imagem.crop((esquerda, topo, direita, baixo)), esquerda, topo
+
+
+def achar_icone(imagem, caminho_template, limiar=0.75, debug=False):
+    """Acha um ícone (sem texto, impossível achar por OCR — ver aviso
+    no topo deste arquivo) por casamento de imagem (`cv2.matchTemplate`),
+    não por leitura de texto.
+
+    `caminho_template`: caminho de um recorte pequeno e já salvo do
+    ícone (ex.: `app/icones/exportar_excel.png`), recortado uma única
+    vez a partir de um print real — ver seção 0.57 do documento pra
+    como esse recorte foi feito e calibrado.
+
+    `limiar` (0 a 1, padrão 0.75): confiança mínima do casamento pra
+    aceitar — `cv2.TM_CCOEFF_NORMED` devolve 1.0 pra um casamento
+    perfeito. Calibrado conservador de propósito: melhor devolver
+    `None` (e quem chamou decide o que fazer, ex.: cair pra um
+    deslocamento calculado como plano B) do que aceitar um casamento
+    fraco e clicar no lugar errado.
+
+    Devolve o centro `(x, y)` do melhor casamento, ou `None` se nada
+    passou do limiar. **Ainda não confirmado contra o Domínio real**
+    (só testado com template recortado de um print estático) — o
+    ícone pode renderizar com leve diferença de cor/anti-aliasing na
+    tela ao vivo via GO-Global, o que pode exigir ajustar `limiar` pra
+    baixo depois do primeiro teste real.
+    """
+    import cv2
+    import numpy as np
+
+    template = cv2.imread(str(caminho_template))
+    if template is None:
+        if debug:
+            print(f"Não consegui abrir o template: {caminho_template}")
+        return None
+
+    alvo = cv2.cvtColor(np.array(imagem.convert("RGB")), cv2.COLOR_RGB2BGR)
+    resultado = cv2.matchTemplate(alvo, template, cv2.TM_CCOEFF_NORMED)
+    _, confianca, _, local_max = cv2.minMaxLoc(resultado)
+
+    if debug:
+        print(f"achar_icone({Path(caminho_template).name}): confiança={confianca:.3f} (limiar={limiar})")
+
+    if confianca < limiar:
+        return None
+
+    th, tw = template.shape[:2]
+    x_centro = local_max[0] + tw // 2
+    y_centro = local_max[1] + th // 2
+    return x_centro, y_centro
+
+
+def achar_icone_orb(imagem, caminho_template, minimo_bons=8, debug=False):
+    """Segunda técnica de casamento de ícone, por CARACTERÍSTICAS (ORB —
+    Oriented FAST and Rotated BRIEF), não por correlação direta de
+    pixel como `achar_icone()`. Complemento pedido pelo usuário
+    (05/10/2026, seção 0.58): `achar_icone()` já tinha uma ressalva
+    própria ("o ícone pode renderizar com leve diferença de cor/
+    anti-aliasing na tela ao vivo via GO-Global") — ORB é tolerante
+    exatamente a esse tipo de diferença (pequena variação de cor,
+    brilho, rotação leve, pequena escala), porque compara pontos de
+    interesse estruturais da imagem, não o valor exato de cada pixel.
+
+    `minimo_bons`: quantidade mínima de pontos correspondentes "bons"
+    (distância de Hamming baixa no descritor) pra aceitar o casamento —
+    calibrado conservador de propósito, mesma filosofia do `limiar` de
+    `achar_icone()`: melhor devolver `None` do que um casamento fraco.
+
+    Devolve o centro `(x, y)` do casamento (calculado pela homografia
+    entre os pontos do template e os pontos achados na tela), ou `None`
+    se não achou pontos suficientes. **Ainda não testado contra o
+    Domínio real** — mesma ressalva de `achar_icone()`, calibrar depois
+    do primeiro uso real."""
+    import cv2
+    import numpy as np
+
+    template = cv2.imread(str(caminho_template), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        if debug:
+            print(f"Não consegui abrir o template: {caminho_template}")
+        return None
+
+    alvo = cv2.cvtColor(np.array(imagem.convert("RGB")), cv2.COLOR_RGB2GRAY)
+
+    orb = cv2.ORB_create(nfeatures=500)
+    kp_template, desc_template = orb.detectAndCompute(template, None)
+    kp_alvo, desc_alvo = orb.detectAndCompute(alvo, None)
+
+    if desc_template is None or desc_alvo is None or len(kp_template) < 4:
+        if debug:
+            print("achar_icone_orb(): poucos pontos de interesse pra comparar.")
+        return None
+
+    casador = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    correspondencias = casador.match(desc_template, desc_alvo)
+    correspondencias = sorted(correspondencias, key=lambda m: m.distance)
+    bons = [m for m in correspondencias if m.distance < 64]  # limiar de distância Hamming, não de contagem
+
+    if debug:
+        print(f"achar_icone_orb({Path(caminho_template).name}): {len(bons)} pontos bons (mínimo={minimo_bons})")
+
+    if len(bons) < minimo_bons:
+        return None
+
+    # Centro = média das posições, na tela, dos pontos que bateram —
+    # mais simples e robusto que calcular homografia completa pra um
+    # ícone pequeno (poucos pixels, não compensa a complexidade extra).
+    pontos_alvo = np.float32([kp_alvo[m.trainIdx].pt for m in bons])
+    x_centro, y_centro = pontos_alvo.mean(axis=0)
+    return int(x_centro), int(y_centro)
+
+
+def achar_icone_robusto(imagem, caminho_template, limiar=0.75, minimo_bons=8, debug=False):
+    """Combina as duas técnicas de casamento de ícone: tenta
+    `achar_icone()` (correlação de pixel, mais rápido e mais preciso
+    quando a renderização é idêntica ao template) primeiro; só se isso
+    falhar, tenta `achar_icone_orb()` (por características, mais
+    tolerante a diferença de cor/anti-aliasing/escala — ver seção 0.58).
+    Use esta função no lugar de `achar_icone()` sozinha em qualquer
+    automação nova; `achar_icone()` continua existindo e sendo chamada
+    por dentro, nada que já usa ela direto quebra."""
+    pos = achar_icone(imagem, caminho_template, limiar=limiar, debug=debug)
+    if pos is not None:
+        return pos
+    if debug:
+        print("achar_icone_robusto(): casamento por pixel falhou, tentando por características (ORB)...")
+    return achar_icone_orb(imagem, caminho_template, minimo_bons=minimo_bons, debug=debug)
+
+
+def assinatura_tela(imagem, tamanho=8):
+    """"Impressão digital" barata da tela (average hash) — reduz a
+    imagem a uma grade `tamanho`×`tamanho` em tons de cinza e devolve
+    uma string de bits (1 = pixel mais claro que a média, 0 = mais
+    escuro). Duas telas muito parecidas (mesmo estado, só o cursor do
+    mouse ou um relógio mudou) produzem assinaturas iguais ou quase
+    iguais; telas diferentes produzem assinaturas bem diferentes.
+
+    Pedida pelo usuário (05/10/2026, seção 0.58) pra deixar o RPA mais
+    rápido: `esperar_e_achar()` hoje roda OCR completo (Tesseract) a
+    cada tentativa de espera, mesmo quando a tela não mudou nada desde
+    a tentativa anterior — rodar OCR de novo sobre uma imagem idêntica
+    nunca muda a resposta, só gasta tempo. Comparando a assinatura
+    antes de rodar OCR, dá pra pular o OCR nas tentativas em que a tela
+    ainda não mudou (`tela_mudou()` abaixo)."""
+    cinza = imagem.convert("L").resize((tamanho, tamanho))
+    pixels = list(cinza.getdata())
+    media = sum(pixels) / len(pixels)
+    return "".join("1" if p >= media else "0" for p in pixels)
+
+
+def tela_mudou(assinatura_anterior, assinatura_atual, limiar=3):
+    """Compara duas assinaturas de `assinatura_tela()` pela distância de
+    Hamming (quantos bits diferem). `limiar` (padrão 3, de 64 bits numa
+    grade 8×8): acima disso, considera que a tela mudou de verdade — um
+    pingo de diferença (cursor piscando, relógio) não deve disparar OCR
+    de novo à toa, mas uma mudança real de conteúdo (diálogo abriu,
+    texto apareceu) sempre passa desse limiar baixo.
+
+    `assinatura_anterior=None` (primeira tentativa, sem histórico)
+    sempre devolve True — a primeira checagem sempre roda OCR."""
+    if assinatura_anterior is None:
+        return True
+    diferenca = sum(a != b for a, b in zip(assinatura_anterior, assinatura_atual))
+    return diferenca > limiar
 
 
 def salvar(imagem, caminho):

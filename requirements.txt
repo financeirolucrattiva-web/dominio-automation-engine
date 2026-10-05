@@ -5,3 +5,6 @@ opencv-python
 numpy
 anthropic
 pynput
+pypdf
+winocr
+ttkbootstrap
