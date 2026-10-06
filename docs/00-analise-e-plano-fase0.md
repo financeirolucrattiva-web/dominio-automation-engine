@@ -3028,6 +3028,15 @@ da recuperação nesse caminho e a preservação do resultado; o log não
 comprova que a prévia fechou. A confirmação visual do usuário continua
 necessária antes de declarar retorno à interface.
 
+**Confirmação visual do usuário:** a prévia continuou aberta após essa
+rodada. Portanto Esc foi enviado, mas não fechou a janela do relatório;
+o retorno à interface falhou nesse caso. Não está comprovada a causa
+(foco, tratamento da tecla ou comportamento do visualizador). Não foi
+introduzida outra tecla/posição de fechamento por hipótese. O próximo
+dado necessário é captura da janela com a prévia aberta e os controles
+visíveis, para identificar o fechamento da janela interna do relatório
+sem confundi-lo com o fechamento do aplicativo Domínio.
+
 ---
 
 ## 1. Análise do projeto

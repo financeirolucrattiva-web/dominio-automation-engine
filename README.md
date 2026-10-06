@@ -42,7 +42,8 @@ O caminho de falha na conferência foi observado no Windows. Após uma
 falha com prévia já reconhecida, o motor tenta fechar com Esc e avisa
 que o retorno não foi verificado; confira a tela antes de nova rodada.
 O envio dessa recuperação foi observado no Windows; o fechamento
-da tela ainda depende de confirmação visual. A pendência do nome e da
+da tela foi recusado na rodada observada: a prévia continuou aberta.
+A correção depende de identificar o controle próprio do relatório. A pendência do nome e da
 conferência de período do PDF permanece separada.
 
 ## Instalação

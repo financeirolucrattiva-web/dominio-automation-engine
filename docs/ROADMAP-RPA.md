@@ -117,3 +117,8 @@ O incremento seguinte tenta sair da prévia com Esc após falha, mantendo
 a etapa e o erro original. Passou em testes locais/simulados. O log Windows confirmou o envio de
 Esc e preservou a falha original, mas não comprovou o fechamento. Retorno à interface ainda precisa de confirmação
 humana; não há retomada automática apoiada nesse fechamento.
+
+O usuário confirmou que a prévia continuou aberta nessa rodada.
+A recuperação por Esc não restaurou a interface; esse caso continua
+pendente. A próxima evidência é o controle visual de fechamento do
+relatório, antes de programar outra ação.
