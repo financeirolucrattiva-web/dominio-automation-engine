@@ -53,14 +53,31 @@ class EscritorFila:
     """Arquivo falso: em vez de escrever num arquivo/terminal, poem
     cada linha numa fila — é o que deixa o print() de dentro de
     app/dominio.py (rodando numa thread separada) aparecer na caixa de
-    texto da janela, sem mexer em cada print um por um."""
+    texto da janela, sem mexer em cada print um por um.
 
-    def __init__(self, fila):
+    Também grava em `data/ultimo_log.txt`, linha por linha, em tempo
+    real (achado real, 06/10/2026: a própria janela se minimiza antes
+    de mexer no Domínio — `_rodar_em_thread()` — pra não roubar foco
+    de clique; isso esconde a caixa de texto bem na hora em que mais
+    precisa ser lida. Um arquivo em disco permite acompanhar o log ao
+    vivo de fora da interface — inclusive outra pessoa, ou um
+    assistente de IA rodando na mesma máquina, sem precisar restaurar
+    a janela no meio da automação, o que arriscaria atrapalhar um
+    clique)."""
+
+    def __init__(self, fila, arquivo_log=None):
         self.fila = fila
+        self.arquivo_log = arquivo_log
 
     def write(self, texto):
         if texto:
             self.fila.put(texto)
+            if self.arquivo_log is not None:
+                try:
+                    self.arquivo_log.write(texto)
+                    self.arquivo_log.flush()
+                except OSError:
+                    pass
 
     def flush(self):
         pass
@@ -142,13 +159,27 @@ class JanelaPrincipal:
 
         aba_rotinas = tb.Frame(self.abas, padding=10)
         aba_historico = tb.Frame(self.abas, padding=10)
+        aba_log = tb.Frame(self.abas, padding=10)
         self.abas.add(aba_rotinas, text="Rotinas")
         self.abas.add(aba_historico, text="Histórico")
+        self.abas.add(aba_log, text="Log")
+        self._aba_log = aba_log
 
         self._montar_aba_rotinas(aba_rotinas)
         self._montar_aba_historico(aba_historico)
+        self._montar_aba_log(aba_log)
 
-        barra_status = tb.Frame(corpo)
+    def _montar_aba_log(self, pai):
+        """Log numa aba própria (pedido do usuário, 06/10/2026: na
+        barra embaixo ficava pequeno demais, espremido pelos botões da
+        aba "Rotinas" — aqui ocupa a janela inteira). Muda sozinho pra
+        esta aba quando uma ação começa (`_rodar_em_thread()`), mas a
+        janela ainda se minimiza durante a automação (não mexi nisso —
+        continua existindo o risco de roubar clique do Domínio se
+        aparecer por cima); ver também `data/ultimo_log.txt`, que tem
+        o mesmo conteúdo gravado em disco, pra ler sem precisar abrir a
+        janela."""
+        barra_status = tb.Frame(pai)
         barra_status.pack(fill=X, pady=(0, 6))
         self.status = tb.Label(barra_status, text="Pronto.", bootstyle="success", font=("Segoe UI", 10, "bold"))
         self.status.pack(side=LEFT)
@@ -158,7 +189,7 @@ class JanelaPrincipal:
         self.botao_pausa.pack(side=RIGHT)
 
         self.log = scrolledtext.ScrolledText(
-            corpo, width=100, height=14, state="disabled",
+            pai, width=100, height=30, state="disabled",
             font=("Consolas", 9), background="#1e1e1e", foreground="#d4d4d4",
             insertbackground="white", relief="flat", borderwidth=0,
         )
@@ -337,7 +368,14 @@ class JanelaPrincipal:
 
         def trabalho():
             saida_original = sys.stdout
-            sys.stdout = EscritorFila(self.fila)
+            caminho_log = Path(__file__).resolve().parent.parent / "data" / "ultimo_log.txt"
+            try:
+                caminho_log.parent.mkdir(parents=True, exist_ok=True)
+                arquivo_log = caminho_log.open("a", encoding="utf-8")
+                arquivo_log.write(f"\n{'=' * 60}\n[{nome_rotina or alvo.__name__}]\n")
+            except OSError:
+                arquivo_log = None
+            sys.stdout = EscritorFila(self.fila, arquivo_log)
             deu_erro = False
             resultado = None
             try:
@@ -347,6 +385,8 @@ class JanelaPrincipal:
                 self.fila.put(f"\nErro inesperado: {e}\n")
             finally:
                 sys.stdout = saida_original
+                if arquivo_log is not None:
+                    arquivo_log.close()
                 if nome_rotina is not None:
                     sucesso, arquivo = _normalizar_resultado(resultado, deu_erro)
                     historico.registrar(nome_rotina, sucesso, arquivo_gerado=arquivo)
@@ -360,6 +400,11 @@ class JanelaPrincipal:
             self.botao_pausa.configure(state="normal", text="Pausar")
         self._marcar_status("Rodando...", "warning")
         self.fila.put(f"\n{'=' * 60}\n")
+        # Troca pra aba "Log" sozinha — assim, se/quando a pessoa
+        # restaurar a janela (minimizada a seguir), já está na aba
+        # certa, sem precisar clicar em nada a mais (pedido do usuário,
+        # 06/10/2026).
+        self.abas.select(self._aba_log)
         # Minimiza a própria janela antes de mexer no Domínio — senão
         # ela pode ficar por cima e roubar o clique de foco (mesmo
         # risco da seção 0.28/0.37). Volta sozinha em _fim_execucao().
