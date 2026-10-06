@@ -3020,6 +3020,14 @@ caminhos de recuperação acima. Compilação e diff check passaram.
 **O novo comportamento ainda não foi validado no Domínio real.** Nenhuma nova coordenada de clique,
 interpretação de período ou ação fiscal foi introduzida.
 
+**Rodada real recebida em 06/10/2026:** após a mesma falha de período,
+o log registrou `recuperar_interface` com início, `acao_executada`
+(`recuperacao_esc_enviado`) e `resultado_nao_verificado`. A etapa
+`conferir_pdf` e o fim permaneceram como falha. Está confirmado o envio
+da recuperação nesse caminho e a preservação do resultado; o log não
+comprova que a prévia fechou. A confirmação visual do usuário continua
+necessária antes de declarar retorno à interface.
+
 ---
 
 ## 1. Análise do projeto

@@ -114,6 +114,6 @@ recusa do período na etapa `conferir_pdf`, terminando em falha. Isso não
 confirma a conferência final do conteúdo nem o encerramento da tela.
 
 O incremento seguinte tenta sair da prévia com Esc após falha, mantendo
-a etapa e o erro original. Passou em testes locais/simulados e aguarda
-observação no Windows. Retorno à interface ainda precisa de confirmação
+a etapa e o erro original. Passou em testes locais/simulados. O log Windows confirmou o envio de
+Esc e preservou a falha original, mas não comprovou o fechamento. Retorno à interface ainda precisa de confirmação
 humana; não há retomada automática apoiada nesse fechamento.
