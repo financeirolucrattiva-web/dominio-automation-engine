@@ -2693,6 +2693,56 @@ agora validados os dois, mecanismo e conteúdo, contra o Domínio real**
 
 ---
 
+### 0.61 Teste ao vivo de ORB + fingerprint de tela (seção 0.58) — fingerprint validado, ORB não ajuda nesse ícone (template pequeno demais); visão por IA integrada como 3º nível pro casamento de ícone
+
+Pedido do usuário: testar ao vivo o complemento de percepção da seção
+0.58. Evidência veio de graça, dos próprios logs reais das execuções
+de Registro de Saídas/Entradas (`data/ultimo_log.txt`), sem precisar
+forçar nenhum teste isolado:
+
+- **`tela.assinatura_tela()`/`tela_mudou()` (fingerprint)** —
+  **confirmado funcionando ao vivo**: o log real mostra "Tela igual à
+  tentativa anterior, pulando OCR" repetido várias vezes seguidas
+  durante a espera da pré-visualização — exatamente o comportamento
+  pretendido (pula OCR quando a tela não mudou).
+- **`tela.achar_icone()` (pixel)** — funcionou uma vez com confiança
+  1.000, falhou outra com confiança 0.534 (abaixo do limiar 0.75) —
+  confirma de verdade a ressalva original da seção 0.57 sobre
+  anti-aliasing via GO-Global.
+- **`tela.achar_icone_orb()`** — tentado no caso real que o pixel
+  falhou, mas devolveu "poucos pontos de interesse pra comparar".
+  Causa, não suposição: o template (`app/icones/salvar_pdf.png`) tem
+  só **30×25 pixels** — pequeno e simples demais pro detector de
+  cantos/blobs do ORB achar pontos de interesse suficientes. Não é bug
+  de implementação, é limite da técnica nesse tamanho de ícone. Nos
+  dois casos reais, quem efetivamente salvou foi o deslocamento
+  calculado (plano C, já existia antes de hoje) — ORB não contribuiu
+  em nenhum dos dois runs.
+
+**Correção/melhoria**: integrada a visão por IA (`app/visao.py`, seção
+0.58) como **3º nível** no casamento de ícone, entre
+`achar_icone_robusto()` (pixel+ORB) e o deslocamento calculado final —
+antes só estava plugada na busca de texto (`achar_ou_parar()`). Usa
+`tela.melhor_casamento_pixel()` (núcleo de `achar_icone()` sem aplicar
+limiar, exposto publicamente pra isso) como dica de ONDE recortar —
+mesmo com confiança baixa, a posição tende a estar perto do ícone de
+verdade — e manda só esse recorte pequeno pra IA, nunca a tela inteira
+(que tem CNPJ/razão social visíveis e seria recusada pela trava de
+`visao._contem_dado_sensivel()`, com razão). Testado por lógica pura
+(mock de `tela.melhor_casamento_pixel()`/`visao.localizar_elemento()`):
+confirma que a conversão de coordenada relativa-ao-recorte pra
+coordenada-de-tela-cheia bate certo, e que só o recorte (não a imagem
+inteira) é mandado pra `visao.localizar_elemento()`.
+
+**Ainda não testado contra o Domínio real** — vai ser exercitado
+naturalmente na próxima vez que `achar_icone_robusto()` falhar de novo
+(não dá pra forçar isso sob demanda sem mexer no ícone/template de
+propósito). Cadeia de fallback pro ícone de exportar agora tem 4
+níveis: pixel → ORB → visão por IA (recorte pequeno) → deslocamento
+calculado.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

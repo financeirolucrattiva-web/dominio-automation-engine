@@ -1243,8 +1243,41 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     caminho_template = Path(__file__).resolve().parent / "icones" / "salvar_pdf.png"
     pos_icone_exportar = tela.achar_icone_robusto(imagem, caminho_template, debug=True)
     if pos_icone_exportar is None:
-        print("Casamento de imagem (pixel e característica) não achou o ícone de exportar — usando deslocamento calculado.")
-        pos_icone_exportar = (xt - 562, yt + 210)
+        # Terceiro nível, antes do deslocamento calculado (seção 0.61):
+        # visão por IA, só como último recurso — achado real,
+        # 06/10/2026: o template do ícone (30×25px) é pequeno demais
+        # pro ORB achar pontos de interesse, então pixel+ORB sozinhos
+        # deixavam o deslocamento fixo carregando toda a confiabilidade
+        # sozinho. Usa a posição do MELHOR candidato do casamento por
+        # pixel (mesmo com confiança baixa, abaixo do limiar) como dica
+        # de onde recortar — nunca manda a tela inteira (tem CNPJ/razão
+        # social visíveis; a trava de `visao._contem_dado_sensivel()`
+        # recusaria mesmo assim, mas nem vale a pena tentar com a tela
+        # toda). Recorte pequeno, ao redor só do ícone — tende a não
+        # ter texto nenhum, passa pela trava.
+        print("Casamento de imagem (pixel e característica) não achou o ícone de exportar — tentando visão por IA (último recurso).")
+        pos_icone_exportar = None
+        palpite = tela.melhor_casamento_pixel(imagem, caminho_template)
+        if palpite is not None:
+            x_palpite, y_palpite, confianca_palpite, tw, th = palpite
+            print(f"  (usando o melhor palpite do casamento por pixel, confiança {confianca_palpite:.3f}, como dica de recorte)")
+            recorte, dx, dy = tela.recortar_ao_redor(
+                imagem, x_palpite, y_palpite, raio_x=max(tw * 2, 80), raio_y=max(th * 4, 150),
+            )
+            resultado_visao = visao.localizar_elemento(
+                recorte,
+                "Ícone de 'Salvar em PDF' (exportar) numa barra de ferramentas vertical de uma "
+                "pré-visualização de livro fiscal — geralmente parece um documento ou disquete, "
+                "sem nenhum texto escrito nele.",
+                contexto="icone_exportar_livro_fiscal",
+            )
+            if resultado_visao is not None:
+                x_rel, y_rel, confianca_visao, motivo_visao = resultado_visao
+                pos_icone_exportar = (dx + x_rel, dy + y_rel)
+                print(f"  IA de visão achou o ícone em {pos_icone_exportar}, confiança {confianca_visao}: {motivo_visao}")
+        if pos_icone_exportar is None:
+            print("Visão por IA também não achou (ou não disponível) — usando deslocamento calculado.")
+            pos_icone_exportar = (xt - 562, yt + 210)
     print(f"Clicando no ícone de exportar (Salvar em PDF): {pos_icone_exportar}")
     interacao.clicar(*pos_icone_exportar)
     time.sleep(2)

@@ -419,6 +419,34 @@ def recortar_a_partir_de(imagem, x, y, largura=650, altura=420, margem_cima=20, 
     return imagem.crop((esquerda, topo, direita, baixo)), esquerda, topo
 
 
+def melhor_casamento_pixel(imagem, caminho_template):
+    """Núcleo de `achar_icone()` sem aplicar limiar — devolve o MELHOR
+    candidato que `cv2.matchTemplate` achou, mesmo que a confiança seja
+    baixa, mais `(largura, altura)` do template. Público (sem `_` na
+    frente) de propósito: `dominio.py` usa essa posição — mesmo de
+    baixa confiança — como dica de ONDE recortar pra tentar a visão por
+    IA como último recurso (seção 0.61), sem precisar rodar
+    `cv2.matchTemplate` duas vezes nem duplicar a chamada do OpenCV.
+
+    Devolve `(x_centro, y_centro, confianca, largura_template,
+    altura_template)`, ou `None` se o template não abriu."""
+    import cv2
+    import numpy as np
+
+    template = cv2.imread(str(caminho_template))
+    if template is None:
+        return None
+
+    alvo = cv2.cvtColor(np.array(imagem.convert("RGB")), cv2.COLOR_RGB2BGR)
+    resultado = cv2.matchTemplate(alvo, template, cv2.TM_CCOEFF_NORMED)
+    _, confianca, _, local_max = cv2.minMaxLoc(resultado)
+
+    th, tw = template.shape[:2]
+    x_centro = local_max[0] + tw // 2
+    y_centro = local_max[1] + th // 2
+    return x_centro, y_centro, confianca, tw, th
+
+
 def achar_icone(imagem, caminho_template, limiar=0.75, debug=False):
     """Acha um ícone (sem texto, impossível achar por OCR — ver aviso
     no topo deste arquivo) por casamento de imagem (`cv2.matchTemplate`),
@@ -437,34 +465,25 @@ def achar_icone(imagem, caminho_template, limiar=0.75, debug=False):
     fraco e clicar no lugar errado.
 
     Devolve o centro `(x, y)` do melhor casamento, ou `None` se nada
-    passou do limiar. **Ainda não confirmado contra o Domínio real**
-    (só testado com template recortado de um print estático) — o
-    ícone pode renderizar com leve diferença de cor/anti-aliasing na
-    tela ao vivo via GO-Global, o que pode exigir ajustar `limiar` pra
-    baixo depois do primeiro teste real.
+    passou do limiar. **Confirmado contra o Domínio real** (seção
+    0.58/0.61): funciona na maioria das vezes (confiança 1.000 visto
+    ao vivo), mas já falhou pelo menos uma vez (confiança 0.534, abaixo
+    do limiar) — confirma a ressalva original sobre anti-aliasing via
+    GO-Global; por isso o plano B (`achar_icone_robusto()`) importa de
+    verdade, não é só cautela teórica.
     """
-    import cv2
-    import numpy as np
-
-    template = cv2.imread(str(caminho_template))
-    if template is None:
+    resultado = melhor_casamento_pixel(imagem, caminho_template)
+    if resultado is None:
         if debug:
             print(f"Não consegui abrir o template: {caminho_template}")
         return None
 
-    alvo = cv2.cvtColor(np.array(imagem.convert("RGB")), cv2.COLOR_RGB2BGR)
-    resultado = cv2.matchTemplate(alvo, template, cv2.TM_CCOEFF_NORMED)
-    _, confianca, _, local_max = cv2.minMaxLoc(resultado)
-
+    x_centro, y_centro, confianca, _, _ = resultado
     if debug:
         print(f"achar_icone({Path(caminho_template).name}): confiança={confianca:.3f} (limiar={limiar})")
 
     if confianca < limiar:
         return None
-
-    th, tw = template.shape[:2]
-    x_centro = local_max[0] + tw // 2
-    y_centro = local_max[1] + th // 2
     return x_centro, y_centro
 
 
