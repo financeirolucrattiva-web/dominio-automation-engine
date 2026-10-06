@@ -3072,8 +3072,8 @@ não concluída. A recuperação preserva o erro original do PDF.
 
 O Adobe pode permanecer instalado e aberto. As duas teclas Esc
 existentes são mantidas, sem coordenada nova de fechamento. O envio
-continua sem comprovar retorno à tela principal; essa confirmação ainda
-depende da próxima rodada real. A conferência de período e a renomeação
+de Esc sozinho não comprova retorno à tela principal; o motor ainda
+exige conferência visual humana. A conferência de período e a renomeação
 continuam pendentes, conforme decisão anterior do usuário.
 
 **Validação local:** 46 testes passaram, incluindo foco no leitor,
@@ -3082,9 +3082,23 @@ OCR não confirmado e perda de foco entre teclas. O fluxo simulado
 preserva a falha original e o arquivo já conferido. Compilação e
 checagem de diff passaram, preservando CRLF em `interacao.py`.
 
-**Validação real pendente:** o comportamento novo ainda não foi testado
-contra o Domínio. O usuário atualizará e repetirá a mesma rotina para
-observar se o foco volta do Acrobat e se a prévia fecha.
+**Validação real recebida em 06/10/2026:** a rodada Windows seguinte
+registrou `Foco do Domínio confirmado; enviando Esc.`, seguida de
+`recuperacao_esc_enviado` e `resultado_nao_verificado`. A etapa
+`conferir_pdf` e o fim permaneceram como falha. Ao perguntar se houve
+retorno à tela principal, o usuário confirmou: "voltou certinho".
+Assim, a recuperação funcionou nessa rodada, com confirmação humana do
+estado final. Isso não confirma o conteúdo do PDF, cujo erro continua
+pendente.
+
+**Próximo incremento da recuperação:** o motor ainda não detecta esse
+retorno automaticamente. Cabeçalho, menus, empresa e usuário aparecem
+também na prévia/diálogos; não servem isoladamente como marcador de
+tela principal. Ausência de `REGISTRO` no OCR e mudança de fingerprint
+também não comprovam fechamento. Antes de medir uma referência visual
+positiva, falta a captura como arquivo da tela principal que acabou de
+ser confirmada, sem relatório, diálogo ou menu aberto. Não foram
+inventados recorte, limiar ou novo clique a partir dessa confirmação.
 
 ---
 

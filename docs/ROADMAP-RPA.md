@@ -122,5 +122,13 @@ O usuário confirmou que a prévia continuou aberta nessa rodada.
 A captura seguinte mostrou o Adobe Acrobat em primeiro plano com o PDF
 exportado. O incremento atual guarda a janela do Domínio associada à
 prévia reconhecida e exige foco confirmado antes de enviar Esc. Essa
-correção precisa de teste no Windows; o fechamento do relatório e o
-retorno à interface ainda não estão comprovados.
+correção foi executada no Windows: o log mostrou foco confirmado antes
+de Esc, e o usuário confirmou que voltou à tela principal. A recuperação
+funcionou nessa rodada, mantendo a falha original de conferência do PDF.
+
+Próximo incremento da etapa 2: reconhecer automaticamente o retorno à
+tela principal com evidência visual positiva. Cabeçalho, menus e nome
+da empresa também aparecem na prévia; ausência de texto no OCR não
+comprova fechamento. Falta uma captura da tela principal como arquivo
+para medir a referência visual e testar a distinção entre as telas.
+Nenhuma nova ação de fechamento será necessária para esse incremento.

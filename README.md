@@ -43,11 +43,15 @@ seguinte mostrou o Adobe Acrobat em primeiro plano após salvar o PDF,
 enquanto a prévia do Domínio permaneceu aberta. Agora o motor guarda a
 janela associada à prévia reconhecida, tenta devolver o foco a ela e só
 envia Esc com o foco confirmado. Se não conseguir confirmar, para sem
-enviar a tecla. Esse ajuste ainda precisa de teste no Windows.
+enviar a tecla. Na rodada Windows seguinte, o log confirmou o foco e o
+usuário confirmou o retorno à tela principal; a recuperação funcionou
+nesse caso.
 
-O envio de Esc continua sem comprovar o fechamento; confira a tela antes
-de nova rodada. O Adobe pode continuar instalado e aberto. A pendência
-do nome e da conferência de período do PDF permanece separada.
+O motor ainda não reconhece esse retorno automaticamente; confira a
+tela antes de nova rodada. O próximo incremento precisa de uma captura
+real da tela principal para medir uma referência visual de retorno.
+O Adobe pode continuar instalado e aberto. A pendência do nome e da
+conferência de período do PDF permanece separada.
 
 ## Instalação
 
