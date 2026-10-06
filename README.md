@@ -167,6 +167,12 @@ comparado com uma empresa esperada. Os argumentos
 competência cuja apuração já esteja fechada. A interface gráfica
 continua usando os campos de período existentes.
 
+Se a exportação ficar como `exportacao_...pdf` e o log recusar o período,
+use `Diagnosticar PDF.bat`: ele lê o temporário mais recente e mostra
+apenas posições/resultado da conferência, sem conteúdo fiscal. O padrão
+é Saídas em 08/2026; para outro período/arquivo, consulte
+`python scripts/diagnosticar_pdf.py --help`.
+
 ### IA de decisão em erro desconhecido (opcional)
 
 Quando aparece uma caixa de erro/aviso do Domínio que o motor nunca

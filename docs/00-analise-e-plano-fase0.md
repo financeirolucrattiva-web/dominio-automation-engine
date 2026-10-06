@@ -2892,6 +2892,40 @@ conteúdo fiscal é enviado a serviço externo para essa leitura.
 
 ---
 
+### 0.65 Diagnóstico da validação de período no PDF exportado
+
+**Evidência real (06/10/2026):** após exportar para um UUID exclusivo,
+a rodada retornou `Exportação não confirmada: O cabeçalho do PDF não
+confirma o período solicitado.` Isso confirma leitura do PDF e encontro
+do título, mas não permite concluir se as datas estão erradas, se o
+separador difere, ou se a ordem de extração colocou as datas fora do
+recorte do cabeçalho. O nome temporário ficou porque a validação não
+chegou à finalização; não é por si só falha do OCR do nome.
+
+**Diagnóstico sem mudar a automação:** `Diagnosticar PDF.bat` executa
+`scripts/diagnosticar_pdf.py` no PDF `exportacao_*.pdf` mais recente de
+`saida/`. Padrão inicial: Registro de Saídas, 01/08/2026 a 31/08/2026
+(mesma rodada informada). CLI aceita arquivo explícito, `--inicio`,
+`--fim` e `--tipo entradas|saidas`. Só lê o arquivo; não renomeia nem
+opera sobre o Domínio. Compara extração padrão e layout da primeira
+página e imprime posições de marcadores/datas esperadas e resultados
+de correspondência na página versus cabeçalho. Não imprime nome de
+empresa, CNPJ, valores ou texto do PDF.
+
+**Validação:** execução sobre PDF sintético real passou nas duas
+extrações; cenário com datas após limite do cabeçalho identificado como
+página=True/cabeçalho=False; verificado que nome/CNPJ/valor sintéticos
+não aparecem no resumo. Compilação e diff check passaram. A correção da
+validação aguarda o resumo da execução local do usuário; não foi feita
+uma alteração baseada em hipótese nem desabilitada a conferência.
+
+**Objetivo esclarecido:** o usuário quer o RPA, não um OCR de documentos.
+Depois da estabilização desta confirmação de resultado, o próximo passo
+é acompanhar uma rotina por estados, com verificação após cada ação,
+e depois ampliar recuperação e lote; OCR é a percepção desse fluxo.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
