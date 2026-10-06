@@ -2683,6 +2683,14 @@ CANCELAR uma ação de empresa única travada, a não ser fechar a janela
 inteira — gap real de usabilidade, não endereçado ainda (fora do
 escopo desta correção, considerar separadamente).
 
+**Confirmado ao vivo, mesmo dia, depois da correção**: Registro de
+Entradas rodou de ponta a ponta — `registro_entradas_01082026_31082026.pdf`
+(74.926 bytes) apareceu em `saida/`, histórico marcou sucesso,
+`verificar_livro_fiscal_pdf()` confirmou "REGISTRO DE ENTRADAS" e o
+CNPJ certo no conteúdo. **Registro de Saídas e Registro de Entradas
+agora validados os dois, mecanismo e conteúdo, contra o Domínio real**
+— fecha a pendência que restava da seção 0.59/Etapa A.
+
 ---
 
 ## 1. Análise do projeto
