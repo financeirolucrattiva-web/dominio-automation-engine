@@ -2627,6 +2627,64 @@ generalização de código até agora, nunca rodado).
 
 ---
 
+### 0.60 Primeira execução real do Registro de Entradas: travou esperando a pré-visualização, "LIVRO REGISTRO" não achado — causa raiz na ordem de leitura do Tesseract
+
+Primeira execução real de Registro de Entradas, 06/10/2026 (SPRAYAGRO
+CONSULTORIA LTDA, 01/08 a 31/08/2026). Navegação, marcar a caixa
+"Registro de Entradas", preencher período e clicar OK **funcionaram**
+— print real confirma a pré-visualização aberta, com dado certo
+("REGISTRO DE ENTRADAS", CNPJ 62.994.636/0001-53, período certo,
+lançamentos reais). Mas o código ficou martelando "Ainda não achei
+'LIVRO REGISTRO'" por várias tentativas (log real colado pelo
+usuário), apesar da tela já mostrar a pré-visualização aberta.
+
+**Causa raiz, pela evidência do próprio log** (lista de palavras que o
+Tesseract leu, impressa pelo `debug=True`):
+
+```
+..., 'LIVRO', 'DOMÍNIO', 'SPRAYAGRO', 'REGISTRO', 'DE', 'ENTRADAS', ...
+```
+
+`tela.achar_texto()` só acha frase de 2+ palavras se elas estiverem
+**adjacentes na ordem de leitura que o próprio Tesseract devolve**
+(índice sequencial de `image_to_data`), não por proximidade visual na
+tela. Aqui "LIVRO" (provavelmente lido perto do título da janela,
+"...[08/2026 LIVRO DE ENTRADA]") saiu seguido de "DOMÍNIO"/"SPRAYAGRO"
+(cabeçalho), não de "REGISTRO" (que só aparece depois, no corpo do
+relatório) — nunca ficam adjacentes nessa execução específica, mesmo a
+tela mostrando os dois. Intrigante: essa mesma busca ("LIVRO REGISTRO")
+já tinha funcionado pro Registro de Saídas — a ordem de leitura do
+Tesseract aparentemente não é estável entre execuções/telas parecidas,
+o que torna buscar frase de 2+ palavras nesse tipo de tela densa
+arriscado em geral, não só um bug pontual.
+
+**Correção**: trocada a âncora de confirmação de "LIVRO REGISTRO" pra
+só **"REGISTRO"** (uma palavra só, evita depender de adjacência) nos 2
+pontos onde era usada em `_gerar_livro_fiscal()`. Risco aceito e
+documentado: a tela ANTERIOR (seleção de caixas) também tem "Registro
+de Entradas"/"Registro de Saídas" como rótulo — mas essa tela já devia
+estar fechada (OK já foi clicado) antes desse trecho rodar. O
+deslocamento fixo de plano B pro ícone de exportar (calibrado com a
+âncora antiga, 2 palavras) fica levemente desatualizado — comentado no
+código; não deve importar na prática porque `achar_icone_robusto()` é
+tentado primeiro.
+
+**Ainda não re-testado** com a correção — próximo passo óbvio: rodar
+Registro de Entradas de novo e confirmar que passa desse ponto e gera
+o PDF (mesmo padrão de validação já aplicado ao Registro de Saídas,
+seção 0.59).
+
+**Achado à parte, mesma conversa**: usuário reportou "pausar não
+funciona" tentando interromper essa execução travada. Não é bug — o
+botão "Pausar" só é habilitado pra ações em LOTE
+(`_rodar_em_thread(..., pausavel=True)`), nunca pra uma ação de
+empresa única (seção 0.34, por design). Não há hoje nenhuma forma de
+CANCELAR uma ação de empresa única travada, a não ser fechar a janela
+inteira — gap real de usabilidade, não endereçado ainda (fora do
+escopo desta correção, considerar separadamente).
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

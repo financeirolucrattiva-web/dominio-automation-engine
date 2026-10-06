@@ -961,16 +961,19 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     - Depois do OK abre uma **pré-visualização de livro impresso**, não
       uma caixa de confirmação de texto — a confirmação de sucesso
       aqui é a própria pré-visualização aparecer (achada pelo texto do
-      corpo do relatório, "LIVRO REGISTRO", específico o bastante pra
-      não confundir com a tela de configuração que a precede).
-      **Confirmado ao vivo.**
+      corpo do relatório, "REGISTRO" — era "LIVRO REGISTRO" até a
+      seção 0.60, trocado por achado real: o Tesseract não garante ler
+      "LIVRO" e "REGISTRO" adjacentes, variou entre execuções).
+      **Confirmado ao vivo pra Saídas**; pra Entradas, a 1ª execução
+      real travou exatamente nesta busca (seção 0.60) — corrigido, mas
+      a correção em si **ainda não foi testada contra o Domínio real**.
     - Exportar é um **ícone sem texto** (impossível achar por OCR) na
       barra de ferramentas vertical da pré-visualização — achado por
-      casamento de imagem (`tela.achar_icone()`, confiança 1.0 na
-      execução real) contra `app/icones/salvar_pdf.png`, com
-      deslocamento calculado a partir da âncora "LIVRO REGISTRO" como
-      plano B. **O ícone abre "Salvar em PDF", não Excel** — achado
-      real: a primeira suposição (ícone = Exportar pra Excel, de uma
+      casamento de imagem (`tela.achar_icone_robusto()`, seção 0.58)
+      contra `app/icones/salvar_pdf.png`, com deslocamento calculado a
+      partir da âncora "REGISTRO" como plano B. **O ícone abre "Salvar
+      em PDF", não Excel** — achado real: a primeira suposição (ícone
+      = Exportar pra Excel, de uma
       exploração manual anterior) estava errada; não tem como
       distinguir ícones por imagem sem legenda com certeza total, por
       isso a confirmação só veio ao ver o diálogo real abrir.
@@ -1137,14 +1140,31 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     time.sleep(2)
 
     # 8. Confirma que a pré-visualização abriu — procurando o texto do
-    # CORPO do relatório ("LIVRO REGISTRO"), que é específico o
-    # bastante pra não bater com a tela de configuração anterior.
-    # Espera por estado, não tempo fixo (mesmo motivo de
-    # esperar_e_achar() no resto do projeto) — gerar o livro pode
-    # demorar mais numa empresa com bastante movimento (seção 0.27).
+    # CORPO do relatório. Espera por estado, não tempo fixo (mesmo
+    # motivo de esperar_e_achar() no resto do projeto) — gerar o livro
+    # pode demorar mais numa empresa com bastante movimento (seção
+    # 0.27).
+    #
+    # Achado real, 06/10/2026 (seção 0.60), primeira execução real de
+    # Registro de ENTRADAS: o alvo original era "LIVRO REGISTRO" (2
+    # palavras, funcionou pro Registro de Saídas) — mas
+    # `tela.achar_texto()` só acha frase de 2+ palavras se o Tesseract
+    # devolver elas ADJACENTES na própria ordem de leitura dele (não
+    # por proximidade na tela). No log real desta execução, "LIVRO" e
+    # "REGISTRO" saíram separados ("..., 'LIVRO', 'DOMÍNIO',
+    # 'SPRAYAGRO', 'REGISTRO', 'DE', 'ENTRADAS', ..." — o Tesseract
+    # intercalou texto do título da janela/cabeçalho entre os dois),
+    # então a busca nunca batia, mesmo a pré-visualização já estando
+    # aberta de verdade (confirmado pelo print da tela). Trocado pra
+    # "REGISTRO" sozinho — aparece limpo e sem ambiguidade nesse mesmo
+    # log, evita depender de adjacência. Risco aceito: o rótulo da
+    # caixa de seleção ("Registro de Entradas"/"Registro de Saídas", na
+    # tela ANTERIOR) também contém essa palavra — mas essa tela já foi
+    # fechada (OK já foi clicado) antes deste trecho rodar, então não
+    # deveria mais estar visível.
     print("Aguardando a pré-visualização do livro abrir...")
     imagem, ancora_titulo_livro, houve_erro = esperar_e_achar(
-        "LIVRO REGISTRO", escala=2, espera_minima=2, tentativas=45, intervalo=2,
+        "REGISTRO", escala=2, espera_minima=2, tentativas=45, intervalo=2,
     )
     if houve_erro:
         print("O Domínio mostrou uma caixa de erro/aviso em vez da pré-visualização.")
@@ -1163,7 +1183,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         if acao == erros.CONTINUAR:
             print("Aviso dispensado — voltando a esperar a pré-visualização abrir.")
             imagem, ancora_titulo_livro, houve_erro_de_novo = esperar_e_achar(
-                "LIVRO REGISTRO", escala=2, espera_minima=1, tentativas=30, intervalo=2,
+                "REGISTRO", escala=2, espera_minima=1, tentativas=30, intervalo=2,
             )
             if houve_erro_de_novo or ancora_titulo_livro is None:
                 print("Depois do aviso, a pré-visualização ainda não abriu. Parando.")
@@ -1186,7 +1206,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         salvar(tela.capturar_tela(), f"{prefixo}erro_previa_nao_abriu.png")
         return False, None
 
-    print(f"Pré-visualização aberta, âncora 'LIVRO REGISTRO' em: {ancora_titulo_livro}")
+    print(f"Pré-visualização aberta, âncora 'REGISTRO' em: {ancora_titulo_livro}")
     xt, yt = ancora_titulo_livro
 
     # 9. Ícone de exportar (sem texto — impossível achar por OCR, ver
@@ -1199,9 +1219,17 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     # mesma posição/resolução de quando o recorte foi feito, nem de
     # renderização de pixel idêntica (ponto fraco já previsto do
     # casamento por pixel sozinho, via GO-Global). Só cai pro
-    # deslocamento calculado a partir da âncora "LIVRO REGISTRO"
-    # (medido por pixel num print real de 1439×899) se as duas técnicas
-    # de imagem não acharem nada.
+    # deslocamento calculado a partir da âncora abaixo se as duas
+    # técnicas de imagem não acharem nada.
+    #
+    # ATENÇÃO (seção 0.60): o deslocamento fixo foi medido com a âncora
+    # sendo "LIVRO REGISTRO" (2 palavras); a âncora agora é só
+    # "REGISTRO" (sem "LIVRO " antes), então `xt` fica um pouco mais à
+    # direita do que estava calibrado — esse plano B (coordenada fixa)
+    # pode errar por um trecho de pixels até alguém recalibrar contra
+    # um print real. Não deve importar na prática, porque
+    # `achar_icone_robusto()` já resolve sozinho antes de chegar aqui
+    # na grande maioria dos casos.
     #
     # Formato de saída É PDF, não Excel — achado real, primeira
     # execução ao vivo (seção 0.57): esse ícone específico abre
