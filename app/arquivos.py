@@ -11,6 +11,35 @@ def _compactar(texto):
     return "".join(c for c in texto if not c.isspace() and not unicodedata.combining(c))
 
 
+def empresa_do_cabecalho(texto):
+    """Lê a linha NOME - CÓDIGO do cabeçalho conhecido, sem inventar nome."""
+    candidatos = set()
+    for linha in texto.splitlines():
+        linha = " ".join(linha.split())
+        correspondencia = re.fullmatch(r"(.+?)\s*[-–—]\s*(\d+)\s*", linha)
+        if correspondencia is None:
+            continue
+        nome, codigo = correspondencia.groups()
+        if not any(c.isalpha() for c in nome):
+            continue
+        if _compactar(nome) in ("GERENTE", "DOMINIO", "ESCRITAFISCAL"):
+            continue
+        if re.fullmatch(r"(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)[/ -]\d{4}", nome.upper()):
+            continue
+        candidatos.add((nome, codigo))
+    return candidatos.pop() if len(candidatos) == 1 else None
+
+
+def nome_empresa_seguro(nome):
+    """Nome visível como componente portátil de arquivo, sem código/CNPJ."""
+    texto = unicodedata.normalize("NFKD", nome.upper())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"[^A-Z0-9]+", "_", texto).strip("_")[:100].rstrip("_")
+    if not texto or not any(c.isalpha() for c in texto):
+        raise ValueError("Nome da empresa ilegível para nomear o PDF.")
+    return texto
+
+
 def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
     """Confirma tipo/período e devolve CNPJ inequívoco do cabeçalho.
 
@@ -49,7 +78,7 @@ def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
     return cnpj
 
 
-def nome_livro(tipo, cnpj, inicio, fim):
+def nome_livro(tipo, cnpj, inicio, fim, nome_empresa=None):
     inicial = datetime.datetime.strptime(inicio, "%d/%m/%Y").date()
     final = datetime.datetime.strptime(fim, "%d/%m/%Y").date()
     if final < inicial:
@@ -62,10 +91,11 @@ def nome_livro(tipo, cnpj, inicio, fim):
         competencia = inicial.strftime("%Y-%m")
     else:
         competencia = f"{inicial.isoformat()}_a_{final.isoformat()}"
-    return f"{tipo}_{cnpj}_{competencia}.pdf"
+    identificacao = nome_empresa_seguro(nome_empresa) if nome_empresa is not None else cnpj
+    return f"{tipo}_{identificacao}_{competencia}.pdf"
 
 
-def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None):
+def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=None):
     """Lê um PDF novo e completo; publica sem sobrescrever arquivos prévios."""
     from pypdf import PdfReader
 
@@ -82,7 +112,7 @@ def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None):
         # Força leitura de todas as páginas antes de declarar o arquivo pronto.
         for pagina in leitor.pages[1:]:
             pagina.extract_text()
-    nome = nome_livro(tipo, cnpj, inicio, fim)
+    nome = nome_livro(tipo, cnpj, inicio, fim, nome_empresa=nome_empresa)
     destino = caminho.with_name(nome)
     numero = 1
     while True:

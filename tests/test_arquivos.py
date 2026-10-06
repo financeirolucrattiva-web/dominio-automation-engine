@@ -7,7 +7,7 @@ from pathlib import Path
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
 
-from app.arquivos import finalizar_pdf, nome_livro, validar_livro
+from app.arquivos import empresa_do_cabecalho, finalizar_pdf, nome_empresa_seguro, nome_livro, validar_livro
 
 
 CNPJ = "12345678000195"
@@ -26,6 +26,26 @@ def criar_pdf(caminho, texto=TEXTO):
 
 
 class TestArquivos(unittest.TestCase):
+    def test_empresa_cabecalho_sem_codigo_ou_ruido(self):
+        self.assertEqual(empresa_do_cabecalho("GERENTE\nEMPRESA FICTICIA - 52\nSET/2026"), ("EMPRESA FICTICIA", "52"))
+        self.assertEqual(empresa_do_cabecalho("EMPRESA - FILIAL – 7"), ("EMPRESA - FILIAL", "7"))
+        for texto in ("GERENTE\nSET/2026", "EMPRESA SEM CODIGO", "EMPRESA A - 1\nEMPRESA B - 2", "GERENTE - 52"):
+            with self.subTest(texto=texto):
+                self.assertIsNone(empresa_do_cabecalho(texto))
+
+    def test_nome_empresa_portavel_sem_cnpj(self):
+        self.assertEqual(nome_empresa_seguro('São João & Filhos / Ltda.'), "SAO_JOAO_FILHOS_LTDA")
+        self.assertEqual(nome_livro("registro_saidas", CNPJ, "01/08/2026", "31/08/2026", nome_empresa="EMPRESA FICTICIA"), "registro_saidas_EMPRESA_FICTICIA_2026-08.pdf")
+        with self.assertRaises(ValueError):
+            nome_empresa_seguro("../?123")
+
+    def test_pdf_nome_empresa_cnpj_validado_internamente(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            temporario = Path(pasta) / "exportacao_nova.pdf"
+            criar_pdf(temporario)
+            destino = finalizar_pdf(temporario, "registro_saidas", "01/08/2026", "31/08/2026", cnpj_esperado=CNPJ, nome_empresa="EMPRESA FICTICIA")
+            self.assertEqual(destino.name, "registro_saidas_EMPRESA_FICTICIA_2026-08.pdf")
+
     def test_cabecalho_espacado(self):
         self.assertEqual(validar_livro(" ".join(TEXTO), "registro_saidas", "01/08/2026", "31/08/2026"), CNPJ)
 

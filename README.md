@@ -145,18 +145,24 @@ seção 0.25/0.32 do documento): salva print, decide o que fazer
 ### Arquivos dos Livros Fiscais
 
 Registro de Saídas e Registro de Entradas salvam PDFs em `saida/` com
-nome por tipo, CNPJ da empresa e competência, por exemplo
-`registro_saidas_<CNPJ>_2026-08.pdf`. Uma nova rodada preserva o PDF
-anterior e usa um sufixo no novo nome.
+nome por tipo, nome da empresa e competência, por exemplo
+`registro_saidas_EMPRESA_EXEMPLO_2026-08.pdf`. O nome é lido no canto
+superior direito do Domínio, removendo o código final `- número` e
+normalizando espaços/acentos para um nome de arquivo válido. Uma nova
+rodada preserva o PDF anterior e usa um sufixo no novo nome.
 
 A exportação começa em um caminho exclusivo. O motor só anuncia
 sucesso depois de abrir o novo PDF e conferir tipo, período e CNPJ no
 cabeçalho; um arquivo antigo existente não comprova uma nova geração.
 Se a conferência falhar, o arquivo temporário fica para diagnóstico.
-Essa mudança ainda precisa de validação contra o Domínio real.
+A leitura do nome por OCR ainda precisa de validação contra o Domínio
+real. Se o cabeçalho não puder ser identificado, o motor para antes de
+navegar e salva a captura para diagnóstico; não usa o nome de uma
+rodada anterior. O CNPJ continua sendo conferido internamente no PDF.
 
 Nos scripts individuais, `--cnpj` permite conferir a empresa esperada;
-sem esse argumento, a identificação vem do próprio PDF. Os argumentos
+sem esse argumento, o CNPJ é identificado no próprio PDF, mas não
+comparado com uma empresa esperada. Os argumentos
 `--data-inicial` e `--data-final` recebem datas em `DD/MM/AAAA` de uma
 competência cuja apuração já esteja fechada. A interface gráfica
 continua usando os campos de período existentes.

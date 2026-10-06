@@ -23,6 +23,28 @@ from PIL import Image, ImageGrab, ImageOps
 import pytesseract
 from pytesseract import Output
 
+from . import arquivos
+
+
+def ler_empresa_selecionada(imagem):
+    """Lê NOME - CÓDIGO no canto superior direito observado (seção 0.64).
+
+    Não envia captura nem texto a serviços externos. Retorna (nome, código)
+    ou None quando OCR não encontra uma única linha reconhecível.
+    """
+    largura, altura = imagem.size
+    recorte = imagem.crop((largura // 2, 0, largura, min(altura, max(140, int(altura * 0.20)))))
+    cinza = ImageOps.grayscale(recorte)
+    cinza = cinza.resize((cinza.width * 3, cinza.height * 3))
+    # Texto claro sobre o cabeçalho escuro; compara as duas polaridades.
+    resultados = set()
+    for tentativa in (cinza, ImageOps.invert(cinza)):
+        texto = pytesseract.image_to_string(tentativa, lang="por", config="--psm 6")
+        empresa = arquivos.empresa_do_cabecalho(texto)
+        if empresa is not None:
+            resultados.add(empresa)
+    return resultados.pop() if len(resultados) == 1 else None
+
 # Achado real, seção 0.53: o instalador do Tesseract às vezes não
 # adiciona ao PATH (ou o Windows só aplica isso numa janela nova, nunca
 # na que já estava aberta) — pytesseract quebra com "tesseract is not

@@ -998,7 +998,8 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
 
     `pasta_destino`: pasta onde salvar o .pdf exportado (criada se não
     existir). O nome do arquivo é gerado automaticamente a partir da
-    competência e do CNPJ lido no cabeçalho do PDF. `cnpj_esperado`
+    competência e do nome da empresa lido no canto superior direito.
+    O CNPJ continua validado no conteúdo. `cnpj_esperado`
     opcional também confere a identidade antes de declarar sucesso.
     Quem chama já deve ter confirmado a empresa antes, com
     `trocar_empresa()` + checagem visual, do mesmo jeito que
@@ -1022,6 +1023,13 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
 
     # 1. Relatórios (barra de menu — sem pré-processamento, já funciona)
     imagem = tela.capturar_tela()
+    empresa_cabecalho = tela.ler_empresa_selecionada(imagem)
+    if empresa_cabecalho is None:
+        print("Não consegui ler uma única empresa no cabeçalho superior direito. Parando antes de abrir menus.")
+        salvar(imagem, f"{prefixo}erro_empresa_cabecalho.png")
+        return False, None
+    nome_empresa, codigo_empresa = empresa_cabecalho
+    print(f"Empresa identificada no cabeçalho: {nome_empresa} (código {codigo_empresa}).")
     pos = tela.achar_texto(tela.recortar_topo(imagem), "Relatórios")
     if pos is None:
         print("Não achei 'Relatórios'. O Domínio está aberto e visível?")
@@ -1351,7 +1359,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
             if stat.st_size > 0 and assinatura == assinatura_anterior:
                 caminho_final = arquivos.finalizar_pdf(
                     caminho_completo, prefixo_arquivo, data_inicial, data_final,
-                    cnpj_esperado=cnpj_esperado,
+                    cnpj_esperado=cnpj_esperado, nome_empresa=nome_empresa,
                 )
                 break
             assinatura_anterior = assinatura

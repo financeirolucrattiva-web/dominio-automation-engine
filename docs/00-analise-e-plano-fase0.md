@@ -2852,6 +2852,46 @@ final localmente.
 
 ---
 
+### 0.64 Nome de arquivo pela empresa exibida no canto superior direito
+
+**Pedido e evidência (06/10/2026):** o usuário indicou em captura real
+que quer o nome exibido no canto superior direito do Domínio, entre o
+usuário conectado e a competência. A linha tem o formato
+`EMPRESA EXEMPLO - 52`: o código final identifica a seleção, mas não
+deve entrar no nome do PDF. Este pedido substitui o CNPJ no nome
+introduzido na seção 0.63; a conferência interna do CNPJ permanece.
+
+**Mudança:** após focar o Domínio e antes de abrir Relatórios, captura
+nova da tela e leitura local por Tesseract da faixa superior direita.
+O parser exige uma linha de nome seguida de hífen e código numérico,
+rejeita ausência/ambiguidade, e não reutiliza nome de uma execução
+anterior. Esse recorte é apenas para leitura; nenhuma coordenada de
+clique, caminho de menu ou ícone foi alterado. Se a identificação
+falhar, interrompe antes da navegação e salva captura para diagnóstico.
+
+Nome final: `registro_saidas_EMPRESA_EXEMPLO_2026-08.pdf` e equivalente
+para Entradas. A grafia é a exibida no cabeçalho, inclusive abreviações;
+acentos, espaços e caracteres inadequados para nomes de arquivo Windows
+são normalizados. A competência vem do período solicitado/conferido no
+PDF, não da competência exibida no canto da tela (podem ser diferentes).
+Continuam a exportação UUID, conferência do PDF/tipo/período/CNPJ e
+preservação dos anteriores com sufixos, da seção 0.63.
+
+**Validação automatizada:** 13 testes passaram, incluindo OCR real de
+cabeçalho sintético, parsing de nome/código, sanitização e validação de
+PDF. Duas integrações simuladas passaram: nome ausente impede abrir
+menus; nome identificado chega ao PDF final sem CNPJ no nome. Compilação
+dos módulos alterados e `git diff --check` também passaram.
+
+**Limite da validação:** a captura inline foi inspecionada visualmente;
+seu arquivo binário não estava acessível para rodar Tesseract neste
+ambiente. Portanto a legibilidade real do cabeçalho por OCR não foi
+confirmada aqui. Os testes de lógica e OCR sintético não substituem a
+próxima rodada no Windows com o Domínio real. Nenhuma imagem, nome ou
+conteúdo fiscal é enviado a serviço externo para essa leitura.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
