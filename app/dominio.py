@@ -923,6 +923,22 @@ def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
 
 
 def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
+    """Acompanha uma execução sem alterar navegação, validação ou retorno."""
+    acompanhamento = estados.AcompanhamentoRotina(prefixo_arquivo)
+    try:
+        resultado = _executar_livro_fiscal(
+            rotulo_checkbox, prefixo_arquivo, pasta_destino,
+            data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
+            cnpj_esperado=cnpj_esperado, acompanhamento=acompanhamento,
+        )
+        acompanhamento.concluir(resultado[0])
+        return resultado
+    except BaseException:
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
+
+
+def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None, acompanhamento=None):
     """Gera um Livro Fiscal (Relatórios > Livros > Livros Fiscais >
     aba Geral: marca `rotulo_checkbox` > preenche Inicial/Final > OK)
     e exporta a pré-visualização pra **PDF** em `pasta_destino` (seção
@@ -1009,6 +1025,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     `(False, None)` em qualquer falha no caminho (print de erro salvo,
     como sempre).
     """
+    acompanhamento.iniciar("validar_dados")
     if data_inicial is None or data_final is None:
         data_inicial, data_final = competencia_anterior()
 
@@ -1019,6 +1036,8 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         print("Período inválido — informe datas válidas em dd/mm/aaaa, na ordem inicial/final.")
         return False, None
 
+    acompanhamento.confirmar("datas_validas")
+    acompanhamento.iniciar("identificar_empresa")
     interacao.focar_dominio()
 
     # 1. Relatórios (barra de menu — sem pré-processamento, já funciona)
@@ -1030,6 +1049,8 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         return False, None
     nome_empresa, codigo_empresa = empresa_cabecalho
     print(f"Empresa identificada no cabeçalho: {nome_empresa} (código {codigo_empresa}).")
+    acompanhamento.confirmar("cabecalho_nome_codigo_lidos")
+    acompanhamento.iniciar("abrir_livros")
     pos = tela.achar_texto(tela.recortar_topo(imagem), "Relatórios")
     if pos is None:
         print("Não achei 'Relatórios'. O Domínio está aberto e visível?")
@@ -1094,6 +1115,9 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         salvar(tela.capturar_tela(), f"{prefixo}erro_titulo_livros_fiscais.png")
         return False, None
 
+    acompanhamento.confirmar("titulo_livros_fiscais_lido")
+    acompanhamento.iniciar("preencher_periodo")
+
     # 5. Marca a caixa pedida (`rotulo_checkbox`, aba Geral, já aberta
     # por padrão). O quadrado da caixa fica à ESQUERDA do texto, não em
     # cima — deslocamento calibrado por medição de pixel (texto
@@ -1119,6 +1143,9 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     if not preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=prefixo):
         print("Não consegui preencher o período. Parando.")
         return False, None
+
+    acompanhamento.confirmar("campos_periodo_confirmados")
+    acompanhamento.iniciar("gerar_previa")
 
     # 7. OK — ao contrário do SPED Fiscal, o texto "OK" parece legível
     # pro OCR nesta tela (confirmado só por inspeção visual do print,
@@ -1212,11 +1239,12 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
                 raise LoteInterrompido(texto_lido)
             if acao == erros.TENTAR_DE_NOVO and not prefixo.endswith("retry_"):
                 print(f"Tentando gerar o livro ({prefixo_arquivo}) mais uma vez.")
-                return _gerar_livro_fiscal(
+                acompanhamento.tentar_novamente()
+                return _executar_livro_fiscal(
                     rotulo_checkbox, prefixo_arquivo, pasta_destino,
                     data_inicial=data_inicial, data_final=data_final,
                     prefixo=f"{prefixo}retry_",
-                    cnpj_esperado=cnpj_esperado,
+                    cnpj_esperado=cnpj_esperado, acompanhamento=acompanhamento,
                 )
             return False, None
     if ancora_titulo_livro is None:
@@ -1224,6 +1252,8 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         salvar(tela.capturar_tela(), f"{prefixo}erro_previa_nao_abriu.png")
         return False, None
 
+    acompanhamento.confirmar("ancora_registro_lida")
+    acompanhamento.iniciar("exportar_pdf")
     print(f"Pré-visualização aberta, âncora 'REGISTRO' em: {ancora_titulo_livro}")
     xt, yt = ancora_titulo_livro
 
@@ -1357,6 +1387,9 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
             stat = caminho_completo.stat()
             assinatura = (stat.st_size, stat.st_mtime_ns)
             if stat.st_size > 0 and assinatura == assinatura_anterior:
+                if acompanhamento.etapa == "exportar_pdf":
+                    acompanhamento.confirmar("arquivo_novo_estavel")
+                    acompanhamento.iniciar("conferir_pdf")
                 caminho_final = arquivos.finalizar_pdf(
                     caminho_completo, prefixo_arquivo, data_inicial, data_final,
                     cnpj_esperado=cnpj_esperado, nome_empresa=nome_empresa,
@@ -1376,9 +1409,11 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         salvar(tela.capturar_tela(), f"{prefixo}erro_arquivo_nao_gerado.png")
         return False, None
 
+    acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
     caminho_completo = caminho_final
     print(f"Arquivo gerado e conteúdo confirmado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
 
+    acompanhamento.iniciar("encerrar")
     # 12. Fecha a pré-visualização. Os controles da janela MDI filha
     # (restaurar/minimizar/fechar, vistos num print real no canto
     # superior esquerdo dela) nunca foram medidos com precisão — em
@@ -1386,6 +1421,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     # genérico de último recurso, seção 0.34), que não gera nenhuma
     # ação indesejada se errar o alvo.
     interacao.pressionar_esc_repetidas(vezes=2)
+    acompanhamento.confirmar("esc_enviado_fechamento_nao_verificado")
 
     return True, str(caminho_completo)
 

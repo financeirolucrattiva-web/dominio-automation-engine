@@ -2944,6 +2944,45 @@ formato foi testado localmente; nenhuma nova rodada real foi afirmada.
 
 ---
 
+### 0.67 Acompanhamento dos Livros Fiscais por etapas
+
+**Direção do usuário:** deixar o nome do PDF pendente e seguir o plano
+do projeto rumo a um RPA capaz de aprender rotinas e usar agentes de IA
+como operadores. Esse incremento continua o núcleo da seção 0.62; não
+introduz autonomia de IA nem muda a geração/leitura autorizada.
+O caminho de evolução está em `docs/ROADMAP-RPA.md`.
+
+**Mudança:** `AcompanhamentoRotina`, em `app/estados.py`, exige sequência
+de etapas e evidência antes de avançar. A execução compartilhada dos
+Livros Fiscais registra validar dados, identificar empresa, abrir Livros
+Fiscais, conferir campos do período, reconhecer prévia, exportar PDF,
+conferir PDF e enviar fechamento. Evidências são marcadores fixos locais,
+sem nome, CNPJ, período fiscal ou caminhos do cliente nos novos eventos.
+Identificar nome/código não equivale a comprovar uma empresa esperada;
+enviar Esc não equivale a comprovar que a tela fechou. O log distingue
+essa última ação de uma confirmação de estado observado.
+
+Há linhas `[estado]` na saída e JSON Lines em
+`data/execucoes/<execution_id>.jsonl`, com execução, tentativa, etapa,
+estado, tempo e marcador de evidência. Toda saída falsa registra a
+etapa de falha; exceções são registradas e propagadas. Uma nova tentativa
+mantém a execução e reinicia a sequência sem reutilizar confirmações.
+Falha de gravação do log avisa no console e não impede a automação.
+
+A navegação, cliques, rotinas de recuperação, retorno `(bool, caminho)`
+e conferência do PDF permanecem iguais. A falha real de período da
+seção 0.65 e o nome solicitado não foram alterados. Se ela reaparecer,
+o acompanhamento deve registrar falha em `conferir_pdf`, sem sucesso
+para etapas posteriores.
+
+**Validação:** 23 testes passaram (13 existentes e 10 de sequência,
+evidência, registro, retry e integração simulada). Compilação e diff
+check passaram. **Ainda não validado contra o Domínio real.** O teste
+Windows deve usar competência já apurada e conferir as linhas de estado,
+inclusive no caminho de falha conhecido, sem interagir com mouse/teclado.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

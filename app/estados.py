@@ -23,8 +23,108 @@ nova pedir de verdade, não antes.
 """
 
 import time
+import datetime
+import json
+from pathlib import Path
+import uuid
 
 from . import tela
+
+
+class AcompanhamentoRotina:
+    """Registra etapas observadas; não decide ações nem guarda dados fiscais."""
+
+    ETAPAS = (
+        "validar_dados", "identificar_empresa", "abrir_livros",
+        "preencher_periodo", "gerar_previa", "exportar_pdf",
+        "conferir_pdf", "encerrar",
+    )
+    EVIDENCIAS = {
+        "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
+        "campos_periodo_confirmados", "ancora_registro_lida", "arquivo_novo_estavel",
+        "pdf_tipo_periodo_cnpj_confirmados", "esc_enviado_fechamento_nao_verificado",
+        "retorno_falha", "excecao", "tentativa_reiniciada", "rotina_concluida",
+    }
+    CONFIRMACOES = dict(zip(ETAPAS, (
+        "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
+        "campos_periodo_confirmados", "ancora_registro_lida", "arquivo_novo_estavel",
+        "pdf_tipo_periodo_cnpj_confirmados", "esc_enviado_fechamento_nao_verificado",
+    )))
+
+    def __init__(self, rotina, pasta_logs=None):
+        if rotina not in ("registro_saidas", "registro_entradas"):
+            raise ValueError("Rotina sem acompanhamento configurado.")
+        self.rotina = rotina
+        self.execution_id = uuid.uuid4().hex
+        pasta_logs = Path(pasta_logs) if pasta_logs is not None else Path(__file__).resolve().parent.parent / "data" / "execucoes"
+        self.caminho_log = pasta_logs / f"{self.execution_id}.jsonl"
+        self.eventos = []
+        self.tentativa = 1
+        self.etapa = None
+        self.confirmadas = []
+        self.finalizada = False
+        self.inicio = time.monotonic()
+        self.inicio_etapa = self.inicio
+        self._aviso_log = False
+
+    def _registrar(self, etapa, status, evidencia=None):
+        if evidencia is not None and evidencia not in self.EVIDENCIAS:
+            raise ValueError("Evidência precisa ser um marcador sem dados fiscais.")
+        evento = {
+            "execution_id": self.execution_id, "routine_id": self.rotina,
+            "attempt": self.tentativa, "step": etapa, "status": status,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "elapsed_seconds": round(time.monotonic() - self.inicio_etapa, 3),
+            "evidence": evidencia,
+        }
+        self.eventos.append(evento)
+        print(f"[estado] {etapa}: {status}" + (f" ({evidencia})" if evidencia else ""))
+        try:
+            self.caminho_log.parent.mkdir(parents=True, exist_ok=True)
+            with self.caminho_log.open("a", encoding="utf-8") as arquivo:
+                arquivo.write(json.dumps(evento, ensure_ascii=False) + "\n")
+        except OSError:
+            if not self._aviso_log:
+                print("[estado] Aviso: não foi possível gravar o histórico local; acompanhamento continua no console.")
+                self._aviso_log = True
+
+    def iniciar(self, etapa):
+        if self.finalizada or etapa not in self.ETAPAS:
+            raise ValueError("Etapa de rotina inválida.")
+        esperado = self.ETAPAS[len(self.confirmadas)] if len(self.confirmadas) < len(self.ETAPAS) else None
+        if etapa != esperado or (self.etapa is not None and self.etapa not in self.confirmadas):
+            raise ValueError("Não é possível avançar sem evidência da etapa anterior.")
+        self.etapa = etapa
+        self.inicio_etapa = time.monotonic()
+        self._registrar(etapa, "inicio")
+
+    def confirmar(self, evidencia):
+        if self.etapa is None or self.etapa in self.confirmadas or self.finalizada:
+            raise ValueError("Nenhuma etapa pendente para confirmar.")
+        if evidencia != self.CONFIRMACOES[self.etapa]:
+            raise ValueError("Evidência não corresponde à etapa atual.")
+        status = "acao_executada" if self.etapa == "encerrar" else "confirmado"
+        self._registrar(self.etapa, status, evidencia)
+        self.confirmadas.append(self.etapa)
+
+    def tentar_novamente(self):
+        if self.finalizada or self.etapa is None:
+            raise ValueError("Nenhuma tentativa em andamento.")
+        self._registrar(self.etapa, "falha", "tentativa_reiniciada")
+        self.tentativa += 1
+        self.etapa = None
+        self.confirmadas = []
+
+    def concluir(self, sucesso, evidencia="retorno_falha"):
+        if self.finalizada:
+            return
+        if sucesso and tuple(self.confirmadas) != self.ETAPAS:
+            raise ValueError("Sucesso exige evidências de todas as etapas.")
+        if not sucesso and self.etapa is not None:
+            self._registrar(self.etapa, "falha", evidencia)
+        self.inicio_etapa = self.inicio
+        self._registrar("fim", "concluido" if sucesso else "falha", "rotina_concluida" if sucesso else evidencia)
+        self.finalizada = True
 
 
 def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):

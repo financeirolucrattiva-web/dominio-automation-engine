@@ -33,6 +33,14 @@ adianta) configurar isso na tela antes de rodar. Antes de rodar contra
 a empresa-alvo real, só confira que ela está selecionada (não a
 empresa de teste).
 
+O caminho até agentes de IA operarem rotinas pela interface está em
+[docs/ROADMAP-RPA.md](docs/ROADMAP-RPA.md). O incremento atual acompanha
+os Livros Fiscais por etapas, com linhas `[estado]` no console/interface
+e eventos locais em `data/execucoes/<id>.jsonl`. Uma falha indica a etapa
+em que parou; uma ação enviada é distinguida de um estado observado.
+A nova instrumentação ainda aguarda teste real no Windows. A pendência
+do nome/conferência de período do PDF permanece separada.
+
 ## Instalação
 
 ```bash
