@@ -922,6 +922,15 @@ def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
     return True
 
 
+def _confirmar_conteudo_dominio():
+    """Confirma cabeçalho conhecido após retomar cliente sem título útil."""
+    topo = tela.recortar_topo(tela.capturar_tela())
+    return (
+        tela.achar_texto(topo, "Domínio", escala=2) is not None
+        and tela.achar_texto(topo, "Escrita Fiscal", escala=2) is not None
+    )
+
+
 def _recuperar_interface_livro(acompanhamento):
     """Tenta a saída já usada pela rotina, somente após prévia observada.
 
@@ -935,7 +944,12 @@ def _recuperar_interface_livro(acompanhamento):
         print("Saída com Esc já tentada; confira a tela do Domínio antes de uma nova execução.")
         return
     try:
-        interacao.pressionar_esc_repetidas(vezes=2)
+        if not interacao.pressionar_esc_no_dominio(
+            acompanhamento.janela_dominio, vezes=2, confirmar_conteudo=_confirmar_conteudo_dominio,
+        ):
+            acompanhamento.registrar_recuperacao("inconclusivo", "foco_dominio_nao_confirmado")
+            print("Não confirmei o foco do Domínio; interrompi a tentativa de Esc. Confira a tela antes de uma nova execução.")
+            return
     except Exception:
         acompanhamento.registrar_recuperacao("inconclusivo", "recuperacao_esc_falhou")
         print("Não consegui concluir a tentativa de saída. Confira a tela do Domínio antes de uma nova execução.")
@@ -1283,6 +1297,7 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         return False, None
 
     acompanhamento.confirmar("ancora_registro_lida")
+    acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
     acompanhamento.iniciar("exportar_pdf")
     print(f"Pré-visualização aberta, âncora 'REGISTRO' em: {ancora_titulo_livro}")
     xt, yt = ancora_titulo_livro
@@ -1447,10 +1462,15 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
     # 12. Fecha a pré-visualização. Os controles da janela MDI filha
     # (restaurar/minimizar/fechar, vistos num print real no canto
     # superior esquerdo dela) nunca foram medidos com precisão — em
-    # vez de arriscar uma posição não calibrada, usa Esc (recurso
-    # genérico de último recurso, seção 0.34), que não gera nenhuma
-    # ação indesejada se errar o alvo.
-    interacao.pressionar_esc_repetidas(vezes=2)
+    # vez de arriscar uma posição não calibrada, usa Esc somente após
+    # retomar a janela identificada na prévia e verificar seu foco.
+    # O exportador pode ter aberto o Adobe Acrobat em primeiro plano.
+    if not interacao.pressionar_esc_no_dominio(
+        acompanhamento.janela_dominio, vezes=2, confirmar_conteudo=_confirmar_conteudo_dominio,
+    ):
+        acompanhamento.registrar_encerramento_inconclusivo()
+        print("PDF conferido, mas não confirmei o foco do Domínio para encerrar. Confira a tela antes de uma nova execução.")
+        return False, str(caminho_completo)
     acompanhamento.confirmar("esc_enviado_fechamento_nao_verificado")
 
     return True, str(caminho_completo)

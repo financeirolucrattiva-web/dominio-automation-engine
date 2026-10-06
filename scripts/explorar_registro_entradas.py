@@ -48,7 +48,10 @@ def main():
         cnpj_esperado=args.cnpj,
     )
     if not sucesso:
-        print("Rotina parou antes de gerar o arquivo. Veja os prints de erro em capturas/.")
+        if caminho:
+            print(f"PDF gerado e conferido: {caminho}. Encerramento da interface ficou pendente; confira o Domínio.")
+        else:
+            print("Rotina não concluída. Veja o log e os prints de erro em capturas/.")
         return
 
     print(f"Arquivo gerado: {caminho}")

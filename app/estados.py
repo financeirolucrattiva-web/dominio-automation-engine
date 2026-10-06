@@ -46,6 +46,7 @@ class AcompanhamentoRotina:
         "retorno_falha", "excecao", "tentativa_reiniciada", "rotina_concluida",
         "recuperacao_esc_enviado", "recuperacao_sem_confirmacao_visual",
         "recuperacao_esc_falhou", "encerramento_ja_tentado",
+        "foco_dominio_nao_confirmado",
     }
     CONFIRMACOES = dict(zip(ETAPAS, (
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
@@ -69,6 +70,7 @@ class AcompanhamentoRotina:
         self.inicio_etapa = self.inicio
         self._aviso_log = False
         self.recuperacao_iniciada = False
+        self.janela_dominio = None  # HWND/PID em memória; nunca no JSONL.
 
     def _registrar(self, etapa, status, evidencia=None):
         if evidencia is not None and evidencia not in self.EVIDENCIAS:
@@ -117,6 +119,7 @@ class AcompanhamentoRotina:
         self.tentativa += 1
         self.etapa = None
         self.confirmadas = []
+        self.janela_dominio = None
 
     def registrar_recuperacao(self, status, evidencia=None):
         """Registra saída tentada, preservando a etapa/resultado que falhou."""
@@ -128,6 +131,11 @@ class AcompanhamentoRotina:
             raise ValueError("Evento de recuperação inválido.")
         self._registrar("recuperar_interface", status, evidencia)
         return True
+
+    def registrar_encerramento_inconclusivo(self):
+        if self.finalizada or self.etapa != "encerrar":
+            raise ValueError("Encerramento não está em andamento.")
+        self._registrar("encerrar", "inconclusivo", "foco_dominio_nao_confirmado")
 
     def concluir(self, sucesso, evidencia="retorno_falha"):
         if self.finalizada:

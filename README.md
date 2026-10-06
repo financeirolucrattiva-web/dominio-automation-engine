@@ -38,13 +38,16 @@ O caminho até agentes de IA operarem rotinas pela interface está em
 os Livros Fiscais por etapas, com linhas `[estado]` no console/interface
 e eventos locais em `data/execucoes/<id>.jsonl`. Uma falha indica a etapa
 em que parou; uma ação enviada é distinguida de um estado observado.
-O caminho de falha na conferência foi observado no Windows. Após uma
-falha com prévia já reconhecida, o motor tenta fechar com Esc e avisa
-que o retorno não foi verificado; confira a tela antes de nova rodada.
-O envio dessa recuperação foi observado no Windows; o fechamento
-da tela foi recusado na rodada observada: a prévia continuou aberta.
-A correção depende de identificar o controle próprio do relatório. A pendência do nome e da
-conferência de período do PDF permanece separada.
+O caminho de falha na conferência foi observado no Windows. A captura
+seguinte mostrou o Adobe Acrobat em primeiro plano após salvar o PDF,
+enquanto a prévia do Domínio permaneceu aberta. Agora o motor guarda a
+janela associada à prévia reconhecida, tenta devolver o foco a ela e só
+envia Esc com o foco confirmado. Se não conseguir confirmar, para sem
+enviar a tecla. Esse ajuste ainda precisa de teste no Windows.
+
+O envio de Esc continua sem comprovar o fechamento; confira a tela antes
+de nova rodada. O Adobe pode continuar instalado e aberto. A pendência
+do nome e da conferência de período do PDF permanece separada.
 
 ## Instalação
 

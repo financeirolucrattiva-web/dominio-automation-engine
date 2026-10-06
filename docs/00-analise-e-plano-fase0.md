@@ -3037,6 +3037,55 @@ dado necessário é captura da janela com a prévia aberta e os controles
 visíveis, para identificar o fechamento da janela interna do relatório
 sem confundi-lo com o fechamento do aplicativo Domínio.
 
+### 0.69 Leitor PDF em primeiro plano após exportação
+
+**Evidência recebida em 06/10/2026:** o usuário repetiu a rodada e
+enviou uma captura do Adobe Acrobat maximizado com o PDF temporário
+exportado. O leitor ficou em primeiro plano após salvar. O envio anterior
+de Esc não registrava a janela destinatária; a captura explica por que
+não era seguro presumir que a tecla chegaria ao Domínio. Ela não
+comprova o destino exato de cada tecla na rodada anterior.
+
+**Causa no código:** o encerramento e a recuperação enviavam Esc sem
+conferir o foco. O foco inicial legado clica no centro da tela; repetir
+esse clique com o Acrobat por cima também não traria o Domínio de volta.
+
+**Correção:** associar a janela ativa à prévia reconhecida por OCR na
+tentativa atual e guardar sua identidade apenas em memória. Após
+exportar, retomar essa janela e conferir o foco antes de cada Esc. HWND
+e PID usam tipos Win32 explícitos; nenhuma árvore de controles do
+Domínio é inspecionada. A classe `DisplayClientWindowClass` sozinha
+nunca serve para buscar uma janela, pois a seção 0.5 já provou que não
+é exclusiva. Sem vínculo confiável, só um título inequívoco e único do
+Domínio pode servir de alternativa. Quando o cliente não fornece título
+útil, o foco também exige OCR do cabeçalho conhecido: `Domínio` e
+`Escrita Fiscal`, no recorte superior e com escala 2, com até três
+checagens por tecla. Identidade inválida, ambiguidade ou foco não
+confirmado interrompem o envio e deixam a tentativa inconclusiva.
+
+A identidade é descartada em nova tentativa e não aparece no JSONL;
+o marcador de falha é `foco_dominio_nao_confirmado`. Se o PDF já foi
+conferido e apenas o encerramento ficar pendente, o retorno preserva
+seu caminho com resultado falso. A interface mantém esse arquivo no
+histórico, e os scripts individuais distinguem esse caso de uma geração
+não concluída. A recuperação preserva o erro original do PDF.
+
+O Adobe pode permanecer instalado e aberto. As duas teclas Esc
+existentes são mantidas, sem coordenada nova de fechamento. O envio
+continua sem comprovar retorno à tela principal; essa confirmação ainda
+depende da próxima rodada real. A conferência de período e a renomeação
+continuam pendentes, conforme decisão anterior do usuário.
+
+**Validação local:** 46 testes passaram, incluindo foco no leitor,
+troca de foco recusada, janelas ambíguas, título/classe/PID alterados,
+OCR não confirmado e perda de foco entre teclas. O fluxo simulado
+preserva a falha original e o arquivo já conferido. Compilação e
+checagem de diff passaram, preservando CRLF em `interacao.py`.
+
+**Validação real pendente:** o comportamento novo ainda não foi testado
+contra o Domínio. O usuário atualizará e repetirá a mesma rotina para
+observar se o foco volta do Acrobat e se a prévia fecha.
+
 ---
 
 ## 1. Análise do projeto

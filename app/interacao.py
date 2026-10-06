@@ -16,6 +16,9 @@ seção 0.6):
 
 import ctypes
 import time
+import re
+import unicodedata
+from ctypes import wintypes
 
 import pyautogui
 
@@ -46,6 +49,150 @@ def focar_dominio():
     largura, altura = pyautogui.size()
     pyautogui.click(largura // 2, altura // 2)
     time.sleep(1)
+
+
+def _titulo_dominio(titulo):
+    texto = unicodedata.normalize("NFKD", titulo.casefold())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return bool(re.match(r"^dominio\s+escrita\s+fiscal(?:\s|[-–]|$)", texto)) and not any(
+        trecho in texto for trecho in (".pdf", "adobe", "acrobat")
+    )
+
+
+def _api_janelas():
+    """Tipos Win32 explícitos preservam HWND de 64 bits."""
+    api = ctypes.windll.user32
+    callback = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    assinaturas = {
+        "GetForegroundWindow": ([], wintypes.HWND),
+        "IsWindow": ([wintypes.HWND], wintypes.BOOL),
+        "IsWindowVisible": ([wintypes.HWND], wintypes.BOOL),
+        "IsIconic": ([wintypes.HWND], wintypes.BOOL),
+        "GetWindowTextW": ([wintypes.HWND, wintypes.LPWSTR, ctypes.c_int], ctypes.c_int),
+        "GetClassNameW": ([wintypes.HWND, wintypes.LPWSTR, ctypes.c_int], ctypes.c_int),
+        "GetWindowThreadProcessId": ([wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.DWORD),
+        "SetForegroundWindow": ([wintypes.HWND], wintypes.BOOL),
+        "ShowWindow": ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
+        "EnumWindows": ([callback, wintypes.LPARAM], wintypes.BOOL),
+    }
+    for nome, (argumentos, retorno) in assinaturas.items():
+        funcao = getattr(api, nome)
+        funcao.argtypes = argumentos
+        funcao.restype = retorno
+    return api, callback
+
+
+def _dados_janela(api, hwnd):
+    if not hwnd or not api.IsWindow(hwnd) or not api.IsWindowVisible(hwnd):
+        return None
+    titulo = ctypes.create_unicode_buffer(1024)
+    classe = ctypes.create_unicode_buffer(256)
+    pid = wintypes.DWORD()
+    api.GetWindowTextW(hwnd, titulo, len(titulo))
+    api.GetClassNameW(hwnd, classe, len(classe))
+    api.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if not pid.value:
+        return None
+    return {"hwnd": hwnd, "pid": pid.value, "classe": classe.value, "titulo": titulo.value}
+
+
+def identificar_janela_dominio_atual():
+    """Vincula HWND ao checkpoint OCR que o chamador acabou de observar.
+
+    Classe GO-Global isolada nunca autoriza procurar outras janelas.
+    Esta função só é usada imediatamente após reconhecer a prévia.
+    """
+    try:
+        api, _ = _api_janelas()
+        dados = _dados_janela(api, api.GetForegroundWindow())
+        if dados and (_titulo_dominio(dados["titulo"]) or (dados["classe"] == "DisplayClientWindowClass" and not dados["titulo"].strip())):
+            return dados
+    except Exception:
+        pass
+    return None
+
+
+def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_conteudo=None):
+    """Retoma HWND identificado e confirma foco antes de cada Esc.
+
+    Sem vínculo anterior, aceita apenas título Domínio inequívoco e único.
+    Não clica, fecha leitor PDF ou infere janela apenas pela classe.
+    Retorna False se não conseguir confirmar foco; nunca garante fechamento.
+    """
+    try:
+        api, callback = _api_janelas()
+        candidatas = []
+
+        def enumerar(hwnd, _):
+            dados = _dados_janela(api, hwnd)
+            if dados and _titulo_dominio(dados["titulo"]):
+                candidatas.append(dados)
+            return True
+
+        if not api.EnumWindows(callback(enumerar), 0):
+            return False
+        if janela is not None:
+            atual = _dados_janela(api, janela["hwnd"])
+            if atual is None or any(atual[chave] != janela[chave] for chave in ("pid", "classe")):
+                return False
+            if _titulo_dominio(janela["titulo"]):
+                if not _titulo_dominio(atual["titulo"]):
+                    return False
+            elif (
+                atual["classe"] != "DisplayClientWindowClass"
+                or atual["titulo"].strip()
+                or atual["titulo"] != janela["titulo"]
+            ):
+                return False
+            if any(c["hwnd"] != atual["hwnd"] for c in candidatas):
+                return False
+        else:
+            if len(candidatas) != 1:
+                return False
+            atual = candidatas[0]
+        hwnd = atual["hwnd"]
+        if api.IsIconic(hwnd):
+            api.ShowWindow(hwnd, 9)  # SW_RESTORE, não fechamento.
+        if api.GetForegroundWindow() != hwnd:
+            api.SetForegroundWindow(hwnd)
+        for _ in range(10):
+            if api.GetForegroundWindow() == hwnd:
+                break
+            time.sleep(0.05)
+        else:
+            return False
+        for numero_esc in range(vezes):
+            conferida = _dados_janela(api, hwnd)
+            if conferida is None or any(conferida[chave] != atual[chave] for chave in ("pid", "classe")):
+                return False
+            if _titulo_dominio(atual["titulo"]):
+                if not _titulo_dominio(conferida["titulo"]):
+                    return False
+            elif conferida["titulo"] != atual["titulo"]:
+                return False
+            if api.GetForegroundWindow() != hwnd:
+                return False
+            if not _titulo_dominio(conferida["titulo"]):
+                if confirmar_conteudo is None:
+                    return False
+                for tentativa_ocr in range(3):
+                    if api.GetForegroundWindow() != hwnd:
+                        return False
+                    if confirmar_conteudo():
+                        break
+                    if tentativa_ocr < 2:
+                        time.sleep(0.2)
+                else:
+                    return False
+                if api.GetForegroundWindow() != hwnd:
+                    return False
+            if numero_esc == 0:
+                print("Foco do Domínio confirmado; enviando Esc.")
+            pressionar_tecla("esc")
+            time.sleep(intervalo)
+        return True
+    except Exception:
+        return False
 
 
 def clicar(x, y):
