@@ -2793,6 +2793,65 @@ pedir de verdade.
 
 ---
 
+
+### 0.63 Livros fiscais: nome por tipo/CNPJ/competência e fim do falso sucesso por PDF anterior
+
+**Achado real (log do usuário, 06/10/2026):** a exportação de Registro
+de Saídas chegou ao aviso "já existe. Deseja substituí-lo?", mas não
+registrou confirmação da substituição. Mesmo assim, declarou "Arquivo
+gerado" ao encontrar o PDF preexistente, de 36.036 bytes. Existência e
+tamanho de um arquivo antigo não provam uma exportação nesta execução.
+
+**Pedido do usuário:** continuar aqui o trabalho iniciado no Claude
+Code e nomear cada PDF com tipo de documento, empresa e competência.
+A empresa é identificada pelo CNPJ lido localmente no cabeçalho do PDF;
+não se inventa código/nome a partir de OCR incerto. Para mês completo:
+`registro_saidas_<CNPJ>_2026-08.pdf` e
+`registro_entradas_<CNPJ>_2026-08.pdf`. Períodos parciais ou de vários
+meses preservam as datas: `<tipo>_<CNPJ>_2026-08-02_a_2026-09-30.pdf`.
+
+**Correção:** ambos os livros exportam primeiro para
+`exportacao_<UUID>.pdf`, exclusivo da tentativa e com o mesmo mapeamento
+local/remoto da seção 0.59. Não há confirmação automática de substituição.
+O arquivo deve aparecer, estabilizar tamanho/data de modificação e abrir
+como PDF verdadeiro por `pypdf`; o cabeçalho da primeira página deve
+confirmar título, período e CNPJ único. Aceita letras/datas espaçadas,
+como já observado na extração dos títulos. CNPJ rotulado é prioritário;
+sem rótulo, exige um único CNPJ formatado no cabeçalho. Não usa texto
+bruto como prova de PDF válido. Todas as páginas são lidas antes de
+publicar o nome definitivo. Se já existir, preserva o anterior e grava
+`_2`, `_3` etc., com criação exclusiva para evitar substituição também
+entre execuções concorrentes.
+
+Sem CNPJ inequívoco, período/tipo divergentes ou arquivo incompleto,
+a rotina retorna falha e mantém a exportação temporária para diagnóstico
+local; um arquivo final de rodada anterior nunca satisfaz a tentativa.
+`app/arquivos.py` contém essa lógica sem dependência de tela ou IA.
+Nenhum PDF, identidade ou conteúdo fiscal é enviado a serviço externo.
+A GUI continua usando o mesmo retorno `(sucesso, caminho)` e recebe o
+nome final automaticamente. Os scripts exploratórios aceitam
+`--cnpj` opcional para também conferir a empresa esperada, além de
+`--data-inicial` e `--data-final`; nenhum CNPJ real fica no script.
+Datas inválidas/invertidas são recusadas antes de iniciar os cliques.
+
+**Validação disponível:** sete testes automatizados com dados sintéticos
+cobrem PDF real criado em memória, título/período/empresa divergentes,
+texto espaçado, identidade ausente/ambígua, intervalos parciais/múltiplos
+meses, preservação de arquivo anterior, exportação nova ausente, PDF
+incompleto e texto disfarçado de PDF; compilação dos arquivos alterados.
+Dois cenários de integração com tela simulada também passaram: um PDF
+anterior presente sem exportação nova retorna falha e permanece intacto;
+a exportação sintética no caminho UUID retorna o nome final validado e
+remove o temporário. Os scripts também foram verificados com gerador
+simulado para a passagem das datas/CNPJ e reporte de falha.
+**Ainda não validado contra o Domínio real.** A navegação, ícones e
+coordenadas existentes foram preservados. O próximo teste deve usar
+competência já fechada e ICMS já apurado no Domínio (seção 0.57), sem
+interagir com teclado/mouse durante a execução, e conferir o log/arquivo
+final localmente.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

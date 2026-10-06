@@ -15,9 +15,10 @@ isolado por empresa, roadmap seção 6).
 
 import datetime
 import time
+import uuid
 from pathlib import Path
 
-from . import empresas, erros, estados, ia, interacao, tela, visao
+from . import arquivos, empresas, erros, estados, ia, interacao, tela, visao
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
@@ -921,7 +922,7 @@ def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
     return True
 
 
-def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
     """Gera um Livro Fiscal (Relatórios > Livros > Livros Fiscais >
     aba Geral: marca `rotulo_checkbox` > preenche Inicial/Final > OK)
     e exporta a pré-visualização pra **PDF** em `pasta_destino` (seção
@@ -985,7 +986,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
       (suspeita, não 100% confirmada: provavelmente rejeita extensão
       que não bate com o tipo da tela) — por isso o nome do arquivo
       agora sempre termina em ".pdf". Verificação de sucesso é
-      **checar o arquivo no disco** (existe + tamanho > 0), não OCR.
+      **validar o PDF novo no disco** (tipo, período e CNPJ), não OCR.
 
     `data_inicial`/`data_final` (formato "DD/MM/AAAA"): competência a
     gerar. Se nenhuma for passada, usa `competencia_anterior()` (mesma
@@ -997,10 +998,11 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
 
     `pasta_destino`: pasta onde salvar o .pdf exportado (criada se não
     existir). O nome do arquivo é gerado automaticamente a partir da
-    competência — esta função não sabe qual empresa está selecionada
-    (quem chama já deve ter confirmado isso antes, com
+    competência e do CNPJ lido no cabeçalho do PDF. `cnpj_esperado`
+    opcional também confere a identidade antes de declarar sucesso.
+    Quem chama já deve ter confirmado a empresa antes, com
     `trocar_empresa()` + checagem visual, do mesmo jeito que
-    `executar_lote()` já faz pro SPED Fiscal).
+    `executar_lote()` já faz pro SPED Fiscal.
 
     Devolve `(True, caminho_arquivo_gerado)` em caso de sucesso,
     `(False, None)` em qualquer falha no caminho (print de erro salvo,
@@ -1008,6 +1010,13 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     """
     if data_inicial is None or data_final is None:
         data_inicial, data_final = competencia_anterior()
+
+    try:
+        # Valida as datas antes de agir; o CNPJ real virá do PDF.
+        arquivos.nome_livro(prefixo_arquivo, "00000000000000", data_inicial, data_final)
+    except (ValueError, TypeError):
+        print("Período inválido — informe datas válidas em dd/mm/aaaa, na ordem inicial/final.")
+        return False, None
 
     interacao.focar_dominio()
 
@@ -1199,6 +1208,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
                     rotulo_checkbox, prefixo_arquivo, pasta_destino,
                     data_inicial=data_inicial, data_final=data_final,
                     prefixo=f"{prefixo}retry_",
+                    cnpj_esperado=cnpj_esperado,
                 )
             return False, None
     if ancora_titulo_livro is None:
@@ -1302,9 +1312,8 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     # tela passa pela conversão de unidade.
     pasta_destino = Path(pasta_destino)
     pasta_destino.mkdir(parents=True, exist_ok=True)
-    nome_arquivo = (
-        f"{prefixo_arquivo}_{data_inicial.replace('/', '')}_{data_final.replace('/', '')}.pdf"
-    )
+    # Caminho exclusivo desta tentativa: um PDF anterior nunca prova sucesso.
+    nome_arquivo = f"exportacao_{uuid.uuid4().hex}.pdf"
     caminho_completo = pasta_destino / nome_arquivo
     caminho_digitado = caminho_visto_pela_sessao_remota(caminho_completo)
 
@@ -1329,35 +1338,38 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         interacao.pressionar_enter()
         return False, None
 
-    # Se já existir um arquivo com esse nome, o Windows pergunta se
-    # quer substituir (diálogo nativo padrão, texto legível de
-    # verdade). O nome com a competência embutida já reduz bastante
-    # essa chance, mas trata o caso mesmo assim, confirmando por OCR
-    # antes de assumir que é isso que apareceu.
-    imagem_confirma = tela.capturar_tela()
-    pos_confirmar_sim = (
-        tela.achar_texto_ou_no_centro(imagem_confirma, "Yes", escala=2, debug=True)
-        or tela.achar_texto_ou_no_centro(imagem_confirma, "Sim", escala=2, debug=True)
-    )
-    if pos_confirmar_sim is not None:
-        print("Arquivo já existia — confirmando substituição.")
-        interacao.clicar(*pos_confirmar_sim)
-        time.sleep(1)
-
-    # 11. Confirma no disco — não por OCR. O arquivo existir e ter
-    # tamanho > 0 é prova direta, sem depender de nenhuma leitura de
-    # tela (bem mais confiável que o texto de confirmação do SPED
-    # Fiscal, que não existe nesse fluxo).
-    for _ in range(10):
-        if caminho_completo.exists() and caminho_completo.stat().st_size > 0:
-            break
+    # O destino é exclusivo: não confirma substituição de nenhum arquivo.
+    # Espera estabilidade do arquivo e valida PDF/tipo/período/identidade
+    # antes de publicar com o nome definitivo; exportações incompletas
+    # permanecem locais para diagnóstico e nunca retornam sucesso.
+    assinatura_anterior = None
+    erro_exportacao = "O arquivo desta execução não apareceu em disco."
+    for _ in range(15):
+        try:
+            stat = caminho_completo.stat()
+            assinatura = (stat.st_size, stat.st_mtime_ns)
+            if stat.st_size > 0 and assinatura == assinatura_anterior:
+                caminho_final = arquivos.finalizar_pdf(
+                    caminho_completo, prefixo_arquivo, data_inicial, data_final,
+                    cnpj_esperado=cnpj_esperado,
+                )
+                break
+            assinatura_anterior = assinatura
+        except FileNotFoundError:
+            assinatura_anterior = None
+        except Exception as erro:
+            # Um PDF ainda sendo gravado pode não estar legível; tenta de
+            # novo dentro do prazo. A mensagem não inclui conteúdo fiscal.
+            erro_exportacao = (str(erro) if isinstance(erro, ValueError)
+                               else f"PDF ainda não confirmado ({type(erro).__name__}).")
         time.sleep(1)
     else:
-        print(f"Arquivo não apareceu em disco depois de esperar: {caminho_completo}")
+        print(f"Exportação não confirmada: {erro_exportacao}")
         salvar(tela.capturar_tela(), f"{prefixo}erro_arquivo_nao_gerado.png")
         return False, None
 
-    print(f"Arquivo gerado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
+    caminho_completo = caminho_final
+    print(f"Arquivo gerado e conteúdo confirmado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
 
     # 12. Fecha a pré-visualização. Os controles da janela MDI filha
     # (restaurar/minimizar/fechar, vistos num print real no canto
@@ -1370,7 +1382,7 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     return True, str(caminho_completo)
 
 
-def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
     """Livro Registro de Saídas — **parcialmente validado** contra o
     Domínio real (3 execuções reais, 01/10/2026): navegação, marcar a
     caixa, preencher período, OK e abrir a pré-visualização
@@ -1387,10 +1399,11 @@ def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, pre
     return _gerar_livro_fiscal(
         "Registro de Sa", "registro_saidas", pasta_destino,
         data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
+        cnpj_esperado=cnpj_esperado,
     )
 
 
-def gerar_registro_entradas(pasta_destino, data_inicial=None, data_final=None, prefixo=""):
+def gerar_registro_entradas(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
     """Livro Registro de Entradas — mesma tela do Registro de Saídas,
     só muda a caixa marcada. **Nunca rodou contra o Domínio real** —
     generalizado a partir de `gerar_registro_saidas()` (seção 0.57),
@@ -1402,6 +1415,7 @@ def gerar_registro_entradas(pasta_destino, data_inicial=None, data_final=None, p
     return _gerar_livro_fiscal(
         "Registro de Entradas", "registro_entradas", pasta_destino,
         data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
+        cnpj_esperado=cnpj_esperado,
     )
 
 
