@@ -151,6 +151,11 @@ superior direito do Domínio, removendo o código final `- número` e
 normalizando espaços/acentos para um nome de arquivo válido. Uma nova
 rodada preserva o PDF anterior e usa um sufixo no novo nome.
 
+A competência no nome vem das datas preenchidas na interface: qualquer
+intervalo dentro de agosto/2026 usa `2026-08`. Se atravessar meses,
+usa os dois, por exemplo `2026-08_a_2026-09`. O mês exibido no cabeçalho
+do Domínio não é usado para nomear o arquivo.
+
 A exportação começa em um caminho exclusivo. O motor só anuncia
 sucesso depois de abrir o novo PDF e conferir tipo, período e CNPJ no
 cabeçalho; um arquivo antigo existente não comprova uma nova geração.

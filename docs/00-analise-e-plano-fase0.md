@@ -2926,6 +2926,24 @@ e depois ampliar recuperação e lote; OCR é a percepção desse fluxo.
 
 ---
 
+### 0.66 Competência do nome sempre pelas datas informadas na interface
+
+**Definição do usuário:** o nome deve usar mês/ano do período digitado
+na máquina, independentemente do mês mostrado no cabeçalho do Domínio.
+`nome_livro()` agora usa `YYYY-MM` para todo intervalo no mesmo mês,
+inclusive parcial, e `YYYY-MM_a_YYYY-MM` quando atravessa meses. Esse
+formato substitui os dias completos no nome descritos na seção 0.63.
+Preservadas datas completas na conferência do conteúdo, nome da empresa
+por OCR e proteção dos arquivos anteriores. O diagnóstico da falha
+real de validação de período (seção 0.65) continua pendente: mudar o
+formato do nome não altera o conteúdo exportado nem resolve esse erro.
+
+Validação: 13 testes passaram, cobrindo mês completo/parcial, intervalo
+entre meses e virada de ano; compilação e diff check passaram. O novo
+formato foi testado localmente; nenhuma nova rodada real foi afirmada.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

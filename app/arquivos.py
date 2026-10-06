@@ -85,12 +85,13 @@ def nome_livro(tipo, cnpj, inicio, fim, nome_empresa=None):
         raise ValueError("Período final anterior ao inicial.")
     if tipo not in ("registro_saidas", "registro_entradas") or not re.fullmatch(r"\d{14}", cnpj):
         raise ValueError("Tipo ou CNPJ inválido para nomear o PDF.")
-    # Só um mês completo pode ser representado sem perda por YYYY-MM.
-    proximo = (inicial.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
-    if inicial.day == 1 and final == proximo - datetime.timedelta(days=1):
+    # A competência no nome vem do mês/ano informado na UI, mesmo
+    # quando o usuário pede apenas parte desse mês. As datas completas
+    # continuam sendo conferidas no conteúdo antes da publicação.
+    if (inicial.year, inicial.month) == (final.year, final.month):
         competencia = inicial.strftime("%Y-%m")
     else:
-        competencia = f"{inicial.isoformat()}_a_{final.isoformat()}"
+        competencia = f"{inicial:%Y-%m}_a_{final:%Y-%m}"
     identificacao = nome_empresa_seguro(nome_empresa) if nome_empresa is not None else cnpj
     return f"{tipo}_{identificacao}_{competencia}.pdf"
 

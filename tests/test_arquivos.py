@@ -67,10 +67,11 @@ class TestArquivos(unittest.TestCase):
             with self.subTest(texto=texto), self.assertRaises(ValueError):
                 validar_livro(texto, "registro_saidas", "01/08/2026", "31/08/2026")
 
-    def test_mes_completo_intervalo_parcial_e_multimes(self):
+    def test_competencia_mes_ano_em_intervalo_completo_parcial_e_multimes(self):
         self.assertEqual(nome_livro("registro_saidas", CNPJ, "01/08/2026", "31/08/2026"), f"registro_saidas_{CNPJ}_2026-08.pdf")
-        self.assertIn("2026-08-02_a_2026-08-31", nome_livro("registro_saidas", CNPJ, "02/08/2026", "31/08/2026"))
-        self.assertIn("2026-08-01_a_2026-09-30", nome_livro("registro_saidas", CNPJ, "01/08/2026", "30/09/2026"))
+        self.assertEqual(nome_livro("registro_saidas", CNPJ, "02/08/2026", "31/08/2026"), f"registro_saidas_{CNPJ}_2026-08.pdf")
+        self.assertEqual(nome_livro("registro_saidas", CNPJ, "01/08/2026", "30/09/2026"), f"registro_saidas_{CNPJ}_2026-08_a_2026-09.pdf")
+        self.assertEqual(nome_livro("registro_entradas", CNPJ, "15/12/2025", "02/01/2026", nome_empresa="EMPRESA FICTICIA"), "registro_entradas_EMPRESA_FICTICIA_2025-12_a_2026-01.pdf")
         with self.assertRaises(ValueError):
             nome_livro("registro_saidas", CNPJ, "31/08/2026", "01/08/2026")
 
