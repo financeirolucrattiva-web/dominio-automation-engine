@@ -2981,6 +2981,45 @@ check passaram. **Ainda não validado contra o Domínio real.** O teste
 Windows deve usar competência já apurada e conferir as linhas de estado,
 inclusive no caminho de falha conhecido, sem interagir com mouse/teclado.
 
+**Rodada real recebida em 06/10/2026:** o log confirmou `validar_dados`,
+`identificar_empresa`, `abrir_livros`, `preencher_periodo`, `gerar_previa`
+e `exportar_pdf`. O OCR do nome/código no canto superior direito foi
+observado nessa execução. `conferir_pdf` começou e retornou a falha
+conhecida de período; o fim foi registrado como falha, sem evento de
+encerramento ou sucesso. Isso valida a instrumentação do caminho de
+falha nesta rotina; não confirma o sucesso final da exportação/conteúdo.
+
+---
+
+### 0.68 Saída de falha após prévia reconhecida
+
+**Evidência:** na rodada da seção 0.67, a prévia foi reconhecida e o
+arquivo novo estabilizou, mas a conferência recusou o período. A execução
+terminou sem passar por `encerrar`; portanto nenhuma ação de fechamento
+foi enviada pelo motor nesse caminho. O erro do PDF e o nome continuam
+pendentes, por decisão do usuário. Este incremento segue o plano de
+recuperação sem alterar essas regras.
+
+**Mudança:** quando uma execução falha após reconhecer a prévia na
+tentativa atual, registra uma tentativa separada de recuperação e envia
+as duas teclas Esc já usadas no caminho existente de sucesso. Não altera
+a etapa principal que falhou nem transforma falha em sucesso. O registro
+distingue início, envio da ação e resultado não verificado; não afirma
+que a tela fechou. Antes de reconhecer a prévia não envia teclas, e não
+repete o fechamento quando a própria etapa de encerramento já começou.
+Nova tentativa não reutiliza confirmação de uma prévia anterior.
+
+Falha no envio de Esc é registrada como inconclusiva, preservando o
+resultado/exceção original. Interrupção explícita por teclado não
+provoca uma nova ação automática. O usuário deve conferir a tela antes
+de iniciar a próxima rotina; retomada automática só será adequada depois
+de existir uma verificação confiável do estado de retorno.
+
+**Validação:** 29 testes locais e simulados passaram, incluindo os
+caminhos de recuperação acima. Compilação e diff check passaram.
+**O novo comportamento ainda não foi validado no Domínio real.** Nenhuma nova coordenada de clique,
+interpretação de período ou ação fiscal foi introduzida.
+
 ---
 
 ## 1. Análise do projeto

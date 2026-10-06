@@ -38,8 +38,11 @@ O caminho até agentes de IA operarem rotinas pela interface está em
 os Livros Fiscais por etapas, com linhas `[estado]` no console/interface
 e eventos locais em `data/execucoes/<id>.jsonl`. Uma falha indica a etapa
 em que parou; uma ação enviada é distinguida de um estado observado.
-A nova instrumentação ainda aguarda teste real no Windows. A pendência
-do nome/conferência de período do PDF permanece separada.
+O caminho de falha na conferência foi observado no Windows. Após uma
+falha com prévia já reconhecida, o motor tenta fechar com Esc e avisa
+que o retorno não foi verificado; confira a tela antes de nova rodada.
+Essa recuperação ainda aguarda teste real. A pendência do nome e da
+conferência de período do PDF permanece separada.
 
 ## Instalação
 

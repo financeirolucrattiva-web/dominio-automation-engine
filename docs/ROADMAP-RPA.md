@@ -105,3 +105,15 @@ sessão Windows; o ambiente de nuvem não controla esse desktop hoje.
 Geração/leitura continuam sendo o escopo atual. Transmissão, retificação,
 exclusão e operação sobre competência em aberto não entram neste plano
 como ações já autorizadas.
+
+## Progresso observado em 06/10/2026
+
+O acompanhamento por estados foi observado numa rodada Windows de
+Registro de Saídas: a execução chegou ao PDF novo estável e registrou a
+recusa do período na etapa `conferir_pdf`, terminando em falha. Isso não
+confirma a conferência final do conteúdo nem o encerramento da tela.
+
+O incremento seguinte tenta sair da prévia com Esc após falha, mantendo
+a etapa e o erro original. Passou em testes locais/simulados e aguarda
+observação no Windows. Retorno à interface ainda precisa de confirmação
+humana; não há retomada automática apoiada nesse fechamento.

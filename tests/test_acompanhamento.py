@@ -117,6 +117,49 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(self.rotina.eventos[-2]["step"], "conferir_pdf")
         self.assertEqual(self.rotina.eventos[-2]["status"], "falha")
         self.assertNotIn("encerrar", [e["step"] for e in self.rotina.eventos])
+        self.dominio.interacao.pressionar_esc_repetidas.assert_called_once_with(vezes=2)
+        self.assertEqual([e["status"] for e in self.rotina.eventos if e["step"] == "recuperar_interface"], ["inicio", "acao_executada", "resultado_nao_verificado"])
+
+    def test_recuperacao_uma_vez_sem_mudar_falha(self):
+        self.finalizar.side_effect = ValueError("período não confirmado")
+        self.assertEqual(self.executar(), (False, None))
+        self.dominio._recuperar_interface_livro(self.rotina)
+        self.dominio.interacao.pressionar_esc_repetidas.assert_called_once_with(vezes=2)
+        self.assertEqual(self.rotina.etapa, "conferir_pdf")
+        self.assertEqual(self.rotina.eventos[-1]["status"], "falha")
+
+    def test_falha_recuperacao_nao_mascara_resultado_original(self):
+        self.finalizar.side_effect = ValueError("período não confirmado")
+        self.dominio.interacao.pressionar_esc_repetidas.side_effect = RuntimeError("erro teclado privado")
+        self.assertEqual(self.executar(), (False, None))
+        self.assertEqual(self.rotina.eventos[-2]["step"], "conferir_pdf")
+        self.assertTrue(any(e["step"] == "recuperar_interface" and e["status"] == "inconclusivo" for e in self.rotina.eventos))
+        self.assertNotIn("erro teclado privado", self.rotina.caminho_log.read_text())
+
+    def test_exception_pos_previa_preserva_original_se_recuperacao_falhar(self):
+        original = RuntimeError("erro geração privado")
+        self.dominio.interacao.digitar.side_effect = original
+        self.dominio.interacao.pressionar_esc_repetidas.side_effect = RuntimeError("erro recuperação privado")
+        with self.assertRaises(RuntimeError) as contexto:
+            self.executar()
+        self.assertIs(contexto.exception, original)
+        self.assertEqual(self.rotina.eventos[-2]["step"], "exportar_pdf")
+        self.dominio.interacao.pressionar_esc_repetidas.assert_called_once_with(vezes=2)
+
+    def test_interrupcao_manual_pos_previa_nao_envia_teclas(self):
+        self.dominio.interacao.digitar.side_effect = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            self.executar()
+        self.dominio.interacao.pressionar_esc_repetidas.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-2]["step"], "exportar_pdf")
+
+    def test_falha_no_encerramento_nao_repete_esc(self):
+        self.dominio.interacao.pressionar_esc_repetidas.side_effect = RuntimeError("falha saída")
+        with self.assertRaises(RuntimeError):
+            self.executar()
+        self.dominio.interacao.pressionar_esc_repetidas.assert_called_once_with(vezes=2)
+        self.assertEqual(self.rotina.eventos[-2]["step"], "encerrar")
+        self.assertTrue(any(e["evidence"] == "encerramento_ja_tentado" for e in self.rotina.eventos))
 
     def test_arquivo_novo_ausente_nao_avanca_para_conferencia(self):
         self.dominio.interacao.digitar.side_effect = None
@@ -129,6 +172,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(resultado, (False, None))
         self.assertEqual(self.rotina.eventos[-2]["step"], "validar_dados")
         self.dominio.interacao.focar_dominio.assert_not_called()
+        self.dominio.interacao.pressionar_esc_repetidas.assert_not_called()
 
     def test_excecao_registra_falha_sem_expor_mensagem(self):
         self.espera.side_effect = RuntimeError("conteudo fiscal privado")
@@ -137,6 +181,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(self.rotina.eventos[-2]["step"], "abrir_livros")
         self.assertEqual(self.rotina.eventos[-1]["evidence"], "excecao")
         self.assertNotIn("conteudo fiscal privado", self.rotina.caminho_log.read_text())
+        self.dominio.interacao.pressionar_esc_repetidas.assert_not_called()
 
     def test_retry_navegacao_mesma_execucao(self):
         d = self.dominio
@@ -149,6 +194,17 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertTrue(any(e["step"] == "gerar_previa" and e["status"] == "falha" and e["attempt"] == 1 for e in self.rotina.eventos))
         self.assertEqual(self.rotina.eventos[-1]["attempt"], 2)
         self.assertNotIn("texto fiscal privado", self.rotina.caminho_log.read_text())
+
+    def test_previa_anterior_nao_autoriza_recuperacao_em_nova_tentativa(self):
+        for etapa in self.rotina.ETAPAS[:5]:
+            self.rotina.iniciar(etapa)
+            self.rotina.confirmar(self.rotina.CONFIRMACOES[etapa])
+        self.rotina.iniciar("exportar_pdf")
+        self.rotina.tentar_novamente()
+        self.rotina.iniciar("validar_dados")
+        self.dominio._recuperar_interface_livro(self.rotina)
+        self.dominio.interacao.pressionar_esc_repetidas.assert_not_called()
+        self.assertFalse(self.rotina.recuperacao_iniciada)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,8 @@ class AcompanhamentoRotina:
         "campos_periodo_confirmados", "ancora_registro_lida", "arquivo_novo_estavel",
         "pdf_tipo_periodo_cnpj_confirmados", "esc_enviado_fechamento_nao_verificado",
         "retorno_falha", "excecao", "tentativa_reiniciada", "rotina_concluida",
+        "recuperacao_esc_enviado", "recuperacao_sem_confirmacao_visual",
+        "recuperacao_esc_falhou", "encerramento_ja_tentado",
     }
     CONFIRMACOES = dict(zip(ETAPAS, (
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
@@ -66,6 +68,7 @@ class AcompanhamentoRotina:
         self.inicio = time.monotonic()
         self.inicio_etapa = self.inicio
         self._aviso_log = False
+        self.recuperacao_iniciada = False
 
     def _registrar(self, etapa, status, evidencia=None):
         if evidencia is not None and evidencia not in self.EVIDENCIAS:
@@ -114,6 +117,17 @@ class AcompanhamentoRotina:
         self.tentativa += 1
         self.etapa = None
         self.confirmadas = []
+
+    def registrar_recuperacao(self, status, evidencia=None):
+        """Registra saída tentada, preservando a etapa/resultado que falhou."""
+        if status == "inicio":
+            if self.finalizada or self.recuperacao_iniciada or "gerar_previa" not in self.confirmadas:
+                return False
+            self.recuperacao_iniciada = True
+        elif self.finalizada or not self.recuperacao_iniciada or status not in ("acao_executada", "resultado_nao_verificado", "inconclusivo"):
+            raise ValueError("Evento de recuperação inválido.")
+        self._registrar("recuperar_interface", status, evidencia)
+        return True
 
     def concluir(self, sucesso, evidencia="retorno_falha"):
         if self.finalizada:

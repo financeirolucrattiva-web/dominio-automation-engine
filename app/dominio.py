@@ -922,6 +922,29 @@ def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
     return True
 
 
+def _recuperar_interface_livro(acompanhamento):
+    """Tenta a saída já usada pela rotina, somente após prévia observada.
+
+    Esc enviado não prova fechamento. Nunca troca o resultado nem a etapa
+    que falhou, e uma falha de recuperação não substitui a falha original.
+    """
+    if not acompanhamento.registrar_recuperacao("inicio"):
+        return
+    if acompanhamento.etapa == "encerrar":
+        acompanhamento.registrar_recuperacao("inconclusivo", "encerramento_ja_tentado")
+        print("Saída com Esc já tentada; confira a tela do Domínio antes de uma nova execução.")
+        return
+    try:
+        interacao.pressionar_esc_repetidas(vezes=2)
+    except Exception:
+        acompanhamento.registrar_recuperacao("inconclusivo", "recuperacao_esc_falhou")
+        print("Não consegui concluir a tentativa de saída. Confira a tela do Domínio antes de uma nova execução.")
+    else:
+        acompanhamento.registrar_recuperacao("acao_executada", "recuperacao_esc_enviado")
+        acompanhamento.registrar_recuperacao("resultado_nao_verificado", "recuperacao_sem_confirmacao_visual")
+        print("Esc enviado após a falha; fechamento não verificado. Confira a tela do Domínio antes de uma nova execução.")
+
+
 def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
     """Acompanha uma execução sem alterar navegação, validação ou retorno."""
     acompanhamento = estados.AcompanhamentoRotina(prefixo_arquivo)
@@ -931,9 +954,16 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
             data_inicial=data_inicial, data_final=data_final, prefixo=prefixo,
             cnpj_esperado=cnpj_esperado, acompanhamento=acompanhamento,
         )
+        if not resultado[0]:
+            _recuperar_interface_livro(acompanhamento)
         acompanhamento.concluir(resultado[0])
         return resultado
+    except Exception:
+        _recuperar_interface_livro(acompanhamento)
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
     except BaseException:
+        # Interrupção manual pode mudar o foco; não envia teclas nesse caso.
         acompanhamento.concluir(False, evidencia="excecao")
         raise
 
