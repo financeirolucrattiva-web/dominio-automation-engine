@@ -2743,6 +2743,56 @@ calculado.
 
 ---
 
+### 0.62 StateEngine mínimo (`app/estados.py`) — generalização do padrão de espera já repetido em 4 rotinas reais
+
+Pedido do usuário: considerar a Etapa A (núcleo OCR/percepção) fechada
+— já rodou SPED Fiscal/EFD Contribuições em lote antes, quer evoluir o
+sistema pra testar depois contra empresas reais — e seguir pro próximo
+passo do roadmap maior: formalizar um motor de estados mínimo, em vez
+de cada rotina reimplementar sozinha "espera, confere erro, confere
+sucesso".
+
+**Por que agora, não antes**: o próprio roadmap desta conversa (e o
+princípio geral do projeto, seção 52 do prompt original) diz pra não
+formalizar arquitetura antes de ter rotinas reais o bastante pra
+generalizar por padrão OBSERVADO, não suposição. Agora já são 4
+rotinas reais (SPED Fiscal, EFD Contribuições, Registro de Saídas,
+Registro de Entradas) todas passando pelo mesmo `esperar_e_achar()` —
+dado real suficiente pra extrair o padrão com confiança.
+
+**O que foi feito**: `app/estados.py`, novo módulo, com
+`esperar_por_estado(detectores, espera_minima, tentativas, intervalo)`
+— motor genérico: tira print repetidamente (pulando a checagem quando
+o fingerprint de tela, seção 0.58, diz que nada mudou), testa uma
+lista de `(nome_estado, funcao_detectora)` NESSA ORDEM a cada
+tentativa, devolve o primeiro que achar alguma coisa.
+`dominio.esperar_e_achar()` foi refeita por cima desse motor (vira o
+alvo de sucesso + cada título de `texto_erro` em detectores) — mesma
+assinatura, mesmo retorno de antes da extração.
+
+**Nenhuma das 4 rotinas precisou mudar uma linha** — todas já chamavam
+`esperar_e_achar()`, nunca o motor novo diretamente; o benefício (e o
+risco de regressão) fica isolado num ponto só.
+
+**Validado por equivalência comportamental** (não contra o Domínio
+real — mesma limitação de sempre deste ambiente): 3 cenários testados
+com mock (`tela.capturar_tela`/`achar_texto_ou_no_centro` simulados) —
+sucesso numa tentativa posterior, erro achado antes do sucesso,
+esgotamento sem achar nada — os 3 batendo exatamente com o
+comportamento documentado da função antes da extração (mesmo formato
+de retorno, mesma prioridade sucesso-antes-de-erro dentro da mesma
+tentativa). Deliberadamente NÃO testado ao vivo ainda — próximo passo
+natural é rodar qualquer uma das 4 rotinas de novo e confirmar que o
+comportamento continua idêntico na prática, não só no teste de lógica.
+
+**Escopo deliberadamente pequeno**: não é o "StateEngine" completo do
+prompt original (sem estados nomeados tipo `LOGIN`/`PROCESSING`/
+`RESULT`, sem máquina de transição formal) — só o núcleo que as 4
+rotinas reais realmente usam hoje. Crescer quando uma rotina nova
+pedir de verdade.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

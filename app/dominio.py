@@ -17,7 +17,7 @@ import datetime
 import time
 from pathlib import Path
 
-from . import empresas, erros, ia, interacao, tela, visao
+from . import empresas, erros, estados, ia, interacao, tela, visao
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
@@ -241,31 +241,31 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     tela muda de verdade (ou na primeira tentativa) — sem isso, cada
     segundo parado numa tela de "processando" gastava um ciclo de OCR
     completo à toa.
-    """
-    print(f"Esperando pelo menos {espera_minima}s antes de checar...")
-    time.sleep(espera_minima)
-    assinatura_anterior = None
-    for tentativa in range(1, tentativas + 1):
-        imagem = tela.capturar_tela()
-        assinatura_atual = tela.assinatura_tela(imagem)
-        if not tela.tela_mudou(assinatura_anterior, assinatura_atual):
-            print(f"Tela igual à tentativa anterior, pulando OCR (tentativa {tentativa}/{tentativas})...")
-            time.sleep(intervalo)
-            continue
-        assinatura_anterior = assinatura_atual
 
-        pos = tela.achar_texto_ou_no_centro(imagem, alvo, escala=escala, debug=True)
-        if pos is not None:
-            return imagem, pos, False
-        titulos = (texto_erro,) if isinstance(texto_erro, str) else (texto_erro or ())
-        for titulo in titulos:
-            pos_erro = tela.achar_texto_ou_no_centro(imagem, titulo, escala=escala)
-            if pos_erro is not None:
-                print(f"Achei uma caixa de erro/aviso do Domínio ('{titulo}') em vez da confirmação.")
-                return imagem, pos_erro, True
-        print(f"Ainda não achei '{alvo}' (tentativa {tentativa}/{tentativas}) — esperando mais {intervalo}s...")
-        time.sleep(intervalo)
-    return None, None, False
+    **Implementação (seção 0.62):** por cima de
+    `estados.esperar_por_estado()` — motor genérico extraído deste
+    mesmo código depois de 4 rotinas reais (SPED Fiscal, EFD
+    Contribuições, Registro de Saídas, Registro de Entradas) provarem
+    repetidamente o mesmo padrão. Comportamento idêntico a antes da
+    extração (mesma assinatura, mesmo retorno) — as 4 rotinas não
+    precisaram mudar nada, porque todas já chamavam esta função, nunca
+    o motor novo diretamente.
+    """
+    titulos = (texto_erro,) if isinstance(texto_erro, str) else (texto_erro or ())
+    detectores = [
+        ("sucesso", lambda img: tela.achar_texto_ou_no_centro(img, alvo, escala=escala, debug=True)),
+    ] + [
+        ("erro", lambda img, t=titulo: tela.achar_texto_ou_no_centro(img, t, escala=escala))
+        for titulo in titulos
+    ]
+    imagem, estado, pos = estados.esperar_por_estado(
+        detectores, espera_minima=espera_minima, tentativas=tentativas, intervalo=intervalo,
+    )
+    if estado is None:
+        return None, None, False
+    if estado == "erro":
+        print("Achei uma caixa de erro/aviso do Domínio em vez da confirmação.")
+    return imagem, pos, estado == "erro"
 
 
 def _ler_texto_caixa(imagem, pos):
