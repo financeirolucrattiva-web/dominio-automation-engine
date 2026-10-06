@@ -53,7 +53,15 @@ def verificar_livro_fiscal_pdf(
 
     tudo_ok = True
 
-    if texto_cabecalho_esperado.upper() not in texto_completo.upper():
+    # Achado real, 06/10/2026 (primeiro PDF de verdade conferido): o
+    # título "REGISTRO DE SAÍDAS" sai do `pypdf` com espaço entre CADA
+    # letra ("R E G I S T R O  D E  S A Í D A S") — é assim que o PDF
+    # exportado pelo Domínio posiciona o texto do título, não é erro de
+    # leitura. Compara sem nenhum espaço dos dois lados, pra não
+    # depender de quantos espaços aparecem nem onde.
+    texto_sem_espaco = texto_completo.upper().replace(" ", "")
+    cabecalho_sem_espaco = texto_cabecalho_esperado.upper().replace(" ", "")
+    if cabecalho_sem_espaco not in texto_sem_espaco:
         tudo_ok = False
         detalhes.append(f"Não achei '{texto_cabecalho_esperado}' no conteúdo — é mesmo o arquivo certo?")
     else:

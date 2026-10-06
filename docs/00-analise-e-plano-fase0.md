@@ -2538,6 +2538,95 @@ ser escolhida pela IA de retry em alguma falha real de OCR.
 
 ---
 
+### 0.59 Causa raiz real do "Path does not exist." do Registro de Saídas: a sessão do Domínio não compartilha o disco local — achado maior que o esperado, afeta também SPED Fiscal/EFD
+
+Retomando a validação pendente da seção 0.57 (confirmar o `.pdf` em
+disco) — a primeira execução real, 06/10/2026, voltou a dar "Path does
+not exist.", mesmo com a extensão `.pdf` já corrigida. Investigação por
+evidência real (nunca chutada), passo a passo:
+
+1. **Conferido que a pasta existia de verdade, no momento do erro** —
+   `pasta_destino.mkdir(parents=True, exist_ok=True)` já criava
+   `saida/` nesta máquina local (confirmado por `ls`, timestamp batendo
+   com o horário do teste). Mesmo assim o diálogo recusou o caminho —
+   descartava a hipótese de "pasta não criada a tempo".
+2. **Print automático do erro** (`capturas/erro_caminho_invalido.png`,
+   já salvo pelo próprio código) mostrado: o campo "Save in" do
+   diálogo "Salvar em PDF" abre em **"Downloads"**, não na pasta do
+   projeto — primeira pista de que o diálogo pode não estar vendo o
+   mesmo disco desta máquina.
+3. **Teste manual, sem automação**: salvar um arquivo (`teste123.pdf`)
+   direto em "Downloads" (a pasta padrão do próprio diálogo, sem
+   digitar nenhum caminho customizado) — o Domínio confirmou sucesso
+   (arquivo aparece na listagem do próprio diálogo, reaberto depois).
+   **O arquivo NÃO apareceu no Downloads local de verdade do usuário**
+   — prova direta de que o "Downloads" da sessão do Domínio é outro,
+   não o desta máquina.
+4. **Pergunta ao usuário se algum arquivo gerado até hoje (SPED Fiscal,
+   EFD Contribuições) já foi localizado/aberto localmente** — resposta:
+   **não, só no servidor**. Achado maior que o esperado: isso não é um
+   bug isolado do Registro de Saídas — **nenhum arquivo gerado por
+   nenhuma rotina até agora provavelmente nunca saiu do servidor
+   remoto de verdade**; "sucesso" sempre foi medido só pela confirmação
+   na tela (OCR), nunca por achar o arquivo no disco local.
+5. **Causa raiz confirmada, com a "ponte" encontrada**: no mesmo
+   diálogo, clicando em "This PC" (a pedido), apareceram 3 discos:
+   `Servidor (C:)` (o disco do servidor remoto — é esse "C:\" que o
+   diálogo via, não o desta máquina), **`Client C (M:)`** (o disco C:
+   **desta máquina**, mapeado como unidade de rede `M:` dentro da
+   sessão remota — nome e padrão típicos de solução de renderização
+   remota), e `Local Disk (Z:)` (não identificado ainda, não usado).
+6. **Teste de confirmação final**: salvar em `M:\Users\darto\Downloads\teste123.pdf`
+   (de dentro da sessão) → **apareceu em
+   `C:\Users\darto\Downloads\teste123.pdf` no Downloads local de
+   verdade**. Confirma 100%: `M:` dentro da sessão do Domínio
+   corresponde a `C:` desta máquina, caminho por caminho.
+
+**Correção aplicada** (`app/dominio.py`): nova função
+`caminho_visto_pela_sessao_remota()` — converte um caminho local
+(`C:\Users\darto\...`) pro equivalente visto de dentro da sessão
+(`M:\Users\darto\...`, só trocando a letra da unidade, resto do
+caminho igual). `_gerar_livro_fiscal()` agora usa essa conversão só no
+texto DIGITADO no diálogo — `pasta_destino.mkdir()`/
+`caminho_completo.exists()` continuam usando o caminho local de
+verdade, sem conversão (são operações desta máquina, não da sessão
+remota). Letra configurável em `data/unidade_cliente.txt` (mesmo
+padrão de `data/tesseract_caminho.txt`) — "M" já confirmado e salvo
+nesta máquina; pode precisar mudar noutra instalação/sessão.
+
+**Ainda não re-testado** com a correção (próximo passo óbvio: rodar
+Registro de Saídas de novo e confirmar o `.pdf` real em
+`C:\Users\darto\dominio-automation-engine\saida\`).
+
+**Pendência separada, fora do alcance de código — ação do usuário
+dentro do próprio Domínio**: se a pasta de destino configurada para
+SPED Fiscal/EFD Contribuições (cadastro por empresa dentro do
+Domínio, não controlado por este motor — ver `erros.py`, "caminho
+especificado não é válido") também aponta pra um caminho `C:\...`, os
+arquivos gerados por essas duas rotinas até hoje podem estar igualmente
+presos no servidor remoto. **Já verificado pelo usuário**: ela já
+configura isso manualmente e sabe onde o arquivo vai — não é uma
+pendência real, só valia conferir.
+
+**Confirmado ao vivo, 06/10/2026, depois da correção**: Registro de
+Saídas rodou de ponta a ponta contra a SPRAYAGRO CONSULTORIA LTDA —
+arquivo `registro_saidas_01082026_31082026.pdf` apareceu de verdade em
+`C:\Users\darto\dominio-automation-engine\saida\` (29.179 bytes).
+Conteúdo conferido por `verificar_registro_saidas_pdf()` — achou CNPJ
+62.994.636/0001-53 e o período certo. Achado secundário nessa mesma
+verificação: o título do PDF sai do `pypdf` com espaço entre cada letra
+("R E G I S T R O  D E  S A Í D A S", é assim que o Domínio posiciona o
+texto no PDF, não erro de leitura) — `verificar_livro_fiscal_pdf()`
+comparava sem tolerar isso e dava falso negativo; corrigido comparando
+os dois lados sem nenhum espaço. **Primeira rotina fora do SPED
+Fiscal/EFD Contribuições validada de ponta a ponta, mecanismo E
+conteúdo, contra o Domínio real.**
+
+Falta ainda: primeira execução real do Registro de Entradas (só
+generalização de código até agora, nunca rodado).
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

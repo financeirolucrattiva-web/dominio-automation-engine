@@ -32,6 +32,56 @@ PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 # em ordem em `esperar_e_achar()`), depois dos títulos mais específicos.
 TITULOS_ERRO = ("Atenção", "Aviso Empresa", "Aviso")
 
+# Achado real, 06/10/2026 (seção 0.59): a sessão do Domínio (GraphOn
+# GO-Global) NÃO compartilha o mesmo "C:\" desta máquina — é um
+# servidor remoto com disco próprio. Digitar um caminho começando com
+# "C:\..." num diálogo "Salvar como" do Domínio salva (ou tenta) no
+# C:\ DO SERVIDOR, nunca no desta máquina — por isso "Path does not
+# exist.", mesmo a pasta existindo de verdade aqui (confirmado:
+# `pasta_destino.mkdir()` criava a pasta local, mas o diálogo recusava
+# o caminho do mesmo jeito). O disco local desta máquina aparece DENTRO
+# da sessão remota como uma unidade de rede própria — confirmado contra
+# o Domínio real, em "This PC" no diálogo "Salvar em PDF": "Client C
+# (M:)". Letra configurável (pode variar por máquina/sessão) em
+# `data/unidade_cliente.txt` — mesmo padrão de `data/tesseract_caminho.txt`.
+_ARQUIVO_UNIDADE_CLIENTE = Path(__file__).resolve().parent.parent / "data" / "unidade_cliente.txt"
+
+
+def _unidade_cliente():
+    """Letra (sem dois-pontos) da unidade que a sessão remota do
+    Domínio usa pra enxergar o disco local desta máquina. Lê de
+    `data/unidade_cliente.txt` se existir, senão usa "M" (confirmado
+    contra o Domínio real nesta máquina, 06/10/2026 — pode ser
+    diferente noutra instalação; se um dia mudar, só trocar esse
+    arquivo, não precisa mexer em código)."""
+    try:
+        valor = _ARQUIVO_UNIDADE_CLIENTE.read_text(encoding="utf-8").strip()
+        if valor:
+            return valor.rstrip(":")
+    except OSError:
+        pass
+    return "M"
+
+
+def caminho_visto_pela_sessao_remota(caminho_local):
+    """Converte um caminho LOCAL (nesta máquina, disco C:) pro caminho
+    equivalente como a sessão remota do Domínio enxerga — só troca a
+    letra da unidade (``C:`` → ``M:`` por padrão), mantém o resto do
+    caminho igual, porque a unidade mapeada reflete a mesma árvore de
+    pastas do disco local (confirmado: `M:\\Users\\darto\\Downloads\\`
+    dentro da sessão corresponde a `C:\\Users\\darto\\Downloads\\`
+    nesta máquina).
+
+    Usar SEMPRE pra digitar caminho em qualquer diálogo do Domínio —
+    nunca digitar `str(caminho_local)` direto, mesmo que pareça óbvio;
+    as funções locais (`mkdir()`, `.exists()`, `.stat()`) continuam
+    usando `caminho_local` normalmente, só o texto DIGITADO na tela do
+    Domínio precisa dessa conversão."""
+    caminho_local = Path(caminho_local).resolve()
+    unidade_local = caminho_local.drive  # ex.: "C:"
+    resto = str(caminho_local)[len(unidade_local):]  # ex.: "\Users\darto\..."
+    return f"{_unidade_cliente()}:{resto}"
+
 
 class LoteInterrompido(Exception):
     """A IA (ou o catálogo de erros conhecidos) decidiu que este erro
@@ -1182,16 +1232,25 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
     # seção 0.57 — suspeita, não confirmada com certeza: rejeita
     # extensão que não bate com o tipo travado). Agora sempre gera
     # nome com extensão ".pdf", que deve bater com o tipo da tela.
+    #
+    # **"Path does not exist." também tinha uma segunda causa, maior**
+    # (achado real, seção 0.59, 06/10/2026): essa sessão do Domínio não
+    # compartilha o C:\ desta máquina — ver `caminho_visto_pela_sessao_remota()`.
+    # `caminho_completo` continua sendo o caminho LOCAL de verdade (é o
+    # que `mkdir()`/`.exists()` abaixo usam); só o que é DIGITADO na
+    # tela passa pela conversão de unidade.
     pasta_destino = Path(pasta_destino)
     pasta_destino.mkdir(parents=True, exist_ok=True)
     nome_arquivo = (
         f"{prefixo_arquivo}_{data_inicial.replace('/', '')}_{data_final.replace('/', '')}.pdf"
     )
     caminho_completo = pasta_destino / nome_arquivo
+    caminho_digitado = caminho_visto_pela_sessao_remota(caminho_completo)
 
-    print(f"Preenchendo caminho completo no 'Salvar como': {caminho_completo}")
+    print(f"Preenchendo caminho completo no 'Salvar como' (visto pela sessão remota): {caminho_digitado}")
+    print(f"  (equivalente local, onde o arquivo deve aparecer de verdade: {caminho_completo})")
     interacao.selecionar_tudo_alternativo()
-    interacao.digitar(str(caminho_completo))
+    interacao.digitar(caminho_digitado)
     time.sleep(0.3)
     interacao.pressionar_enter()
     time.sleep(1)
