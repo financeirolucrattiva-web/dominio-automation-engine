@@ -24,8 +24,27 @@ import datetime
 import json
 from pathlib import Path
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from . import tela
+
+
+_OBSERVADOR = ContextVar("observador_estados_da_execucao", default=None)
+
+
+@contextmanager
+def observar_eventos(observador):
+    """Encaminha cópias de eventos à interface, somente nesta execução.
+
+    A interface enfileira o evento; falha de exibição não modifica a
+    rotina fiscal, o resultado ou o registro local de evidências.
+    """
+    token = _OBSERVADOR.set(observador)
+    try:
+        yield
+    finally:
+        _OBSERVADOR.reset(token)
 
 
 class AcompanhamentoRotina:
@@ -94,6 +113,12 @@ class AcompanhamentoRotina:
             "evidence": evidencia,
         }
         self.eventos.append(evento)
+        observador = _OBSERVADOR.get()
+        if observador is not None:
+            try:
+                observador(dict(evento))
+            except Exception:
+                pass
         print(f"[estado] {etapa}: {status}" + (f" ({evidencia})" if evidencia else ""))
         try:
             self.caminho_log.parent.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,13 @@ A revalidação Windows dos incrementos recentes continua pendente.
 O gravador ainda exige
 revisão e complementação de digitação, hover e verificações.
 
+A interface local agora reúne Painel de estados, Rotinas, catálogo,
+Histórico, Projeto e Log. Há indicadores de evidência por etapa e de
+retorno, sem assumir sucesso após enviar uma ação. A prévia visual foi
+conferida em tela virtual; uso da versão atual no Windows permanece
+pendente. O visual acompanha o projeto enquanto os demais incrementos
+avançam, sem habilitar agentes antes da validação das capacidades.
+
 A rodada recente de Livros Fiscais chegou à exportação, mas a nova
 conferência do período no PDF a recusou. Esse resultado continua pendente.
 O usuário deixou o nome do arquivo de lado; essa pendência não será
@@ -149,6 +156,14 @@ inclusive após uma geração que devolveu `True`; preserva resultados
 já produzidos. Sem calibração, permanece supervisionado e avisa. Há
 acompanhamento SPED/Contribuições e correção do falso sucesso no histórico
 da GUI. A [retomada](RETOMADA.md) descreve os testes pendentes.
+
+O painel recebe eventos estruturados do motor e mostra tentativa,
+etapas confirmadas, falha, recuperação e retorno como informações
+distintas. A aba Projeto apresenta os seis incrementos e abre ferramentas
+de calibração e avaliação local. A atividade fiscal continua usando os
+mesmos callbacks, condições de confirmação e minimização da interface.
+Catálogo executável, aprendizagem por demonstração e agentes gerais ainda
+não foram concluídos. A aparência sozinha não valida uma capacidade.
 
 ## Componentes de percepção durante os incrementos
 

@@ -6,7 +6,7 @@ do [roadmap RPA](ROADMAP-RPA.md). O documento `00-analise-e-plano-fase0.md`
 continua na fase de descoberta. O plano original tem dez fases (0–9);
 o roadmap RPA organiza o trabalho atual em seis incrementos.
 
-Validação desta entrega: **179 testes locais/simulados passaram**,
+Validação desta entrega: **196 testes locais/simulados passaram**,
 compilação dos arquivos Python alterados e checagem de diff passaram.
 Os testes não operaram a sessão real do Domínio. Separadamente, PP-OCRv5
 foi carregado e executado em CPU/Linux sobre imagem sintética, com caixas
@@ -16,6 +16,13 @@ precisão, estados ou execução fiscal com Paddle.
 
 ## O que foi preparado
 
+- Interface com Painel de execução, Rotinas, Funções disponíveis,
+  Histórico, Projeto e Log. Eventos estruturados mostram etapa, tempo,
+  confirmação e retorno; uma recuperação não transforma a falha original
+  em sucesso. A prévia visual usa eventos simulados, não execução fiscal.
+- Aba Projeto abre calibração/comparação OCR em um Prompt separado e
+  mantém o resultado visível até Enter. Enquanto a ferramenta estiver
+  aberta, novas execuções ficam bloqueadas para não disputar a sessão.
 - Acompanhamento por etapas nas quatro rotinas conhecidas, com marcadores
   de evidência e logs locais; erro, ação enviada e estado confirmado são
   diferenciados.
@@ -36,6 +43,8 @@ precisão, estados ou execução fiscal com Paddle.
 ## Primeiro teste ao voltar
 
 1. Rode `Atualizar.bat` e confira que terminou sem erro.
+   Abra `Abrir Interface Gráfica.bat` e confira as novas abas. Na aba
+   Projeto, use "Calibrar tela principal do Domínio" ou o atalho abaixo.
 2. Deixe o Domínio maximizado na tela principal azul, sem relatório,
    diálogo ou menu aberto. Essa condição precisa ser conferida por você.
 3. Rode `Calibrar Tela Principal.bat`. Pressione Enter quando solicitado
@@ -61,7 +70,11 @@ quando mudar resolução/tamanho da sessão. Não reduza os critérios só
 para aceitar uma captura sem entender a divergência.
 
 Depois desse teste, revalide SPED Fiscal e EFD Contribuições individualmente
-em competência já fechada. Confira as novas etapas e o retorno. Só então
+em competência já fechada. Esses geradores selecionam o mês anterior;
+confirme que a apuração desse período está fechada antes de iniciar.
+Também é possível começar pela revalidação SPED, mantendo a pendência
+PDF pausada. Confira as etapas e o retorno no Painel quando a interface
+voltar. Só então
 teste lote supervisionado, verificando documento/empresa no resumo. Ao
 iniciar lote calibrado, volte ao Domínio por Alt+Tab se solicitado.
 
@@ -137,3 +150,17 @@ etapas SPED/Contribuições; lote supervisionado com falha isolada sem
 contaminar o próximo documento/empresa; resultado/conteúdo final conferido.
 Conferência de período e nome dos PDFs permanece pausada e é uma pendência
 explícita. O catálogo é preparação do incremento 3, sem executor de agentes.
+
+## Caminho para a entrega final
+
+O visual desta entrega foi renderizado em tela virtual Linux, em
+1120×780 e 900×640, com backend fiscal bloqueado e eventos simulados.
+Falta conferir a aparência e as execuções na instalação Windows.
+Não há dependência nova nem modelo adicional para essa interface.
+
+A sequência até o RPA completo permanece no [roadmap](ROADMAP-RPA.md):
+consolidar execução/retorno e lote; finalizar o catálogo executável;
+evoluir demonstrações para propostas com campos/estados e revisão;
+dar tarefas aos agentes usando capacidades validadas e uma fila por
+sessão; medir as execuções e ampliar autonomia gradualmente. O painel
+torna o andamento visível, mas não declara essas etapas concluídas.

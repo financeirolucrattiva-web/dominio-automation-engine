@@ -102,6 +102,16 @@ atalho indica a instalação manual oficial; veja a retomada acima.
 
 ## Instalação
 
+A interface local agora inclui **Painel**, **Rotinas**, **Funções disponíveis**,
+**Histórico**, **Projeto** e **Log**. O painel acompanha os eventos do motor,
+separando etapa confirmada, ação enviada, falha e retorno à tela principal.
+A aba Projeto reúne o andamento e as ferramentas dos próximos testes.
+Depois de atualizar, abra `Abrir Interface Gráfica.bat`.
+
+Prévia da interface com eventos simulados, sem operação fiscal:
+
+![Painel com eventos simulados](docs/preview-painel.png)
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate

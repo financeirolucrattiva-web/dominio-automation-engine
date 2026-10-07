@@ -3413,6 +3413,64 @@ passaram no commit anterior.
 
 ---
 
+### 0.79 Painel visual, catálogo e acompanhamento do projeto
+
+**Pedido em 07/10/2026:** preparar o que falta para seguir até o RPA
+completo, incluindo o visual. Continua a interface Tk/ttkbootstrap do
+mesmo projeto, sem produto separado, instalação de modelos adicionais
+ou reescrita das rotinas conhecidas.
+
+**Entrega:** abas Painel, Rotinas (com rolagem), Funções disponíveis,
+Histórico, Projeto e Log. O catálogo mostra pré-condições, período,
+checagens e pendências das quatro rotinas. Projeto mostra os seis
+incrementos e reúne calibração, comparação OCR e instruções de retomada.
+Mantém modo Operador, callbacks existentes e minimização antes da rotina.
+O texto de confirmação SPED explicita que mês anterior exige apuração
+fechada, em vez de afirmar que o fechamento ocorre automaticamente.
+
+`estados.observar_eventos` usa ContextVar para encaminhar cópias dos
+eventos já existentes à fila da GUI, sem parsear logs livres ou enviar
+dados fiscais. Falha do observador não muda a execução nem o JSONL.
+`app/painel.py` só apresenta estados: conhece etapas/status/rotinas,
+limpa confirmações na nova execução/tentativa, distingue ação enviada
+de retorno visual e preserva falha depois de recuperação confirmada.
+Widgets são atualizados na thread Tk, nunca no callback de automação.
+O indicador conta somente etapas confirmadas; não representa autonomia
+do projeto, validação de conteúdo ou simples cliques executados.
+
+Ferramentas abrem em um Prompt separado, com intérprete atual para
+calibração ou ambiente OCR existente para comparação. O wrapper aceita
+somente esses dois IDs, conserva o código de saída e aguarda Enter para
+permitir leitura do resultado. Ferramenta aberta bloqueia nova automação;
+sem ambiente OCR, indica instalação em vez de instalar automaticamente.
+`False` retornado por gerador também aparece como falha no status da GUI,
+preservando seu histórico. Lote sem resultado único pede consulta ao log.
+
+**Validação:** 196 testes locais/simulados passaram, com 17 novos de
+observador, estados apresentados, retry, retorno, falha, preservação de
+código, fila da GUI e impedimento de nova rotina durante ferramenta.
+Compilação e diff check passaram. Interface real renderizada em Xvfb
+Linux local em 1120×780 e 900×640, sem backend fiscal; prévia usa eventos
+simulados. A renderização identificou incompatibilidade de ScrolledFrame
+diretamente no Notebook; corrigida com frame pai e revalidada. A captura
+`docs/preview-painel.png` contém apenas esse cenário simulado.
+
+O ciclo Tk real com uma thread Python e estados simulados encontrou
+travamento da finalização por `root.after` chamado da thread de trabalho.
+Finalização e confirmação de lote passaram para a fila consumida pela
+thread Tk. O ciclo voltou a terminar, com falha corretamente exibida e
+histórico preservado; diálogos e minimização foram simulados por não haver
+gerenciador de janelas Windows no Xvfb. Erro de gravação de histórico não
+perde finalização/resultado. Nenhuma ação fiscal foi executada no teste.
+
+**Ainda pendente:** teste visual/execução no Windows, calibração e
+retorno das rotinas, conteúdo gerado, lote com falha isolada, pendência
+PDF anteriormente pausada. Catálogo executável, aprendizagem por
+demonstração e agentes operadores seguem os incrementos posteriores;
+o painel não os apresenta como concluídos nem os habilita.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

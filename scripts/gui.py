@@ -24,6 +24,11 @@ visível na tela):
 
     python scripts\\gui.py
 
+O painel introduzido em 07/10/2026 consome eventos estruturados do motor
+e separa confirmação, falha e retorno. Finalização e confirmação de lote
+passam pela fila da thread Tk; ferramentas locais não disputam a sessão
+com uma execução. Catálogo e andamento não habilitam agentes operadores.
+
 Não muda nada do motor em si (`app/dominio.py`) além do que já estava
 documentado (`regime`, `confirmar` em `executar_lote()`) — sem
 informar os dois, o comportamento por terminal (`scripts/app.py`,
@@ -32,6 +37,7 @@ informar os dois, o comportamento por terminal (`scripts/app.py`,
 
 import os
 import queue
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -40,13 +46,19 @@ from tkinter import messagebox, scrolledtext, simpledialog
 
 import ttkbootstrap as tb
 from ttkbootstrap.constants import BOTH, LEFT, RIGHT, X, Y
+try:
+    from ttkbootstrap.widgets.scrolled import ScrolledFrame
+except ImportError:
+    from ttkbootstrap.scrolled import ScrolledFrame
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import dominio, empresas, historico, ia, interacao, verificacao
+from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, verificacao
 from gravar import Gravador
 
 PASTA_SAIDA_PADRAO = Path(__file__).resolve().parent.parent / "saida"
+ROOT = Path(__file__).resolve().parent.parent
+FONTE_INTERFACE = "Segoe UI" if sys.platform == "win32" else "Helvetica"
 
 
 class EscritorFila:
@@ -126,10 +138,15 @@ class JanelaPrincipal:
         if self.modo == "operador":
             titulo += " (Operador)"
         self.root.title(titulo)
-        self.root.geometry("1000x720")
-        self.root.minsize(820, 580)
+        self.root.geometry("1120x780")
+        self.root.minsize(900, 640)
+        self.root.option_add("*Font", (FONTE_INTERFACE, 10))
+        self.root.style.configure("Treeview", rowheight=29)
 
         self.fila = queue.Queue()
+        self.fila_estados = queue.Queue()
+        self.painel = painel.EstadoPainel()
+        self.ferramenta_local = None
         self.em_execucao = False
         self.botoes = []
         # "set" = rodando, "clear" = pausado — checado por
@@ -141,15 +158,18 @@ class JanelaPrincipal:
 
         self._montar_layout()
         self._carregar_historico()
+        self._atualizar_painel()
         self.root.after(100, self._drenar_fila)
 
     def _montar_layout(self):
         cabecalho = tb.Frame(self.root, bootstyle="primary")
         cabecalho.pack(fill=X)
         tb.Label(
-            cabecalho, text="Automação Fiscal Domínio", bootstyle="inverse-primary",
-            font=("Segoe UI", 16, "bold"), padding=(16, 12),
+            cabecalho, text="DOMÍNIO  |  Automação Fiscal", bootstyle="inverse-primary",
+            font=(FONTE_INTERFACE, 20, "bold"), padding=(20, 18),
         ).pack(side=LEFT)
+        tb.Label(cabecalho, text="Execução local · Tesseract", bootstyle="inverse-primary",
+                 padding=(14, 18)).pack(side=RIGHT)
 
         corpo = tb.Frame(self.root, padding=14)
         corpo.pack(fill=BOTH, expand=True)
@@ -157,17 +177,203 @@ class JanelaPrincipal:
         self.abas = tb.Notebook(corpo)
         self.abas.pack(fill=BOTH, expand=True, pady=(0, 10))
 
-        aba_rotinas = tb.Frame(self.abas, padding=10)
+        aba_painel = tb.Frame(self.abas, padding=16)
+        aba_rotinas = tb.Frame(self.abas)
+        rotinas_scroll = ScrolledFrame(aba_rotinas, padding=10, autohide=True)
+        rotinas_scroll.pack(fill=BOTH, expand=True)
+        aba_capacidades = tb.Frame(self.abas, padding=16)
         aba_historico = tb.Frame(self.abas, padding=10)
+        aba_projeto = tb.Frame(self.abas, padding=16)
         aba_log = tb.Frame(self.abas, padding=10)
+        self.abas.add(aba_painel, text="Painel")
         self.abas.add(aba_rotinas, text="Rotinas")
+        self.abas.add(aba_capacidades, text="Funções disponíveis")
         self.abas.add(aba_historico, text="Histórico")
+        self.abas.add(aba_projeto, text="Projeto")
         self.abas.add(aba_log, text="Log")
         self._aba_log = aba_log
+        self._aba_painel = aba_painel
 
-        self._montar_aba_rotinas(aba_rotinas)
+        self._montar_aba_painel(aba_painel)
+        self._montar_aba_rotinas(rotinas_scroll)
+        self._montar_aba_capacidades(aba_capacidades)
         self._montar_aba_historico(aba_historico)
+        self._montar_aba_projeto(aba_projeto)
         self._montar_aba_log(aba_log)
+
+    def _montar_aba_painel(self, pai):
+        barra = tb.Frame(pai)
+        barra.pack(fill=X, pady=(0, 14))
+        tb.Label(barra, text="Acompanhar execução", font=(FONTE_INTERFACE, 17, "bold")).pack(side=LEFT)
+        tb.Button(barra, text="Ver log", bootstyle="secondary-outline",
+                  command=lambda: self.abas.select(self._aba_log)).pack(side=RIGHT)
+        tb.Button(barra, text="Escolher rotina", bootstyle="primary",
+                  command=lambda: self.abas.select(1)).pack(side=RIGHT, padx=8)
+
+        cartoes = tb.Frame(pai)
+        cartoes.pack(fill=X, pady=(0, 14))
+        self.valores_painel = {}
+        for coluna, (chave, titulo) in enumerate((("rotina", "ROTINA"), ("etapa", "ETAPA ATUAL"), ("resultado", "RESULTADO"))):
+            cartoes.columnconfigure(coluna, weight=1, uniform="cartao")
+            card = tb.Labelframe(cartoes, text=titulo, padding=14, bootstyle="primary")
+            card.grid(row=0, column=coluna, sticky="nsew", padx=(0 if coluna == 0 else 8, 0))
+            valor = tb.Label(card, text="—", font=(FONTE_INTERFACE, 12, "bold"), wraplength=290)
+            valor.pack(fill=X)
+            self.valores_painel[chave] = valor
+
+        self.progresso_etapas = tb.Progressbar(pai, bootstyle="success", maximum=100)
+        self.progresso_etapas.pack(fill=X)
+        self.rotulo_progresso = tb.Label(pai, text="As etapas aparecerão quando uma rotina iniciar.", bootstyle="secondary")
+        self.rotulo_progresso.pack(anchor="w", pady=(5, 12))
+        self.rotulo_retorno = tb.Label(pai, text="Retorno à tela principal: ainda não observado.", bootstyle="secondary")
+        self.rotulo_retorno.pack(anchor="w", pady=(0, 10))
+
+        area_tabela = tb.Frame(pai)
+        self.tabela_estados = tb.Treeview(area_tabela, columns=("etapa", "status", "tempo"), show="headings", height=9)
+        for coluna, titulo, largura in (("etapa", "Etapa", 440), ("status", "Situação", 300), ("tempo", "Tempo observado", 150)):
+            self.tabela_estados.heading(coluna, text=titulo)
+            self.tabela_estados.column(coluna, width=largura, anchor="w")
+        rolagem = tb.Scrollbar(area_tabela, orient="vertical", command=self.tabela_estados.yview)
+        self.tabela_estados.configure(yscrollcommand=rolagem.set)
+        rolagem.pack(side=RIGHT, fill=Y)
+        self.tabela_estados.pack(side=LEFT, fill=BOTH, expand=True)
+        for tag, cor in (("confirmado", "#168056"), ("falha", "#bd3737"),
+                         ("inconclusivo", "#986800"), ("acao_executada", "#986800"),
+                         ("resultado_nao_verificado", "#986800")):
+            self.tabela_estados.tag_configure(tag, foreground=cor)
+        tb.Label(pai, text="Ação enviada e retorno confirmado são acompanhados separadamente. "
+                 "A janela minimiza durante a execução para manter o Domínio em foco.",
+                 wraplength=820, bootstyle="secondary").pack(side="bottom", fill=X, pady=(12, 0))
+        area_tabela.pack(fill=BOTH, expand=True)
+
+    def _atualizar_painel(self):
+        for chave, label in self.valores_painel.items():
+            label.configure(text=getattr(self.painel, chave))
+        total = len(self.painel.etapas)
+        self.progresso_etapas.configure(value=100 * self.painel.confirmadas / total if total else 0)
+        self.rotulo_progresso.configure(text=(f"{self.painel.confirmadas} de {total} etapas confirmadas · Tentativa {self.painel.tentativa}"
+                                             if total else "As etapas aparecerão quando uma rotina iniciar."))
+        self.rotulo_retorno.configure(text=f"Retorno à tela principal: {self.painel.retorno}.")
+        for item in self.tabela_estados.get_children():
+            self.tabela_estados.delete(item)
+        for etapa, nome, status, tempo, tag in self.painel.linhas_tabela():
+            self.tabela_estados.insert("", "end", iid=etapa, values=(nome, status, tempo), tags=(tag,))
+
+    def _processar_eventos(self):
+        mudou = False
+        conclusao = None
+        try:
+            while True:
+                item = self.fila_estados.get_nowait()
+                if isinstance(item, tuple) and len(item) == 3 and item[0] == "finalizar_atividade":
+                    conclusao = item[1:]
+                elif isinstance(item, tuple) and len(item) == 3 and item[0] == "confirmar_lote":
+                    self._mostrar_confirmacao_lote(item[1], item[2])
+                else:
+                    mudou = self.painel.receber(item) or mudou
+        except queue.Empty:
+            pass
+        if mudou:
+            self._atualizar_painel()
+        if conclusao is not None:
+            self._fim_execucao(*conclusao)
+
+    def _montar_aba_capacidades(self, pai):
+        tb.Label(pai, text="Funções conhecidas do motor", font=(FONTE_INTERFACE, 17, "bold")).pack(anchor="w")
+        tb.Label(pai, text="Selecione uma função para consultar suas condições e verificações.",
+                 bootstyle="secondary").pack(anchor="w", pady=(6, 14))
+        self.tabela_capacidades = tb.Treeview(pai, columns=("nome", "periodo", "situacao"), show="headings", height=5)
+        for coluna, titulo, largura in (("nome", "Função", 240), ("periodo", "Período", 320), ("situacao", "Situação", 390)):
+            self.tabela_capacidades.heading(coluna, text=titulo)
+            self.tabela_capacidades.column(coluna, width=largura, anchor="w")
+        for item in capacidades.listar_capacidades():
+            self.tabela_capacidades.insert("", "end", iid=item.id, values=(
+                item.nome, "Informado na interface" if item.id.startswith("registro_") else "Mês anterior",
+                "Revalidação da versão atual pendente",
+            ))
+        self.tabela_capacidades.pack(fill=X, pady=(0, 12))
+        self.detalhes_capacidade = scrolledtext.ScrolledText(pai, state="disabled", wrap="word",
+                                                           font=(FONTE_INTERFACE, 10), height=12, relief="flat")
+        self.detalhes_capacidade.pack(fill=BOTH, expand=True)
+        self.tabela_capacidades.bind("<<TreeviewSelect>>", self._mostrar_capacidade)
+        self.tabela_capacidades.selection_set("sped_fiscal")
+        self._mostrar_capacidade()
+
+    def _mostrar_capacidade(self, evento=None):
+        selecao = self.tabela_capacidades.selection()
+        if not selecao:
+            return
+        item = capacidades.obter_capacidade(selecao[0])
+        partes = [item.nome, item.objetivo, "", "Antes de executar:"]
+        partes.extend(f"• {texto}" for texto in item.precondicoes)
+        partes.extend(("", "Período:", item.politica_periodo, "", "Verificações atuais:"))
+        partes.extend(f"• {texto}" for texto in item.checagens_atuais)
+        partes.extend(("", "Falta validar:"))
+        partes.extend(f"• {texto}" for texto in item.pendencias)
+        self.detalhes_capacidade.configure(state="normal")
+        self.detalhes_capacidade.delete("1.0", "end")
+        self.detalhes_capacidade.insert("end", "\n".join(partes))
+        self.detalhes_capacidade.configure(state="disabled")
+
+    def _montar_aba_projeto(self, pai):
+        tb.Label(pai, text="Caminho até o RPA com agentes", font=(FONTE_INTERFACE, 17, "bold")).pack(anchor="w")
+        tb.Label(pai, text="Etapa atual: consolidar execução e recuperação. "
+                 "Os testes no Windows confirmam a conclusão de cada incremento.",
+                 wraplength=980, bootstyle="secondary").pack(fill=X, pady=(6, 14))
+        tabela = tb.Treeview(pai, columns=("n", "fase", "status", "proximo"), show="headings", height=6)
+        for coluna, titulo, largura in (("n", "", 35), ("fase", "Incremento", 230),
+                                       ("status", "Andamento", 280), ("proximo", "Próxima evidência", 450)):
+            tabela.heading(coluna, text=titulo)
+            tabela.column(coluna, width=largura, anchor="w")
+        for item in painel.PROJETO:
+            tabela.insert("", "end", values=item)
+        tabela.pack(fill=X, pady=(0, 18))
+        preparacao = tb.Labelframe(pai, text="Preparar e conferir o ambiente", padding=12)
+        preparacao.pack(fill=X)
+        self._botao(preparacao, "Calibrar tela principal do Domínio", lambda: self._abrir_ferramenta("calibrar"), "primary-outline")
+        self._botao(preparacao, "Comparar OCR na tela atual", lambda: self._abrir_ferramenta("ocr"), "secondary-outline")
+        self._botao(preparacao, "Abrir instruções dos próximos testes", lambda: _abrir_no_explorador(ROOT / "docs" / "RETOMADA.md"), "secondary-outline")
+        tb.Label(pai, text="Paddle CPU foi avaliado em uma captura Windows e levou cerca de 25 vezes mais tempo "
+                 "que Tesseract. O OCR principal continua Tesseract; agentes operadores gerais estão planejados.",
+                 wraplength=980, bootstyle="secondary").pack(fill=X, pady=(14, 0))
+
+    def _abrir_ferramenta(self, identificador):
+        if self.em_execucao or (self.ferramenta_local is not None and self.ferramenta_local.poll() is None):
+            messagebox.showwarning("Aguarde", "Aguarde a execução ou ferramenta atual terminar.")
+            return
+        if identificador == "calibrar":
+            comando = [sys.executable, str(ROOT / "scripts" / "abrir_ferramenta.py"), "calibrar"]
+        elif identificador == "ocr":
+            python_ocr = ROOT / ".venv-ocr-paddle" / "Scripts" / "python.exe"
+            if not python_ocr.is_file():
+                messagebox.showinfo("OCR opcional", "Prepare o OCR com Instalar Python OCR.bat antes de comparar.")
+                return
+            comando = [str(python_ocr), str(ROOT / "scripts" / "abrir_ferramenta.py"), "ocr"]
+        else:
+            return
+        try:
+            self.ferramenta_local = subprocess.Popen(comando, cwd=str(ROOT),
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        except OSError:
+            messagebox.showerror("Ferramenta não iniciada", "Não consegui abrir a ferramenta local. Use seu atalho na pasta do projeto.")
+            return
+        for botao in self.botoes:
+            botao.configure(state="disabled")
+        self._marcar_status("Ferramenta aberta em outro Prompt; aguarde o resultado.", "info")
+        self.root.iconify()
+        self.root.after(500, self._conferir_ferramenta)
+
+    def _conferir_ferramenta(self):
+        codigo = self.ferramenta_local.poll()
+        if codigo is None:
+            self.root.after(500, self._conferir_ferramenta)
+            return
+        self.ferramenta_local = None
+        for botao in self.botoes:
+            botao.configure(state="normal")
+        self.root.deiconify()
+        self._marcar_status("Ferramenta concluída." if codigo == 0 else "Ferramenta não concluída; consulte o Prompt.",
+                            "info" if codigo == 0 else "warning")
 
     def _montar_aba_log(self, pai):
         """Log numa aba própria (pedido do usuário, 06/10/2026: na
@@ -181,7 +387,7 @@ class JanelaPrincipal:
         janela."""
         barra_status = tb.Frame(pai)
         barra_status.pack(fill=X, pady=(0, 6))
-        self.status = tb.Label(barra_status, text="Pronto.", bootstyle="success", font=("Segoe UI", 10, "bold"))
+        self.status = tb.Label(barra_status, text="Pronto.", bootstyle="success", font=(FONTE_INTERFACE, 10, "bold"))
         self.status.pack(side=LEFT)
         self.botao_pausa = tb.Button(
             barra_status, text="Pausar", command=self._alternar_pausa, state="disabled", bootstyle="warning-outline",
@@ -346,6 +552,7 @@ class JanelaPrincipal:
                 self._log(self.fila.get_nowait())
         except queue.Empty:
             pass
+        self._processar_eventos()
         self.root.after(100, self._drenar_fila)
 
     def _rodar_em_thread(self, alvo, *args, pausavel=False, nome_rotina=None):
@@ -363,7 +570,8 @@ class JanelaPrincipal:
         sucesso/falha, porque uma rodada de lote tem vários resultados
         misturados, não um só.
         """
-        if self.em_execucao:
+        ferramenta = getattr(self, "ferramenta_local", None)
+        if self.em_execucao or (ferramenta is not None and ferramenta.poll() is None):
             messagebox.showwarning("Aguarde", "Já tem uma ação rodando — espera terminar.")
             return
 
@@ -380,7 +588,8 @@ class JanelaPrincipal:
             deu_erro = False
             resultado = None
             try:
-                resultado = alvo(*args)
+                with estados.observar_eventos(self.fila_estados.put):
+                    resultado = alvo(*args)
             except Exception as e:  # nunca deixa a janela travada por um erro não previsto
                 deu_erro = True
                 self.fila.put(f"\nErro inesperado: {e}\n")
@@ -390,22 +599,33 @@ class JanelaPrincipal:
                     arquivo_log.close()
                 if nome_rotina is not None:
                     sucesso, arquivo = _normalizar_resultado(resultado, deu_erro)
-                    historico.registrar(nome_rotina, sucesso, arquivo_gerado=arquivo)
-                self.root.after(0, self._fim_execucao, deu_erro)
+                    try:
+                        historico.registrar(nome_rotina, sucesso, arquivo_gerado=arquivo)
+                    except OSError:
+                        self.fila.put("Não foi possível gravar o histórico local; confira o resultado no painel e no log.\n")
+                confirmado = (False if deu_erro else _normalizar_resultado(resultado, False)[0]
+                              if isinstance(resultado, bool) or (isinstance(resultado, tuple) and len(resultado) == 2)
+                              else None)
+                self.fila_estados.put(("finalizar_atividade", deu_erro, confirmado))
 
         self.evento_pausa.set()
         self.em_execucao = True
+        self.painel.limpar()
+        self.painel.rotina = nome_rotina or "Atividade local"
+        self.painel.etapa = "Aguardando primeira evidência"
+        self.painel.resultado = "Em execução"
+        self._atualizar_painel()
         for botao in self.botoes:
             botao.configure(state="disabled")
         if pausavel:
             self.botao_pausa.configure(state="normal", text="Pausar")
         self._marcar_status("Rodando...", "warning")
         self.fila.put(f"\n{'=' * 60}\n")
-        # Troca pra aba "Log" sozinha — assim, se/quando a pessoa
+        # Troca pra aba "Painel" sozinha — assim, se/quando a pessoa
         # restaurar a janela (minimizada a seguir), já está na aba
         # certa, sem precisar clicar em nada a mais (pedido do usuário,
         # 06/10/2026).
-        self.abas.select(self._aba_log)
+        self.abas.select(self._aba_painel)
         # Minimiza a própria janela antes de mexer no Domínio — senão
         # ela pode ficar por cima e roubar o clique de foco (mesmo
         # risco da seção 0.28/0.37). Volta sozinha em _fim_execucao().
@@ -425,42 +645,45 @@ class JanelaPrincipal:
             self.botao_pausa.configure(text="Pausar")
             self._marcar_status("Rodando...", "warning")
 
-    def _fim_execucao(self, deu_erro=False):
+    def _fim_execucao(self, deu_erro=False, sucesso=None):
+        self._processar_eventos()
         self.em_execucao = False
         self.root.deiconify()
         for botao in self.botoes:
             botao.configure(state="normal")
         self.botao_pausa.configure(state="disabled", text="Pausar")
         self.evento_pausa.set()
-        if deu_erro:
-            self._marcar_status("Erro — veja o log acima.", "danger")
+        if deu_erro or sucesso is False:
+            self._marcar_status("Falha — consulte a aba Log.", "danger")
+            if self.painel.execution_id is None:
+                self.painel.resultado = "Falhou; consulte o log"
+        elif sucesso is True:
+            self._marcar_status("Concluído pela rotina; confira resultado e retorno no painel.", "info")
+            if self.painel.execution_id is None:
+                self.painel.resultado = "Concluído pela rotina"
         else:
-            self._marcar_status("Pronto.", "success")
+            self._marcar_status("Atividade encerrada; consulte os resultados no log.", "info")
+            if self.painel.execution_id is None:
+                self.painel.resultado = "Atividade encerrada; consulte o log"
+        self._atualizar_painel()
         self._carregar_historico()
 
     # --- Ações (espelham scripts/app.py, seção 0.18) ---
 
     def _confirmar_lote(self, selecionadas):
         """Chamado de dentro de `dominio.executar_lote()`, que roda na
-        thread de trabalho (seção 0.33) — mas uma caixa de diálogo do
-        Tkinter só pode ser criada na thread principal. `root.after()`
-        agenda a pergunta de verdade lá, e essa função (na thread de
-        trabalho) só espera a resposta chegar pela fila — não mostra
-        nada diretamente."""
+        thread de trabalho (seção 0.33). A fila encaminha a pergunta à
+        thread Tk; a thread de trabalho espera somente a resposta."""
         resposta = queue.Queue()
-
-        def perguntar():
-            lista = "\n".join(f"  {e['codigo']} - {e['apelido']}" for e in selecionadas)
-            aceitou = messagebox.askyesno(
-                "Confirmar lote",
-                f"Rodar pra essas {len(selecionadas)} empresa(s)?\n\n{lista}",
-            )
-            if aceitou:
-                self.root.iconify()
-            resposta.put(aceitou)
-
-        self.root.after(0, perguntar)
+        self.fila_estados.put(("confirmar_lote", selecionadas, resposta))
         return resposta.get()
+
+    def _mostrar_confirmacao_lote(self, selecionadas, resposta):
+        lista = "\n".join(f"  {e['codigo']} - {e['apelido']}" for e in selecionadas)
+        aceitou = messagebox.askyesno("Confirmar lote", f"Rodar pra essas {len(selecionadas)} empresa(s)?\n\n{lista}")
+        if aceitou:
+            self.root.iconify()
+        resposta.put(aceitou)
 
     def _rodar_lote(self, usar_real):
         lista = empresas.carregar_empresas(None if usar_real else empresas.ARQUIVO_EXEMPLO)
@@ -503,7 +726,7 @@ class JanelaPrincipal:
 
     def _rodar_gerador(self, gerador, nome):
         if not self._confirmar_empresa_selecionada(
-            nome, extra="(o período é selecionado sozinho: sempre o mês fechado anterior ao atual)\n\n",
+            nome, extra="O período será o mês anterior. Confirme que a apuração dessa competência já está fechada.\n\n",
         ):
             return
 

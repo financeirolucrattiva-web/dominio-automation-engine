@@ -63,6 +63,30 @@ coordenadas e retornos. 179 testes passaram; não foi adotado Paddle no
 fluxo de produção: a primeira comparação Windows mostrou perda de tempo
 e não forneceu evidência de ganho de precisão.
 
+Pedido seguinte do usuário: avançar até o RPA completo, incluindo visual.
+Entrega atual em `scripts/gui.py`: Painel, Rotinas com rolagem, Funções
+disponíveis, Histórico, Projeto e Log. `app/painel.py` é apresentação
+pura, sem ações. `estados.observar_eventos` encaminha cópias em ContextVar
+à fila da GUI; widgets são atualizados na thread Tk. Falha do observador
+não interrompe o motor e não altera o JSONL. Ação enviada não confirma
+retorno nem 100% das etapas; recuperação confirmada preserva falha PDF.
+
+Aba Projeto abre as ferramentas locais com os intérpretes existentes;
+`scripts/abrir_ferramenta.py` aceita somente calibração/OCR, conserva código
+de saída e mantém o Prompt até Enter. Ferramenta aberta impede nova
+automação. `False` no resultado agora também aparece como falha na barra
+da GUI. 196 testes passaram e visual foi conferido em tela virtual Linux,
+com backend fiscal bloqueado/eventos simulados. Revalidação GUI/estados
+Windows ainda pendente; não habilitou agentes nem ampliou ações fiscais.
+Prévia: `docs/preview-painel.png`, somente dados simulados.
+
+O teste de ciclo Tk real encontrou travamento na antiga finalização
+`root.after` chamada da thread de trabalho. Finalização e confirmação de
+lote agora passam pela fila para a thread Tk. Ciclo com worker real,
+eventos fiscais simulados e diálogos/minimização simulados passou: falha
+chega ao painel/histórico e os botões são liberados. Erro OSError ao
+gravar histórico avisa no log e preserva finalização/resultado.
+
 A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
 e testes de lógica com dependências de desktop simuladas. Ela não acessa
 Domínio/GO-Global nem valida ações Windows. O uso de Win32 para conferir
