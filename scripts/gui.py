@@ -266,7 +266,8 @@ class JanelaPrincipal:
             secao,
             text="Confirme que esta competência JÁ TEVE a apuração de ICMS fechada no Domínio "
                  "para esta empresa — \"mês anterior\" nem sempre significa \"já apurado\". "
-                 "\"Registro de Entradas\" ainda não foi testado contra o Domínio real.",
+                 "O mecanismo do Registro de Entradas foi observado anteriormente; "
+                 "a versão atual requer revalidação.",
             bootstyle="warning", wraplength=700, justify="left",
         ).pack(fill=X, pady=(0, 6))
 
@@ -450,10 +451,13 @@ class JanelaPrincipal:
 
         def perguntar():
             lista = "\n".join(f"  {e['codigo']} - {e['apelido']}" for e in selecionadas)
-            resposta.put(messagebox.askyesno(
+            aceitou = messagebox.askyesno(
                 "Confirmar lote",
                 f"Rodar pra essas {len(selecionadas)} empresa(s)?\n\n{lista}",
-            ))
+            )
+            if aceitou:
+                self.root.iconify()
+            resposta.put(aceitou)
 
         self.root.after(0, perguntar)
         return resposta.get()
@@ -505,8 +509,10 @@ class JanelaPrincipal:
 
         def rodar():
             interacao.focar_dominio()
-            if gerador():
+            resultado = gerador()
+            if resultado:
                 print(f"Fim da rotina ({nome}).")
+            return resultado
 
         self._rodar_em_thread(rodar, nome_rotina=nome)
 
@@ -517,10 +523,12 @@ class JanelaPrincipal:
         self._rodar_gerador(dominio.gerar_efd_contribuicoes, "EFD Contribuições")
 
     def acao_registro_saidas(self):
-        """Seção nova (seção 0.57) — "Registro de Saídas" parcialmente
-        validado contra o Domínio real; "Registro de Entradas" ainda
-        não rodou nenhuma vez (generalização do mesmo código, ver
-        docstring de `dominio.gerar_registro_entradas()`)."""
+        """Gera o livro escolhido usando o período informado na interface.
+
+        O mecanismo dos dois livros foi observado no Domínio real
+        (seções 0.59/0.60). A versão atual, com a nova conferência de
+        PDF, requer revalidação; sucesso histórico não aprova a atual.
+        """
         tipo = self.combo_tipo_livro.get() or "Registro de Saídas"
         funcao = dominio.gerar_registro_entradas if "Entradas" in tipo else dominio.gerar_registro_saidas
 

@@ -141,6 +141,15 @@ class TestFocoDominio(unittest.TestCase):
         self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token(), confirmar_conteudo=ocr))
         self.press.assert_not_called()
 
+    def test_verificacao_foreground_apenas_leitura(self):
+        self.assertFalse(self.modulo.janela_dominio_em_foco(self.token()))
+        self.foreground = 42
+        self.assertTrue(self.modulo.janela_dominio_em_foco(self.token()))
+        self.api.SetForegroundWindow.assert_not_called()
+        self.api.EnumWindows.assert_not_called()
+        self.api.ShowWindow.assert_not_called()
+        self.press.assert_not_called()
+
 
 class TestTiposWin32(unittest.TestCase):
     def test_hwnd_retornos_e_argumentos_tipos_pointer(self):

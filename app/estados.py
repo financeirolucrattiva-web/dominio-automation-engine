@@ -7,19 +7,16 @@ mudou desde a última vez (fingerprint, `tela.assinatura_tela()`, seção
 0.58).
 
 Generalização de baixo risco, feita DEPOIS de 4 rotinas reais provarem
-o mesmo padrão — não suposição de arquitetura. A primeira (e por
-enquanto única) aplicação é `dominio.esperar_e_achar()`, refeita por
+o mesmo padrão — não suposição de arquitetura. A aplicação inicial é
+`dominio.esperar_e_achar()`, refeita por
 cima deste motor mantendo assinatura e comportamento idênticos ao de
 antes — nenhuma das 4 rotinas precisou mudar uma linha, porque todas
 já chamavam `esperar_e_achar()`, não este módulo diretamente.
 
-Não é um "StateEngine" completo no sentido do prompt original do
-projeto (sem máquina de transição formal entre MUITOS estados nomeados
-— ainda não temos rotinas o bastante pra justificar isso) — é
-deliberadamente menor: só o núcleo de "esperar até um de vários
-detectores achar alguma coisa", que é o que as 4 rotinas reais
-realmente precisam até agora. Crescer pra algo maior quando uma rotina
-nova pedir de verdade, não antes.
+Esse núcleo continua sendo reutilizado. `AcompanhamentoRotina` também
+registra a sequência das etapas das quatro rotinas, exige evidências
+para avançar e separa ação enviada de retorno visual confirmado.
+Não escolhe ações nem amplia a autonomia da IA.
 """
 
 import time
@@ -47,17 +44,31 @@ class AcompanhamentoRotina:
         "recuperacao_esc_enviado", "recuperacao_sem_confirmacao_visual",
         "recuperacao_esc_falhou", "encerramento_ja_tentado",
         "foco_dominio_nao_confirmado",
+        "tela_principal_reconhecida", "tela_principal_nao_reconhecida",
+        "referencia_tela_principal_ausente", "referencia_tela_principal_invalida",
+        "item_menu_reconhecido", "formulario_e_botoes_reconhecidos",
+        "aviso_resultado_reconhecido", "fechamento_solicitado",
     }
     CONFIRMACOES = dict(zip(ETAPAS, (
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
         "campos_periodo_confirmados", "ancora_registro_lida", "arquivo_novo_estavel",
         "pdf_tipo_periodo_cnpj_confirmados", "esc_enviado_fechamento_nao_verificado",
     )))
+    FLUXO_GERACAO = {
+        "navegar_menu": "item_menu_reconhecido",
+        "preencher_periodo": "campos_periodo_confirmados",
+        "identificar_formulario": "formulario_e_botoes_reconhecidos",
+        "gerar_documento": "aviso_resultado_reconhecido",
+        "encerrar": "fechamento_solicitado",
+    }
 
     def __init__(self, rotina, pasta_logs=None):
-        if rotina not in ("registro_saidas", "registro_entradas"):
+        if rotina not in ("registro_saidas", "registro_entradas", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
             raise ValueError("Rotina sem acompanhamento configurado.")
         self.rotina = rotina
+        if rotina in ("sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
+            self.CONFIRMACOES = self.FLUXO_GERACAO.copy()
+            self.ETAPAS = tuple(self.CONFIRMACOES)
         self.execution_id = uuid.uuid4().hex
         pasta_logs = Path(pasta_logs) if pasta_logs is not None else Path(__file__).resolve().parent.parent / "data" / "execucoes"
         self.caminho_log = pasta_logs / f"{self.execution_id}.jsonl"
@@ -106,9 +117,10 @@ class AcompanhamentoRotina:
     def confirmar(self, evidencia):
         if self.etapa is None or self.etapa in self.confirmadas or self.finalizada:
             raise ValueError("Nenhuma etapa pendente para confirmar.")
-        if evidencia != self.CONFIRMACOES[self.etapa]:
+        confirmacao_visual = self.etapa == "encerrar" and evidencia == "tela_principal_reconhecida"
+        if evidencia != self.CONFIRMACOES[self.etapa] and not confirmacao_visual:
             raise ValueError("Evidência não corresponde à etapa atual.")
-        status = "acao_executada" if self.etapa == "encerrar" else "confirmado"
+        status = "acao_executada" if self.etapa == "encerrar" and not confirmacao_visual else "confirmado"
         self._registrar(self.etapa, status, evidencia)
         self.confirmadas.append(self.etapa)
 
@@ -127,15 +139,22 @@ class AcompanhamentoRotina:
             if self.finalizada or self.recuperacao_iniciada or "gerar_previa" not in self.confirmadas:
                 return False
             self.recuperacao_iniciada = True
-        elif self.finalizada or not self.recuperacao_iniciada or status not in ("acao_executada", "resultado_nao_verificado", "inconclusivo"):
+        elif self.finalizada or not self.recuperacao_iniciada or status not in ("acao_executada", "resultado_nao_verificado", "inconclusivo", "confirmado"):
             raise ValueError("Evento de recuperação inválido.")
+        if status == "confirmado" and evidencia != "tela_principal_reconhecida":
+            raise ValueError("Recuperação confirmada exige referência visual positiva.")
         self._registrar("recuperar_interface", status, evidencia)
         return True
 
-    def registrar_encerramento_inconclusivo(self):
+    def registrar_encerramento_inconclusivo(self, evidencia="foco_dominio_nao_confirmado"):
         if self.finalizada or self.etapa != "encerrar":
             raise ValueError("Encerramento não está em andamento.")
-        self._registrar("encerrar", "inconclusivo", "foco_dominio_nao_confirmado")
+        self._registrar("encerrar", "inconclusivo", evidencia)
+
+    def registrar_encerramento_nao_verificado(self):
+        if self.finalizada or self.etapa != "encerrar":
+            raise ValueError("Encerramento não está em andamento.")
+        self._registrar("encerrar", "resultado_nao_verificado", "referencia_tela_principal_ausente")
 
     def concluir(self, sucesso, evidencia="retorno_falha"):
         if self.finalizada:

@@ -112,6 +112,24 @@ def identificar_janela_dominio_atual():
     return None
 
 
+def janela_dominio_em_foco(janela):
+    """Confere o HWND associado à rotina, sem mudar foco nem enviar ação."""
+    if janela is None:
+        return False
+    try:
+        api, _ = _api_janelas()
+        if api.GetForegroundWindow() != janela["hwnd"]:
+            return False
+        atual = _dados_janela(api, janela["hwnd"])
+        if atual is None or any(atual[chave] != janela[chave] for chave in ("pid", "classe")):
+            return False
+        if _titulo_dominio(janela["titulo"]):
+            return _titulo_dominio(atual["titulo"])
+        return atual["classe"] == "DisplayClientWindowClass" and not atual["titulo"].strip() and atual["titulo"] == janela["titulo"]
+    except Exception:
+        return False
+
+
 def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_conteudo=None):
     """Retoma HWND identificado e confirma foco antes de cada Esc.
 

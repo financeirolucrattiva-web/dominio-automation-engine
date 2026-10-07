@@ -18,7 +18,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import arquivos, empresas, erros, estados, ia, interacao, tela, visao
+from . import arquivos, empresas, erros, estados, ia, interacao, tela, tela_principal, visao
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
@@ -85,11 +85,16 @@ def caminho_visto_pela_sessao_remota(caminho_local):
 
 
 class LoteInterrompido(Exception):
-    """A IA (ou o catálogo de erros conhecidos) decidiu que este erro
-    vai se repetir em toda empresa do lote (ex.: sessão expirada,
-    licença, sistema fora do ar) — não adianta insistir empresa por
-    empresa. `executar_lote()` para o lote inteiro ao ver isso, em vez
-    de só marcar aquela empresa como falha (seção 0.32)."""
+    """Interrompe o lote por decisão de erro ou estado visual inconclusivo.
+
+    O catálogo/IA pode identificar um problema geral, e a referência
+    calibrada pode impedir a próxima ação em uma tela desconhecida.
+    Preserva os resultados dos documentos já tentados para o resumo.
+    """
+
+    def __init__(self, mensagem, status_documentos=None):
+        super().__init__(mensagem)
+        self.status_documentos = dict(status_documentos or {})
 
 
 def salvar(imagem, nome):
@@ -395,6 +400,24 @@ def trocar_empresa(codigo, prefixo=""):
 
 
 def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
+    """Acompanha geração observada e saída, sem validar conteúdo SPED/EFD."""
+    if item_menu == "SPED Fiscal":
+        rotina = "sped_fiscal"
+    elif item_menu in ("Contribui", "EFD Contribuições"):
+        rotina = "efd_contribuicoes"
+    else:
+        rotina = "geracao_fiscal"
+    acompanhamento = estados.AcompanhamentoRotina(rotina)
+    try:
+        resultado = _executar_sped(item_menu, texto_confirmacao, prefixo=prefixo, acompanhamento=acompanhamento)
+        acompanhamento.concluir(resultado)
+        return resultado
+    except BaseException:
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
+
+
+def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None):
     """Navega Relatórios > Informativos > Federais > `item_menu`, clica
     OK, confirma o aviso de sucesso e fecha a tela — ponta a ponta.
 
@@ -422,6 +445,7 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
     # janela (ex.: console do script) entre um documento e outro do
     # mesmo lote; sem isso, o clique em "Relatórios" abaixo pode
     # acabar clicando na janela errada.
+    acompanhamento.iniciar("navegar_menu")
     interacao.focar_dominio()
 
     # 1. Relatórios (barra de menu — sem pré-processamento, já funciona)
@@ -462,6 +486,8 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
     pos = achar_ou_parar(area, item_menu, f"{prefixo}erro_menu.png")
     if pos is None:
         return False
+    acompanhamento.confirmar("item_menu_reconhecido")
+    acompanhamento.iniciar("preencher_periodo")
     print(f"Clicando em {item_menu}: {pos}")
     # clicar_com_desvio, não clicar: o alvo fica dentro do submenu que
     # abriu de "Federais" — uma linha reta a partir de onde o mouse
@@ -482,6 +508,9 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
         print("Não consegui selecionar a competência anterior. Parando.")
         _fechar_tela_geracao(item_menu, prefixo)
         return False
+
+    acompanhamento.confirmar("campos_periodo_confirmados")
+    acompanhamento.iniciar("identificar_formulario")
 
     # 5. OK da tela de geração — primeira ação real (gera arquivo).
     # "OK" tem só 2 letras — continua ilegível pro OCR mesmo dentro do
@@ -536,6 +565,9 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
     # OK, e ficou ilegível 3 tentativas seguidas depois da geração).
     pos_fechar_conhecido = (ancora_fechar[0] + dxd, ancora_fechar[1] + dyd)
 
+    acompanhamento.confirmar("formulario_e_botoes_reconhecidos")
+    acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
+    acompanhamento.iniciar("gerar_documento")
     print(f"Clicando em OK: {pos}")
     interacao.clicar(*pos)
 
@@ -581,13 +613,16 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
                 raise LoteInterrompido(texto_lido)
             if acao == erros.TENTAR_DE_NOVO and not prefixo.endswith("retry_"):
                 print("Tentando gerar este documento mais uma vez.")
-                return gerar_sped(item_menu, texto_confirmacao, prefixo=f"{prefixo}retry_")
+                acompanhamento.tentar_novamente()
+                return _executar_sped(item_menu, texto_confirmacao, prefixo=f"{prefixo}retry_", acompanhamento=acompanhamento)
             return False
     if ancora_confirm is None:
         print(f"Não achei a confirmação ('{texto_confirmacao}') depois de esperar. Deu erro na geração?")
         salvar(tela.capturar_tela(), f"{prefixo}erro_confirmacao.png")
         _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
         return False
+    acompanhamento.confirmar("aviso_resultado_reconhecido")
+    acompanhamento.iniciar("encerrar")
     xc, yc = ancora_confirm
     print(f"Âncora confirmação em: {(xc, yc)}")
     salvar(imagem, f"{prefixo}resultado.png")
@@ -619,7 +654,20 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
     print("Confirmação fechada.")
 
     # 8. Fechar a tela de geração.
-    return _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
+    fechado = _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
+    if not fechado:
+        return False
+    evidencia = _verificar_retorno_tela_principal(acompanhamento)
+    if evidencia == "tela_principal_reconhecida":
+        acompanhamento.confirmar(evidencia)
+    elif evidencia == "referencia_tela_principal_ausente":
+        acompanhamento.registrar_encerramento_nao_verificado()
+        acompanhamento.confirmar("fechamento_solicitado")
+    else:
+        acompanhamento.registrar_encerramento_inconclusivo(evidencia)
+        print("Geração sinalizada pelo Domínio, mas retorno à tela principal inconclusivo. Confira a tela antes de continuar.")
+        return False
+    return True
 
 
 def _fechar_tela_geracao(item_menu, prefixo="", pos_fechar_conhecido=None):
@@ -922,13 +970,43 @@ def preencher_periodo_livros_fiscais(data_inicial, data_final, prefixo=""):
     return True
 
 
-def _confirmar_conteudo_dominio():
+def _confirmar_conteudo_dominio(imagem=None):
     """Confirma cabeçalho conhecido após retomar cliente sem título útil."""
-    topo = tela.recortar_topo(tela.capturar_tela())
+    topo = tela.recortar_topo(tela.capturar_tela() if imagem is None else imagem)
     return (
         tela.achar_texto(topo, "Domínio", escala=2) is not None
         and tela.achar_texto(topo, "Escrita Fiscal", escala=2) is not None
     )
+
+
+def _verificar_retorno_tela_principal(acompanhamento):
+    """Observa foco, cabeçalho e referência local; não envia nenhuma ação."""
+    try:
+        referencia = tela_principal.carregar_referencia()
+        if referencia is None:
+            if tela_principal.ARQUIVO_REFERENCIA.exists():
+                print("Referência local da tela principal indisponível ou inválida; retorno inconclusivo.")
+                return "referencia_tela_principal_invalida"
+            print("Referência local da tela principal ainda não calibrada; confira o retorno visualmente.")
+            return "referencia_tela_principal_ausente"
+        consecutivos = 0
+        for tentativa in range(5):
+            if not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio):
+                return "foco_dominio_nao_confirmado"
+            imagem = tela.capturar_tela()
+            corresponde = _confirmar_conteudo_dominio(imagem) and tela_principal.corresponde(imagem, referencia)
+            if not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio):
+                return "foco_dominio_nao_confirmado"
+            consecutivos = consecutivos + 1 if corresponde else 0
+            if consecutivos >= 2:
+                print("Retorno à tela principal reconhecido pela referência local em duas capturas consecutivas.")
+                return "tela_principal_reconhecida"
+            if tentativa < 4:
+                time.sleep(0.3)
+        return "tela_principal_nao_reconhecida"
+    except Exception:
+        print("Não consegui verificar o retorno à tela principal; confira a tela antes de continuar.")
+        return "tela_principal_nao_reconhecida"
 
 
 def _recuperar_interface_livro(acompanhamento):
@@ -955,8 +1033,15 @@ def _recuperar_interface_livro(acompanhamento):
         print("Não consegui concluir a tentativa de saída. Confira a tela do Domínio antes de uma nova execução.")
     else:
         acompanhamento.registrar_recuperacao("acao_executada", "recuperacao_esc_enviado")
-        acompanhamento.registrar_recuperacao("resultado_nao_verificado", "recuperacao_sem_confirmacao_visual")
-        print("Esc enviado após a falha; fechamento não verificado. Confira a tela do Domínio antes de uma nova execução.")
+        evidencia = _verificar_retorno_tela_principal(acompanhamento)
+        if evidencia == "tela_principal_reconhecida":
+            acompanhamento.registrar_recuperacao("confirmado", evidencia)
+        elif evidencia == "referencia_tela_principal_ausente":
+            acompanhamento.registrar_recuperacao("resultado_nao_verificado", evidencia)
+            print("Esc enviado após a falha; fechamento não verificado. Confira a tela do Domínio antes de uma nova execução.")
+        else:
+            acompanhamento.registrar_recuperacao("inconclusivo", evidencia)
+            print("Retorno à tela principal inconclusivo. Confira a tela do Domínio antes de uma nova execução.")
 
 
 def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
@@ -1471,7 +1556,16 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         acompanhamento.registrar_encerramento_inconclusivo()
         print("PDF conferido, mas não confirmei o foco do Domínio para encerrar. Confira a tela antes de uma nova execução.")
         return False, str(caminho_completo)
-    acompanhamento.confirmar("esc_enviado_fechamento_nao_verificado")
+    evidencia = _verificar_retorno_tela_principal(acompanhamento)
+    if evidencia == "tela_principal_reconhecida":
+        acompanhamento.confirmar(evidencia)
+    elif evidencia == "referencia_tela_principal_ausente":
+        acompanhamento.registrar_encerramento_nao_verificado()
+        acompanhamento.confirmar("esc_enviado_fechamento_nao_verificado")
+    else:
+        acompanhamento.registrar_encerramento_inconclusivo(evidencia)
+        print("PDF conferido, mas retorno à tela principal inconclusivo. Confira a tela antes de uma nova execução.")
+        return False, str(caminho_completo)
 
     return True, str(caminho_completo)
 
@@ -1560,31 +1654,109 @@ def _esperar_se_pausado(pausa):
         print("Continuando.")
 
 
-def _processar_empresa(e, prefixo_empresa):
-    """Troca pra empresa `e` e gera cada documento que ela precisa
-    (`empresas.documentos_necessarios()`). Devolve o dict de status por
-    documento. Deixa `LoteInterrompido` subir pra quem chamou sem
-    capturar — nunca é hora de tentar de novo sozinho pra esse caso, é
-    decisão explícita (IA/catálogo) de parar o lote inteiro (seção
-    0.32)."""
-    if not trocar_empresa(e["codigo"], prefixo=prefixo_empresa):
-        print("Falha ao trocar de empresa — pulando para a próxima.")
-        return {"-": "falha ao trocar de empresa"}
-    time.sleep(1)
+def _exigir_tela_principal_lote(contexto_lote, status_documentos=None):
+    """Interrompe transições do lote se uma referência calibrada divergir.
 
-    # Uma empresa pode precisar de 1 ou 2 documentos (tipo/sped, seção
-    # 0.20) — gera cada um, com falha isolada por documento (um
-    # documento falhar não impede tentar o outro).
+    Só observa a tela atual. Se o lote começou sem calibração, mantém o
+    fluxo supervisionado anterior e avisa uma vez; não aprende referência.
+    Uma referência exigida não pode desaparecer e rebaixar a verificação.
+    """
+    try:
+        referencia_existe = tela_principal.ARQUIVO_REFERENCIA.exists()
+    except OSError:
+        raise LoteInterrompido("Não foi possível consultar a referência local; lote parado para conferência.", status_documentos)
+    if not referencia_existe:
+        if contexto_lote.get("referencia_exigida"):
+            raise LoteInterrompido("A referência da tela principal ficou indisponível durante o lote; parado sem novas ações.", status_documentos)
+        if not contexto_lote.get("aviso_sem_referencia"):
+            print("Lote sem referência da tela principal: mantenha supervisão e confira a tela entre documentos e empresas.")
+            contexto_lote["aviso_sem_referencia"] = True
+        return
+    contexto_lote["referencia_exigida"] = True
+    # Vínculo fresco após reconhecer o cabeçalho; nunca retoma foco por clique.
+    contexto_lote["janela_dominio"] = None
+    try:
+        imagem = tela.capturar_tela()
+        if not _confirmar_conteudo_dominio(imagem):
+            raise LoteInterrompido("Cabeçalho do Domínio não reconhecido; lote parado antes da próxima ação.", status_documentos)
+        contexto_lote["janela_dominio"] = interacao.identificar_janela_dominio_atual()
+        from types import SimpleNamespace
+        evidencia = _verificar_retorno_tela_principal(SimpleNamespace(janela_dominio=contexto_lote["janela_dominio"]))
+    except LoteInterrompido:
+        raise
+    except Exception:
+        raise LoteInterrompido("Não consegui verificar a tela principal; lote parado antes da próxima ação.", status_documentos)
+    if evidencia != "tela_principal_reconhecida":
+        raise LoteInterrompido("Retorno à tela principal não confirmado pela referência local; lote parado sem novas ações.", status_documentos)
+
+
+def _processar_empresa(e, prefixo_empresa, contexto_lote=None):
+    """Troca e gera documentos; transições exigem tela principal calibrada."""
+    contexto_lote = {} if contexto_lote is None else contexto_lote
     status_documentos = {}
-    for documento in empresas.documentos_necessarios(e):
-        print(f"\n--- {documento} ---")
-        prefixo = f"{prefixo_empresa}{documento}_"
-        gerador = _GERADORES.get(documento)
-        if gerador is None:
-            status_documentos[documento] = "documento desconhecido"
-            continue
-        status_documentos[documento] = "sucesso" if gerador(prefixo=prefixo) else "falha na geração"
-    return status_documentos
+    try:
+        _exigir_tela_principal_lote(contexto_lote, status_documentos)
+        trocou = trocar_empresa(e["codigo"], prefixo=prefixo_empresa)
+        if not trocou:
+            status_documentos["-"] = "falha ao trocar de empresa"
+        _exigir_tela_principal_lote(contexto_lote, status_documentos)
+        if not trocou:
+            print("Falha ao trocar de empresa — pulando para a próxima.")
+            return status_documentos
+        time.sleep(1)
+
+        for documento in empresas.documentos_necessarios(e):
+            print(f"\n--- {documento} ---")
+            prefixo = f"{prefixo_empresa}{documento}_"
+            gerador = _GERADORES.get(documento)
+            if gerador is None:
+                status_documentos[documento] = "documento desconhecido"
+                continue
+            try:
+                resultado = gerador(prefixo=prefixo)
+            except Exception:
+                status_documentos[documento] = "erro inesperado na geração"
+                raise
+            status_documentos[documento] = "sucesso" if resultado else "falha na geração"
+            _exigir_tela_principal_lote(contexto_lote, status_documentos)
+        return status_documentos
+    except Exception as erro:
+        anteriores = getattr(erro, "status_documentos", {})
+        erro.status_documentos = {**status_documentos, **anteriores}
+        raise
+
+
+def _status_lote_interrompido(erro, anteriores=None):
+    return {**(anteriores or {}), **getattr(erro, "status_documentos", {}), "-": "lote interrompido"}
+
+
+def _aguardar_tela_principal_lote(contexto_lote):
+    """Handoff inicial limitado; observa até o usuário voltar ao Domínio.
+
+    O console/GUI de confirmação pode estar em primeiro plano na entrada.
+    Só minimiza o próprio console; não clica nem envia teclas ao Domínio.
+    As transições seguintes continuam interrompendo imediatamente.
+    """
+    contexto_lote["referencia_exigida"] = True
+    if tela_principal.carregar_referencia() is None:
+        raise LoteInterrompido("Referência local da tela principal inválida ou indisponível; lote parado para conferência.")
+    print("Volte ao Domínio com Alt+Tab na tela principal. Aguardando reconhecimento por até cerca de 15 segundos...")
+    interacao._minimizar_console_proprio()
+    limite = time.monotonic() + 15
+    ultima_falha = None
+    for tentativa in range(30):
+        if tela_principal.carregar_referencia() is None:
+            raise LoteInterrompido("Referência local da tela principal inválida ou indisponível; lote parado para conferência.")
+        try:
+            _exigir_tela_principal_lote(contexto_lote)
+            return
+        except LoteInterrompido as erro:
+            ultima_falha = erro
+        restante = limite - time.monotonic()
+        if restante <= 0 or tentativa == 29:
+            break
+        time.sleep(min(0.5, restante))
+    raise ultima_falha or LoteInterrompido("Tela principal não reconhecida no prazo de entrada; lote parado sem novas ações.")
 
 
 def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
@@ -1614,13 +1786,17 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
     empresa e outra (nunca no meio de uma ação). `pausa=None` (padrão,
     uso por terminal) nunca pausa.
 
-    Se der um erro inesperado processando uma empresa (não uma falha
-    limpa de documento, que já é tratada por dentro — uma exceção de
-    verdade), tenta recuperar apertando Esc repetidas vezes
-    (`interacao.pressionar_esc_repetidas()`, seção 0.34 — fecha
-    diálogo/menu empilhado sem precisar saber o que era) e repete essa
-    empresa mais 1 vez antes de desistir dela e seguir pra próxima —
-    pedido do usuário, nunca trava o lote inteiro por causa disso.
+    Com referência local calibrada, exige a tela principal antes/depois
+    de trocar de empresa e depois de cada documento, mesmo quando a
+    geração retorna False. Estado desconhecido interrompe o lote sem
+    Esc ou retry; a entrada inicial permite uma espera limitada para o
+    usuário voltar do console/GUI ao Domínio. Referência desaparecida ou
+    inválida não rebaixa o lote para o comportamento supervisionado antigo.
+
+    A recuperação genérica legada (Esc e uma nova tentativa da empresa,
+    seção 0.34) continua disponível em exceções se a principal calibrada
+    foi reconhecida, ou quando o lote começou sem referência. Os
+    resultados de documentos já tentados permanecem no resumo final.
     """
     if usar_real:
         print("ATENÇÃO: rodando contra data/empresas.csv (empresas REAIS).")
@@ -1658,24 +1834,33 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
             print("Cancelado.")
             return
 
-    print("\nFocando o Domínio...")
-    interacao.focar_dominio()
+    # Referência existente exige uma tela já reconhecida antes de qualquer
+    # ação; o foco por clique legado fica restrito ao lote sem calibração.
+    contexto_lote = {}
+    try:
+        referencia_existe = tela_principal.ARQUIVO_REFERENCIA.exists()
+    except OSError:
+        referencia_existe = True
+    if not referencia_existe:
+        print("\nFocando o Domínio...")
+        interacao.focar_dominio()
+    else:
+        print("\nVerificando a tela principal antes das transições do lote...")
 
     resultados = []
-    for e in selecionadas:
+    for indice, e in enumerate(selecionadas):
         _esperar_se_pausado(pausa)
         print(f"\n=== {e['codigo']} - {e['apelido']} ===")
         prefixo_empresa = f"{e['codigo']}_"
         try:
-            status_documentos = _processar_empresa(e, prefixo_empresa)
+            if indice == 0 and referencia_existe:
+                _aguardar_tela_principal_lote(contexto_lote)
+            status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote)
         except LoteInterrompido as erro:
-            # A IA (ou o catálogo de erros conhecidos) decidiu que este
-            # erro vai se repetir em toda empresa — parar o lote
-            # inteiro agora, em vez de gastar tempo tentando empresa
-            # por empresa contra o mesmo problema (seção 0.32). Nunca
-            # tenta recuperar/repetir esse caso — é decisão explícita.
+            # O catálogo/IA decidiu parar, ou o guard visual não reconheceu
+            # a tela principal. Nenhum desses casos autoriza Esc/retry.
             print(f"\nParando o lote inteiro: {erro}")
-            resultados.append((e, {"-": "lote interrompido"}))
+            resultados.append((e, _status_lote_interrompido(erro)))
             break
         except Exception as erro:
             # Não é uma falha limpa de documento (já tratada por
@@ -1685,18 +1870,31 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
             # diálogo/menu empilhado, seção 0.34) e repete esta empresa
             # 1 vez antes de desistir dela — nunca trava o lote inteiro
             # por isso, pedido do usuário.
+            status_anteriores = getattr(erro, "status_documentos", {})
+            try:
+                _exigir_tela_principal_lote(contexto_lote, status_anteriores)
+            except LoteInterrompido as interrupcao:
+                print(f"\nParando o lote inteiro: {interrupcao}")
+                resultados.append((e, _status_lote_interrompido(interrupcao)))
+                break
             print(f"\nErro inesperado processando {e['codigo']} ({erro}) — recuperando (Esc) e tentando de novo 1x.")
             interacao.pressionar_esc_repetidas()
             try:
-                status_documentos = _processar_empresa(e, prefixo_empresa)
+                status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote)
             except LoteInterrompido as erro2:
                 print(f"\nParando o lote inteiro: {erro2}")
-                resultados.append((e, {"-": "lote interrompido"}))
+                resultados.append((e, _status_lote_interrompido(erro2, status_anteriores)))
                 break
             except Exception as erro2:
+                try:
+                    _exigir_tela_principal_lote(contexto_lote, {**status_anteriores, **getattr(erro2, "status_documentos", {})})
+                except LoteInterrompido as interrupcao:
+                    print(f"\nParando o lote inteiro: {interrupcao}")
+                    resultados.append((e, _status_lote_interrompido(interrupcao)))
+                    break
                 print(f"Deu errado de novo depois de tentar recuperar — pulando {e['codigo']}: {erro2}")
                 interacao.pressionar_esc_repetidas()
-                status_documentos = {"-": "erro inesperado, pulada após 1 tentativa"}
+                status_documentos = {**status_anteriores, **getattr(erro2, "status_documentos", {}), "-": "erro inesperado, pulada após 1 tentativa"}
         resultados.append((e, status_documentos))
 
     print("\n=== Resumo ===")
