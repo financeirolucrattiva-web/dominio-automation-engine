@@ -3499,6 +3499,68 @@ anterior.
 
 ---
 
+### 0.70 Gravador: digitação, hover marcado e espera por fingerprint (fecha as 3 lacunas do incremento 4 do roadmap)
+
+Pedido do usuário: terminar o gravador de cliques (`scripts/gravar.py`)
+pra ficar funcional, não só rascunho que precisa reescrever quase tudo
+à mão. O roadmap (seção 2, "ponto de partida") já apontava exatamente
+3 lacunas: "o gravador ainda exige revisão e complementação de
+digitação, hover e verificações" — as 3 fechadas nesta entrada.
+
+**1. Digitação real.** O listener de teclado agora acumula caractere
+por caractere entre um clique e outro (`KeyCode.char`), e fecha o
+acumulado num passo `digitar` sempre que outro tipo de passo começa
+(clique, hover, tecla especial, ou F12). Enter/Tab/Esc viram passos
+`tecla` próprios (`interacao.pressionar_enter()`/`pressionar_tecla()`),
+não ficam misturados no texto digitado.
+
+**Risco de privacidade documentado, não escondido**: o listener de
+teclado do `pynput` é global — grava QUALQUER tecla digitada em
+QUALQUER janela enquanto a gravação está ativa, não só dentro do
+Domínio (mesma limitação técnica do listener de mouse já existente,
+agora mais sensível porque captura texto, não só posição). Aviso
+explícito no início da gravação e no docstring: pausar (F12) antes de
+digitar senha/dado sensível fora do Domínio. Fica só local
+(`capturas/gravacao_*/passos.json`, já gitignored) — mas o rascunho
+também avisa, por passo, que texto digitado literal (ex.: código de
+empresa) geralmente deveria virar parâmetro da função, não ficar fixo.
+
+**2. Hover marcado manualmente, não inferido.** Tecla **F9** marca a
+posição atual do mouse como um passo `hover`
+(`interacao.passar_mouse()`), sem clicar — decisão deliberada de não
+tentar adivinhar hover por pausa do mouse (confiabilidade duvidosa,
+mesmo princípio de "nunca inventar" do resto do projeto); marcação
+explícita é inequívoca.
+
+**3. Espera por estado em vez de `time.sleep(2)` fixo.** Cada passo de
+clique no rascunho gerado agora espera a tela mudar de verdade
+(`tela.assinatura_tela()`/`tela.tela_mudou()`, mesmo fingerprint da
+seção 0.58) antes de seguir pro próximo passo, em vez de um tempo fixo
+— genérico de propósito (o gravador não sabe o que esperar
+especificamente depois de cada clique); o docstring do rascunho deixa
+claro que trocar por `estados.esperar_por_estado()` mirando um texto
+conhecido continua sendo o ideal ao revisar.
+
+**Compatibilidade**: gravação antiga (sem campo `"tipo"` no JSON, de
+antes desta seção) continua gerando rascunho igual a antes — o gerador
+trata a ausência de `"tipo"` como `"clicar"`.
+
+**Validado por teste de lógica real** (não só sintaxe — `pynput` está
+disponível neste ambiente, ao contrário de `pyautogui`/`pytesseract`):
+simulei uma gravação completa (digitar código → Enter → clicar →
+F9/hover → digitar outro valor → Tab → F12) com teclas reais do
+`pynput.keyboard.KeyCode`, conferi a ordem e o conteúdo exato dos 6
+passos gravados, gerei o rascunho e **compilei ele de verdade**
+(`py_compile`), conferindo que `interacao.digitar()`,
+`interacao.passar_mouse()`, `interacao.pressionar_enter()`,
+`interacao.pressionar_tecla('tab')` e `tela.tela_mudou()` aparecem
+certos e que `time.sleep(2)` fixo sumiu. Suíte completa (196 testes)
+continua passando. **Ainda não usado pra gravar uma automação nova de
+verdade contra o Domínio real** — a próxima vez que alguém gravar uma
+rotina nova é o teste de fato.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

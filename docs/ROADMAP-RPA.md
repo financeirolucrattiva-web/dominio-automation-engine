@@ -16,8 +16,11 @@ em decisões restritas; isso ainda não é um agente operador geral.
 O motor `app/estados.py` espera detectores de sucesso/erro e acompanha
 as etapas das quatro rotinas conhecidas, distinguindo ação e evidência.
 A revalidação Windows dos incrementos recentes continua pendente.
-O gravador ainda exige
-revisão e complementação de digitação, hover e verificações.
+O gravador agora grava digitação (passos próprios, não mistura com
+clique), hover marcado manualmente (F9, não inferido) e espera por
+fingerprint em vez de tempo fixo entre passos (seção 0.70) — validado
+por teste de lógica real com `pynput`, ainda sem uma gravação real
+contra o Domínio.
 
 A interface local agora reúne Painel de estados, Rotinas, catálogo,
 Histórico, Projeto e Log. Há indicadores de evidência por etapa e de
