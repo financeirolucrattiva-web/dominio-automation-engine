@@ -1,0 +1,7 @@
+# Backend opcional de avaliação; instalado em .venv-ocr-paddle.
+# Windows x64, CPython 3.10 a 3.13, CPU. Não altera requirements.txt.
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+paddlex==3.7.0
+huggingface-hub==2.1.1
+pytesseract==0.3.13

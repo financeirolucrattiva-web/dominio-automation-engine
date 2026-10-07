@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-ocr-paddle/
 *.egg-info/
 
 # Segredos e dados locais — nunca versionar

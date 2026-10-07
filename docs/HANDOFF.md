@@ -1,4 +1,44 @@
-# Domínio Automation Engine — handoff (22/09/2026, atualizado 23/09/2026)
+# Domínio Automation Engine — handoff
+
+## Estado para retomada em 07/10/2026
+
+Repositório atual: `financeirolucrattiva-web/dominio-automation-engine`,
+branch remoto `main`. Codex e Claude Code podem trabalhar juntos;
+confira alterações e versão remota antes de publicar, sem force push.
+O texto abaixo deste checkpoint mantém o histórico de setembro.
+
+Leia [RETOMADA.md](RETOMADA.md) para os atalhos e testes Windows,
+[ROADMAP-RPA.md](ROADMAP-RPA.md) para os seis incrementos e as seções
+0.67 em diante do histórico para as evidências recentes.
+
+O incremento atual é execução/recuperação (2). Há acompanhamento das
+quatro rotinas em `app/estados.py`, referência visual local em
+`app/tela_principal.py`, calibração por `Calibrar Tela Principal.bat`
+e proteção das transições de lote quando calibrado. Sem referência,
+preserva o fluxo supervisionado anterior; não a aprende automaticamente.
+GUI preserva `False` no histórico de SPED/Contribuições. O catálogo
+`app/capacidades.py`/`Listar Funcoes.bat` descreve funções e pendências,
+sem executar ou habilitar agentes. Os novos comportamentos precisam
+de validação no Windows; testes simulados não comprovam a sessão real.
+
+Última evidência Windows: PDF novo foi exportado, conferência recusou o
+período, recuperação exigiu foco antes de Esc e o usuário confirmou
+retorno à tela principal. A falha de período/nome permanece pausada
+pelo usuário. Não altere a conferência para declarar sucesso.
+
+Hugging Face será fonte de componentes locais: consulte
+[PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md](PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md)
+e [HUGGING-FACE-COMPONENTES.md](HUGGING-FACE-COMPONENTES.md). O primeiro
+PaddleOCR é opcional e somente para avaliação, sem substituir Tesseract
+ou OCR do Windows. Não enviar capturas/dados fiscais ao Hub ou APIs.
+
+A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
+e testes de lógica com dependências de desktop simuladas. Ela não acessa
+Domínio/GO-Global nem valida ações Windows. O uso de Win32 para conferir
+identidade/foco da janela externa não muda a ausência de UI Automation
+nos controles internos da sessão remota.
+
+## Histórico de setembro de 2026
 
 Este documento é um resumo de estado pra retomar o trabalho em outra
 sessão/outro assistente, sem precisar reler a conversa inteira. Ele

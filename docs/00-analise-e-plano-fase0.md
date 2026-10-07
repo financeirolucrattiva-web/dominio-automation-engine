@@ -3102,6 +3102,166 @@ inventados recorte, limiar ou novo clique a partir dessa confirmação.
 
 ---
 
+### 0.70 Referência local para conferir retorno à tela principal
+
+**Evidência e direção:** após a recuperação da seção 0.69, o usuário
+confirmou o retorno e enviou a tela principal azul. A imagem foi vista
+na conversa, mas não estava disponível como arquivo binário para medir
+pixels nesta máquina. O usuário autorizou continuar trabalho e publicar
+enquanto estivesse ausente. Não foram extraídos RGB/coordenadas por
+estimativa visual nem declarados testes reais sobre essa imagem.
+
+**Implementação:** `app/tela_principal.py` mede a cor azul dominante e
+o maior retângulo uniforme da captura feita localmente. Os mínimos
+relativos (90% de largura, 70% de altura e 65% de área) são critérios
+preliminares conservadores, sujeitos ao teste Windows; não coordenadas
+inventadas de um controle. `Calibrar Tela Principal.bat` exige que o
+operador confira a tela principal maximizada e vazia; depois verifica
+janela em foco, cabeçalho e estabilidade entre duas capturas. Aguarda
+o operador selecionar o Domínio por Alt+Tab, sem clique/tecla remota.
+
+Somente versão, tamanho, retângulo e RGB ficam em
+`data/tela_principal.json` (ignorado no Git); não imagem ou empresa.
+Gravação é atômica e uma calibração recusada preserva a referência
+anterior. A comparação examina todos os pixels do retângulo, na mesma
+resolução. Referência corrompida/incompatível não serve como ausência
+de calibração. Um pixel diferente recusa a correspondência.
+
+**Integração:** depois do Esc já existente, exige foco/cabeçalho e duas
+capturas consecutivas compatíveis antes de registrar retorno confirmado.
+Falha do PDF permanece falha mesmo se a recuperação funcionar. Sem
+referência, mantém aviso/resultado não verificado; referência existente
+divergente torna o encerramento inconclusivo. Nenhuma ação nova de
+fechamento foi acrescentada. A identidade Win32 continua externa;
+nenhuma árvore de controles internos do GO-Global é usada.
+
+**Limite:** a correspondência comprova apenas o retângulo calibrado,
+com foco e cabeçalho; não prova ausência de toda janela possível fora
+dele. Não habilita autonomia geral. Testes sintéticos cobrem superfície
+de PDF, diálogo, área pequena/interrompida, pixel divergente, metadados
+inválidos, perda de foco/cabeçalho e preservação de referência.
+**Calibração/reconhecimento ainda não validados no Domínio real.**
+
+### 0.71 Etapas SPED/Contribuições e resultado falso no histórico
+
+**Implementação:** o wrapper `gerar_sped()` mantém assinatura e retorno,
+reutilizando a navegação, campos, confirmações e recuperação existentes.
+Registra navegar menu, preencher período, identificar formulário,
+gerar documento e encerrar. Nova tentativa conserva a execução, mas
+reinicia suas evidências. O aviso de geração confirma o mecanismo
+observado na interface, não o conteúdo independente do arquivo fiscal.
+Encerramento usa a referência da seção 0.70 quando disponível; sem ela,
+continua como ação solicitada e resultado visual não verificado.
+
+**Bug confirmado por inspeção:** o callback de SPED/Contribuições na GUI
+descartava o booleano do gerador. `_normalizar_resultado(None, False)`
+registrava sucesso, mesmo quando o gerador devolvia `False`. Agora o
+callback devolve o booleano e só imprime conclusão da rotina se verdadeiro.
+Testes observam callback, normalização e chamada do histórico para
+sucesso, falha, exceção e cancelamento, sem construir janela Tk.
+
+Regressões SPED cobrem período inválido, confirmação, aviso de erro,
+retry e encerramento inconclusivo. Não foi alterada a conferência de
+PDF nem afirmada nova geração real. **Etapas novas precisam de teste
+Windows em SPED Fiscal e EFD Contribuições.**
+
+### 0.72 Lote calibrado exige retorno antes de transições
+
+**Implementação:** com referência local existente, conferir tela
+principal antes/depois da troca de empresa e após cada gerador, mesmo
+se ele devolveu `True` ou `False`. Estado desconhecido interrompe o
+lote antes do próximo documento/F8. Exceções não provocam Esc/retry
+genéricos em estado não confirmado. Referência inválida ou removida
+durante a execução não rebaixa silenciosamente para o modo legado.
+Resultados dos documentos já tentados são preservados no resumo,
+inclusive diante de interrupção ou de um segundo erro inesperado.
+
+**Entrada:** após confirmação por terminal, o console pode estar em
+primeiro plano. Uma espera inicial limitada permite o operador voltar
+ao Domínio; somente o próprio console/GUI é minimizado, sem clique
+central ou Esc remoto. A GUI minimiza na thread principal ao aceitar
+o lote. Após a entrada, transições não aguardam uma nova intervenção
+para presumir recuperação. Sem referência desde o início, preserva o
+fluxo supervisionado anterior e avisa uma vez.
+
+Testes simulam duas empresas/documentos, retorno reconhecido após
+falha isolada, retorno desconhecido após sucesso/falha, referência
+inválida/removida, exceções, resumo e entrada com foco inicial fora do
+Domínio. **Lote calibrado ainda precisa de teste supervisionado Windows.**
+
+### 0.73 Catálogo preparatório e orientação Hugging Face
+
+`app/capacidades.py` descreve as quatro rotinas, assinaturas reais,
+pré-condições, resultados, validações históricas e pendências atuais.
+`Listar Funcoes.bat` somente consulta metadados. Todas permanecem
+preparatórias e agentes desabilitados: isso não cria um executor nem
+conclui o incremento 3 do roadmap. Testes conferem assinatura sem
+importar o desktop, imutabilidade, IDs e consulta sem acesso a dados.
+
+**Nova direção do usuário em 07/10/2026:** usar Hugging Face como fonte
+de componentes para robustecer o projeto atual, preservando SPED e
+evitando um laboratório/produto separado. O prompt reutilizável está em
+`docs/PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md`; fontes oficiais em
+`docs/HUGGING-FACE-COMPONENTES.md`. Foram confirmados PP-OCRv5 latino
+com português documentado e PaddleOCR-VL-1.6 oficial. Layout de documento
+não comprova localizar controle GUI; benchmark público não comprova
+qualidade no Domínio. Modelos serão locais, sem upload de telas/dados.
+
+Tesseract/OCR do Windows/OpenCV continuam no motor. UI Automation dos
+controles internos permanece indisponível no GO-Global. VL/layout só
+serão avaliados diante de dificuldade concreta. A conferência de
+período/nome do PDF segue pausada. O prompt exige comparação local,
+regressão SPED e confirmação Windows antes de promover outro backend.
+
+### 0.74 Instalador e avaliação PaddleOCR opcionais
+
+**Pedido:** o usuário perguntou se as ferramentas poderiam vir pelo
+Git para instalar ao atualizar. A primeira instalação ocorre por
+`Instalar OCR Paddle.bat`; usa CPU em `.venv-ocr-paddle`, no mesmo
+projeto, preservando as dependências da automação. Combinação declarada:
+PaddleOCR/PaddleX 3.7.0, PaddlePaddle 3.3.1 e Hugging Face Hub 2.1.1;
+Windows AMD64, CPython 3.10–3.13. Só dois modelos (detector móvel e
+reconhecedor latino) são baixados do Hugging Face, com revisões fixadas
+e allowlist de arquivos de inferência. Download incompleto não publica
+revisão nova nem combina arquivos antigos; preparação ocorre em pasta
+temporária antes de promover o diretório.
+
+Depois da primeira instalação, o marcador local permite `Atualizar.bat`
+manter as dependências/modelos opcionais. Sem marcador, não instala
+Paddle. O atualizador para se Git/dependências falharem. `Avaliar OCR
+Paddle.bat` escolhe uma captura local e compara com Tesseract sem operar
+o Domínio. O backend é preguiçoso, reutiliza processador, valida texto,
+confiança e caixas, e não participa do fluxo de produção. O resumo não
+exporta texto reconhecido; medidas de tempo/contagem não comprovam
+precisão nem uma localização correta por si só.
+
+**Validação:** resolução de dependências com pip `--dry-run`, alvo
+Windows AMD64/CPython 3.12 e wheels passou; nenhum pacote foi instalado
+nessa verificação. Testes simulados cobrem instalação, download e
+contratos do backend/avaliação. **Instalação, inferência e desempenho
+nas telas reais do Domínio ainda não foram medidos.** Tesseract continua
+como padrão; PaddleOCR-VL não foi instalado.
+
+**Verificação real de API adicional em Linux/CPU:** os pacotes e os dois
+pesos foram instalados/baixados em ambiente isolado, e foi usada uma
+imagem sintética, sem cliente. A primeira inferência reproduziu erro
+`ConvertPirAttribute2RuntimeAttribute` no executor OneDNN. A opção
+`enable_mkldnn=False`, suportada na API instalada, resolveu o cenário;
+o backend aplica essa configuração CPU. Três leituras devolveram três
+segmentos, alvo sintético presente e caixas válidas, com processador
+reutilizado e `socket.connect` bloqueado no Python. Cache de download
+padrão foi direcionado aos dados locais, preservando configuração de
+cache explícita do operador. Não é benchmark Domínio nem teste Windows.
+
+**Validação consolidada da entrega (07/10/2026):** 146 testes locais e
+simulados passaram, abrangendo rotinas, foco, referência, GUI, lote,
+catálogo, instalador, downloader e avaliação opcional. Compilação de
+22 arquivos Python alterados e checagem de diff passaram. Nenhuma
+nova execução Domínio/Paddle no Windows foi afirmada; continuam os
+testes operacionais e as pendências descritas em `docs/RETOMADA.md`.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

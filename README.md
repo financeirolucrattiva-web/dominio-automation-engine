@@ -7,7 +7,7 @@ uma rotina ligada a SPED. Projeto irmão do
 organiza documento fiscal que **chega** ao escritório); este aqui **opera
 o próprio Domínio**, risco maior, repositório separado de propósito.
 
-## Estado atual: Fase 4 — primeira geração real confirmada (em empresa de teste)
+## Estado atual: consolidar execução e recuperação — incremento 2 do RPA
 
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
 — riscos técnicos, achados confirmados (Domínio é entregue via GraphOn
@@ -24,18 +24,16 @@ clicar OK, **confirmar sucesso da geração ("Final da exportação.")** e
 fechar a tela sozinho — ponta a ponta, sem intervenção manual no meio
 (seção 0.11 do documento acima).
 
-**Rodado até agora só em empresa de teste**, de propósito — prova que o
-mecanismo funciona, mas ainda não serve como validação de conteúdo (não
-tem arquivo real entregue no passado pra comparar). O período (Data
-inicial/final) é **selecionado sozinho** — sempre o mês fechado
-anterior ao atual, nunca o corrente (seção 0.23) — não precisa (e não
-adianta) configurar isso na tela antes de rodar. Antes de rodar contra
-a empresa-alvo real, só confira que ela está selecionada (não a
-empresa de teste).
+Rodadas posteriores incluíram empresas reais e EFD Contribuições;
+o histórico registra o mecanismo observado em cada versão. Ainda falta
+comparar o conteúdo com uma obrigação já entregue. No SPED, o período
+é selecionado sozinho: o mês anterior ao atual (seção 0.23). Antes de
+rodar, confirme a empresa e que a apuração dessa competência está
+fechada; o calendário sozinho não comprova fechamento.
 
 O caminho até agentes de IA operarem rotinas pela interface está em
 [docs/ROADMAP-RPA.md](docs/ROADMAP-RPA.md). O incremento atual acompanha
-os Livros Fiscais por etapas, com linhas `[estado]` no console/interface
+as quatro rotinas conhecidas por etapas, com linhas `[estado]` no console/interface
 e eventos locais em `data/execucoes/<id>.jsonl`. Uma falha indica a etapa
 em que parou; uma ação enviada é distinguida de um estado observado.
 O caminho de falha na conferência foi observado no Windows. A captura
@@ -47,11 +45,45 @@ enviar a tecla. Na rodada Windows seguinte, o log confirmou o foco e o
 usuário confirmou o retorno à tela principal; a recuperação funcionou
 nesse caso.
 
-O motor ainda não reconhece esse retorno automaticamente; confira a
-tela antes de nova rodada. O próximo incremento precisa de uma captura
-real da tela principal para medir uma referência visual de retorno.
-O Adobe pode continuar instalado e aberto. A pendência do nome e da
-conferência de período do PDF permanece separada.
+O novo incremento verifica o retorno com uma referência medida localmente:
+use `Calibrar Tela Principal.bat` no Windows, com a tela principal azul
+maximizada e vazia. São conferidos foco, cabeçalho e duas capturas estáveis;
+somente medidas e cor ficam em `data/tela_principal.json`, sem imagem.
+Essa verificação ainda precisa de teste no Domínio real. A comparação é
+conservadora: cobre o retângulo calibrado, não todas as possíveis janelas
+fora dele. Mudança de resolução/tamanho exige nova calibração.
+
+Com referência existente, o lote exige retorno reconhecido antes de seguir
+para outro documento/empresa. Referência inválida ou tela desconhecida
+interrompem o lote. Sem referência, o fluxo anterior continua supervisionado
+e avisa; não comprova retorno automático. SPED e Contribuições ganharam
+acompanhamento por etapas; a interface preserva `False` no histórico.
+Essas mudanças passaram por testes simulados e precisam de revalidação
+Windows. O Adobe pode continuar instalado e aberto.
+
+Consulte [docs/RETOMADA.md](docs/RETOMADA.md) para o próximo teste.
+`Listar Funcoes.bat` mostra o catálogo preparatório das quatro rotinas,
+sem executar nada ou habilitar agentes. A conferência de período/nome
+do PDF continua pendente e pausada pelo usuário.
+
+### Hugging Face no projeto existente
+
+O [prompt de desenvolvimento](docs/PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md)
+orienta avaliação incremental de componentes, preservando SPED e os
+mecanismos atuais. As [fontes oficiais consultadas](docs/HUGGING-FACE-COMPONENTES.md)
+confirmam PP-OCRv5 com português e PaddleOCR-VL-1.6. PP-OCRv5 passou
+numa leitura sintética em CPU/Linux; não foi medido no Domínio real.
+Tesseract e OCR do Windows continuam disponíveis. Adoção exige comparação
+local de precisão, coordenadas, tempo, memória e regressão no Windows.
+
+Após atualizar, use `Instalar OCR Paddle.bat` para preparar o primeiro
+candidato em CPU (Windows x64, Python 3.10–3.13). O ambiente opcional
+`.venv-ocr-paddle` preserva as dependências do SPED. Depois use
+`Avaliar OCR Paddle.bat` para escolher uma captura local, sem cliques ou
+teclas no Domínio. Só dois modelos PP-OCRv5 são baixados do Hugging Face,
+com revisões fixadas. Depois da primeira instalação, `Atualizar.bat`
+também mantém esse componente opcional. PaddleOCR-VL não é instalado.
+Instalação/inferência e ganho de OCR ainda precisam de teste no Windows.
 
 ## Instalação
 
@@ -146,13 +178,11 @@ python scripts\executar_lote.py          # troca de empresa + gera, para cada em
 python scripts\executar_lote.py --real   # idem, mas com data/empresas.csv (planilha real)
 ```
 
-**`explorar_registro_saidas.py` parcialmente testado contra o Domínio
-real** (seção 0.57 do documento, 3 execuções em 01/10/2026) —
-navegação, marcar "Registro de Saídas", preencher período e clicar OK
-já confirmados; falta confirmar a exportação completa pra PDF (ícone
-achado por casamento de imagem, confiança 1.0, mas a geração do
-arquivo em disco ainda não terminou numa execução real). Rode com
-atenção, leia o log, e espere precisar de mais algum ajuste.
+**Os mecanismos de exportação dos dois Livros Fiscais foram observados
+no Domínio real** (seções 0.59/0.60). Na versão atual, uma rodada de
+Saídas criou um PDF novo, mas a conferência recusou seu período
+(seções 0.65/0.67). Portanto o sucesso histórico não valida o resultado
+final da versão atual. Os scripts e a interface preservam essa falha.
 
 `explorar.py` navega Relatórios → Informativos → Federais → SPED
 Fiscal, clica OK, confirma o aviso "Final da exportação." e fecha a
@@ -180,8 +210,9 @@ A exportação começa em um caminho exclusivo. O motor só anuncia
 sucesso depois de abrir o novo PDF e conferir tipo, período e CNPJ no
 cabeçalho; um arquivo antigo existente não comprova uma nova geração.
 Se a conferência falhar, o arquivo temporário fica para diagnóstico.
-A leitura do nome por OCR ainda precisa de validação contra o Domínio
-real. Se o cabeçalho não puder ser identificado, o motor para antes de
+A leitura do nome/código por OCR foi observada na rodada da seção 0.67;
+o nome final permanece bloqueado quando a conferência do PDF falha.
+Se o cabeçalho não puder ser identificado, o motor para antes de
 navegar e salva a captura para diagnóstico; não usa o nome de uma
 rodada anterior. O CNPJ continua sendo conferido internamente no PDF.
 

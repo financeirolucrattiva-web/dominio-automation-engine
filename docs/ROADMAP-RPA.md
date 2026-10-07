@@ -13,8 +13,10 @@ estado, quatro rotinas conhecidas, tratamento de alguns erros, interface
 local, histórico e gravador de cliques que gera rascunhos. A IA já auxilia
 em decisões restritas; isso ainda não é um agente operador geral.
 
-O motor mínimo `app/estados.py` espera detectores de sucesso/erro. Ele
-não acompanha todas as etapas de uma execução. O gravador ainda exige
+O motor `app/estados.py` espera detectores de sucesso/erro e acompanha
+as etapas das quatro rotinas conhecidas, distinguindo ação e evidência.
+A revalidação Windows dos incrementos recentes continua pendente.
+O gravador ainda exige
 revisão e complementação de digitação, hover e verificações.
 
 A rodada recente de Livros Fiscais chegou à exportação, mas a nova
@@ -22,7 +24,7 @@ conferência do período no PDF a recusou. Esse resultado continua pendente.
 O usuário deixou o nome do arquivo de lado; essa pendência não será
 alterada neste incremento de estados.
 
-## 1. Acompanhar uma rotina inteira por estados — incremento atual
+## 1. Acompanhar uma rotina inteira por estados
 
 Começar pelo Registro de Saídas e reaproveitar a implementação comum
 para Entradas, mantendo a navegação existente. Registrar início,
@@ -39,7 +41,7 @@ Critério de conclusão: testes de progressão e falha passam e uma rodada
 Windows mostra as etapas corretas, incluindo o ponto de interrupção.
 Nenhum teste simulado substitui a validação ao vivo.
 
-## 2. Consolidar execução e recuperação
+## 2. Consolidar execução e recuperação — incremento atual
 
 Resolver falhas confirmadas pelos logs sem inventar novas posições na
 tela. Acrescentar limites de espera, interrupção entre ações e estratégias
@@ -49,6 +51,11 @@ rotinas e executar lotes com resultado separado por empresa/documento.
 
 Critério de conclusão: uma falha não contamina a próxima empresa; a
 execução registra o que foi concluído, recusado ou ficou pendente.
+
+Implementados para teste: referência local de retorno, verificação em
+duas capturas com foco/cabeçalho, etapas SPED/Contribuições e proteção das
+transições do lote calibrado. Falta validar esses comportamentos no
+Windows. A pendência de período/nome do PDF continua pausada.
 
 ## 3. Criar um catálogo de capacidades
 
@@ -60,6 +67,10 @@ com entradas válidas e pré-condições atendidas.
 
 Critério de conclusão: uma rotina validada pode ser solicitada por uma
 entrada estruturada e produzir um resultado igualmente estruturado.
+
+Preparação disponível: `app/capacidades.py` e `Listar Funcoes.bat`
+descrevem as quatro rotinas e suas limitações. São metadados; não existe
+executor de agentes habilitado por essa lista, nem conclusão desta etapa.
 
 ## 4. Aprender novas rotinas por demonstração e evidência
 
@@ -106,7 +117,7 @@ Geração/leitura continuam sendo o escopo atual. Transmissão, retificação,
 exclusão e operação sobre competência em aberto não entram neste plano
 como ações já autorizadas.
 
-## Progresso observado em 06/10/2026
+## Progresso observado e preparado em 07/10/2026
 
 O acompanhamento por estados foi observado numa rodada Windows de
 Registro de Saídas: a execução chegou ao PDF novo estável e registrou a
@@ -126,9 +137,23 @@ correção foi executada no Windows: o log mostrou foco confirmado antes
 de Esc, e o usuário confirmou que voltou à tela principal. A recuperação
 funcionou nessa rodada, mantendo a falha original de conferência do PDF.
 
-Próximo incremento da etapa 2: reconhecer automaticamente o retorno à
-tela principal com evidência visual positiva. Cabeçalho, menus e nome
-da empresa também aparecem na prévia; ausência de texto no OCR não
-comprova fechamento. Falta uma captura da tela principal como arquivo
-para medir a referência visual e testar a distinção entre as telas.
-Nenhuma nova ação de fechamento será necessária para esse incremento.
+Agora a referência é medida localmente pelo operador no Windows, via
+`Calibrar Tela Principal.bat`. A cor/geometria vêm da captura real;
+somente metadados são salvos. Comparação exige área calibrada uniforme,
+foco e cabeçalho em duas capturas. Os critérios conservadores passaram
+por testes sintéticos, mas ainda não foram validados no Domínio real.
+Nenhuma nova ação de fechamento foi introduzida.
+
+O lote calibrado interrompe transições quando não confirma retorno,
+inclusive após uma geração que devolveu `True`; preserva resultados
+já produzidos. Sem calibração, permanece supervisionado e avisa. Há
+acompanhamento SPED/Contribuições e correção do falso sucesso no histórico
+da GUI. A [retomada](RETOMADA.md) descreve os testes pendentes.
+
+## Componentes de percepção durante os incrementos
+
+O [prompt Hugging Face](PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md) mantém
+esta sequência de projeto. Avaliação de PaddleOCR começa opcional,
+local e sem ações; substituição do OCR depende de ganho nas mesmas
+telas e regressão SPED. VL/layout entram apenas com dificuldade concreta
+que os justifique. Isso não cria uma fase paralela nem habilita agentes.
