@@ -53,7 +53,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, rotina_gravada, verificacao
+from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, registro_elementos, rotina_gravada, verificacao
 from gravar import Gravador
 
 PASTA_SAIDA_PADRAO = Path(__file__).resolve().parent.parent / "saida"
@@ -125,33 +125,53 @@ class RevisarGravacao(simpledialog.Dialog):
 
     `self.resultado` fica `None` se cancelado, ou
     `(nome_exibicao, passos_com_parametro_marcado, lista_de_parametros)`
-    — pronto pra `rotina_gravada.salvar_rotina_gravada()`."""
+    — pronto pra `rotina_gravada.salvar_rotina_gravada()`.
 
-    def __init__(self, pai, passos, nome_sugerido):
+    **Também deixa corrigir o texto adivinhado de cada CLIQUE** (seção
+    0.82, achado real: a barra de menu do Domínio tem um traço "—"
+    entre cada item, que podia enganar o palpite de OCR e concatenar
+    itens de menu diferentes num só — ex.: "Movimentos — Relatórios —
+    Utilitários — Fax" pra um clique só. A causa já foi corrigida em
+    `tela.texto_mais_proximo()`, mas essa tela existe pra pegar
+    qualquer outro palpite ruim ANTES de salvar, não só confiar que o
+    OCR acertou — mesmo princípio de sempre deste projeto ("revise
+    antes de usar")."""
+
+    def __init__(self, pai, passos, nome_sugerido, pasta_gravacao=None):
         self.passos_originais = passos
         self.nome_sugerido = nome_sugerido
+        self.pasta_gravacao = Path(pasta_gravacao) if pasta_gravacao else None
         self.entradas_parametro = {}
+        self.entradas_clique = {}
         self.resultado = None
         super().__init__(pai, title="Revisar rotina gravada")
 
+    def _caminho_print(self, passo):
+        if self.pasta_gravacao is None:
+            return None
+        nome = passo.get("print_recorte")
+        return self.pasta_gravacao / nome if nome else None
+
     def body(self, master):
         tb.Label(master, text="Nome da rotina (como vai aparecer na lista):").pack(anchor="w", padx=10, pady=(10, 2))
-        self.entrada_nome = tb.Entry(master, width=50)
+        self.entrada_nome = tb.Entry(master, width=55)
         self.entrada_nome.insert(0, self.nome_sugerido)
         self.entrada_nome.pack(padx=10, pady=(0, 10), fill=X)
 
-        passos_digitar = [p for p in self.passos_originais if p.get("tipo") == "digitar"]
-        if passos_digitar:
+        passos_revisaveis = [p for p in self.passos_originais if p.get("tipo", "clicar") in ("clicar", "digitar")]
+        if passos_revisaveis:
             tb.Label(
                 master,
-                text='Pra cada texto digitado, deixe em branco se é sempre igual, ou dê um\n'
-                     'nome curto se muda toda vez que rodar (vira um campo pra preencher):',
+                text='Confira cada passo antes de salvar. Clique: o texto adivinhado por OCR\n'
+                     'pode estar errado — corrija se precisar (veja o print se tiver dúvida).\n'
+                     'Digitado: deixe em branco se é sempre igual, ou dê um nome se muda toda\n'
+                     'vez (vira campo pra preencher na hora de rodar):',
                 justify="left",
             ).pack(anchor="w", padx=10, pady=(0, 6))
 
             quadro = tb.Frame(master)
             quadro.pack(padx=10, pady=(0, 10), fill=BOTH, expand=True)
-            altura = min(220, 36 * len(passos_digitar) + 10)
+            altura = min(260, 40 * len(passos_revisaveis) + 10)
             canvas = tk.Canvas(quadro, height=altura, highlightthickness=0)
             rolagem = tb.Scrollbar(quadro, orient="vertical", command=canvas.yview)
             interno = tb.Frame(canvas)
@@ -161,15 +181,48 @@ class RevisarGravacao(simpledialog.Dialog):
             canvas.pack(side=LEFT, fill=BOTH, expand=True)
             rolagem.pack(side=RIGHT, fill=Y)
 
-            for passo in passos_digitar:
+            for passo in passos_revisaveis:
+                tipo = passo.get("tipo", "clicar")
                 linha = tb.Frame(interno)
                 linha.pack(fill=X, pady=3)
-                tb.Label(linha, text=f'Passo {passo["indice"]}: {passo["texto"]!r}', width=35, anchor="w").pack(side=LEFT, padx=(0, 6))
-                entrada = tb.Entry(linha, width=20)
-                entrada.pack(side=LEFT)
-                self.entradas_parametro[passo["indice"]] = entrada
+                if tipo == "clicar":
+                    tb.Label(linha, text=f'Passo {passo["indice"]} (clique):', width=16, anchor="w").pack(side=LEFT, padx=(0, 4))
+                    entrada = tb.Entry(linha, width=26)
+                    entrada.insert(0, passo.get("texto_adivinhado") or "")
+                    entrada.pack(side=LEFT, padx=(0, 4))
+                    self.entradas_clique[passo["indice"]] = entrada
+                    caminho_print = self._caminho_print(passo)
+                    if caminho_print is not None:
+                        tb.Button(
+                            linha, text="Ver print", bootstyle="link",
+                            command=lambda c=caminho_print: _abrir_no_explorador(c),
+                        ).pack(side=LEFT)
+
+                    # Confere o palpite contra o vocabulário já confirmado
+                    # (seção 0.83, "se auto arrumar") — só informa, quem
+                    # decide se usa a sugestão é a pessoa.
+                    avaliacao = registro_elementos.avaliar_palpite(passo.get("texto_adivinhado"))
+                    if avaliacao["status"] == "conhecido":
+                        tb.Label(linha, text="✓ já conhecido", bootstyle="success").pack(side=LEFT, padx=(6, 0))
+                    elif avaliacao["status"] == "parecido":
+                        sugestao = avaliacao["sugestao"]
+                        tb.Label(linha, text=f'parecido com "{sugestao}" —', bootstyle="warning").pack(side=LEFT, padx=(6, 2))
+                        tb.Button(
+                            linha, text="usar", bootstyle="warning-link",
+                            command=lambda e=entrada, s=sugestao: (e.delete(0, "end"), e.insert(0, s)),
+                        ).pack(side=LEFT)
+                    elif avaliacao["status"] == "novo":
+                        tb.Label(linha, text="novo (nunca confirmado)", bootstyle="secondary").pack(side=LEFT, padx=(6, 0))
+                else:  # digitar
+                    tb.Label(
+                        linha, text=f'Passo {passo["indice"]} (digitou {passo["texto"]!r}):',
+                        width=35, anchor="w",
+                    ).pack(side=LEFT, padx=(0, 6))
+                    entrada = tb.Entry(linha, width=18)
+                    entrada.pack(side=LEFT)
+                    self.entradas_parametro[passo["indice"]] = entrada
         else:
-            tb.Label(master, text="(essa gravação não tem nenhum texto digitado pra revisar)").pack(padx=10, pady=(0, 10))
+            tb.Label(master, text="(essa gravação só tem hover/tecla — nada de clique ou digitação pra revisar)").pack(padx=10, pady=(0, 10))
 
         return self.entrada_nome
 
@@ -179,12 +232,17 @@ class RevisarGravacao(simpledialog.Dialog):
         parametros = []
         for passo in self.passos_originais:
             passo = dict(passo)
-            if passo.get("tipo") == "digitar":
+            tipo = passo.get("tipo", "clicar")
+            if tipo == "digitar":
                 entrada = self.entradas_parametro.get(passo["indice"])
                 nome_parametro = entrada.get().strip() if entrada is not None else ""
                 if nome_parametro:
                     passo["parametro"] = nome_parametro
                     parametros.append(nome_parametro)
+            elif tipo == "clicar":
+                entrada = self.entradas_clique.get(passo["indice"])
+                if entrada is not None:
+                    passo["texto_adivinhado"] = entrada.get().strip() or None
             passos_marcados.append(passo)
         self.resultado = (nome_exibicao, passos_marcados, parametros)
 
@@ -899,19 +957,19 @@ class JanelaPrincipal:
             gravador = Gravador()
             gravador.gravar()
             gravador.gerar_rascunho(nome_sugerido.strip())
-            self.root.after(0, self._revisar_gravacao, gravador.passos, nome_sugerido.strip())
+            self.root.after(0, self._revisar_gravacao, gravador.passos, nome_sugerido.strip(), gravador.pasta)
 
         self._rodar_em_thread(rodar)
 
-    def _revisar_gravacao(self, passos, nome_sugerido):
+    def _revisar_gravacao(self, passos, nome_sugerido, pasta_gravacao):
         """Mostrado depois que F12 encerra a gravação (agendado via
-        `root.after`, roda na thread do Tk) — deixa nomear a rotina e
-        marcar parâmetros antes de salvar. Nada é salvo se a pessoa
-        cancelar o diálogo."""
+        `root.after`, roda na thread do Tk) — deixa nomear a rotina,
+        corrigir palpite de clique e marcar parâmetros antes de salvar.
+        Nada é salvo se a pessoa cancelar o diálogo."""
         if not passos:
             messagebox.showinfo("Nada gravado", "Nenhum passo foi gravado — nada pra revisar.")
             return
-        dialogo = RevisarGravacao(self.root, passos, nome_sugerido)
+        dialogo = RevisarGravacao(self.root, passos, nome_sugerido, pasta_gravacao=pasta_gravacao)
         if dialogo.resultado is None:
             return
         nome_exibicao, passos_marcados, parametros = dialogo.resultado

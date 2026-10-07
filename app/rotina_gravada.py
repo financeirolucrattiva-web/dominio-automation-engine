@@ -23,7 +23,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-from . import dominio, interacao, tela
+from . import dominio, interacao, registro_elementos, tela
 
 PASTA_ROTINAS = Path(__file__).resolve().parent.parent / "data" / "rotinas_gravadas"
 
@@ -103,13 +103,24 @@ def marcar_status(caminho, status):
     """Atualiza o status (`STATUS_RASCUNHO`/`STATUS_APROVADA`) de uma
     rotina já salva — usado depois de uma execução supervisionada que a
     pessoa confirmou como correta (ou pra voltar uma aprovada pra
-    rascunho, se algo mudar no Domínio e precisar regravar)."""
+    rascunho, se algo mudar no Domínio e precisar regravar).
+
+    Virar APROVADA também alimenta `registro_elementos` (seção 0.83,
+    "se auto arrumar" em vez de correção manual pra sempre) — o texto
+    de cada passo de clique dessa rotina entra no vocabulário de
+    elementos confirmados, pra conferir palpite de futuras gravações
+    automaticamente. Aprovação humana É a confirmação; nenhum passo a
+    mais precisa acontecer."""
     if status not in (STATUS_RASCUNHO, STATUS_APROVADA):
         raise ValueError(f"Status inválido: {status!r}")
     caminho = Path(caminho)
     dados = json.loads(caminho.read_text(encoding="utf-8"))
     dados["status"] = status
     caminho.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    if status == STATUS_APROVADA:
+        for passo in dados.get("passos", []):
+            if passo.get("tipo", "clicar") == "clicar":
+                registro_elementos.registrar_confirmado(passo.get("texto_adivinhado"))
 
 
 def excluir_rotina_gravada(caminho):

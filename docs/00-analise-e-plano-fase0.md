@@ -3638,6 +3638,63 @@ verdade pela primeira vez.
 
 ---
 
+### 0.83 Registro de elementos: vocabulário que aprende sozinho, achado contra bug real (o "Element Registry" do briefing original, versão pequena e de verdade)
+
+Contexto: ao investigar o palpite quebrado da seção 0.82
+("Movimentos — Relatórios — Utilitários — Fax"), o usuário pediu
+explicitamente pra eu não ficar corrigindo palpite ruim um por um pra
+sempre — "gostaria que ele se auto arrumasse, realmente entendesse
+quantas opções existem" — e sugeriu um banco de prints de todos os
+menus. Isso é o `ElementRegistry` que o prompt original deste projeto
+já previa (seção 16) e nunca tinha sido construído.
+
+**Versão real construída, escopo deliberadamente menor que "banco de
+prints de toda a aplicação"** (catalogar imagem de cada tela do
+Domínio é trabalho grande, ninguém fez isso ainda): um vocabulário de
+TEXTO já confirmado correto, em `app/registro_elementos.py`:
+
+- **"DNA" inicial**: extraído por grep dos próprios alvos literais já
+  usados com sucesso em `app/dominio.py` (SPED Fiscal, EFD
+  Contribuições, Registro de Saídas/Entradas) — meses de uso real, não
+  inventado.
+- **Cresce sozinho, sem passo manual a mais**: toda vez que uma rotina
+  gravada é marcada `"aprovada"` (seção 0.82 — já exige confirmação
+  humana de que o clique funcionou certo), o texto de cada passo de
+  clique dela entra automaticamente no vocabulário
+  (`rotina_gravada.marcar_status()` chama
+  `registro_elementos.registrar_confirmado()`). A aprovação JÁ ERA a
+  confirmação — não inventei uma etapa nova pra isso acontecer.
+- **`avaliar_palpite(texto)`**: confere um palpite novo contra o
+  vocabulário — `"conhecido"` (bate com algo confirmado),
+  `"parecido"` (contém um texto conhecido dentro, com sugestão — é
+  exatamente o caso do bug do traço: o palpite concatenado "contém"
+  o item de menu real), ou `"novo"` (nunca visto, não é
+  necessariamente errado). Só informa — nunca decide nem corrige
+  sozinho.
+- **Tela de revisão mostra a avaliação por clique**: "✓ já conhecido",
+  "parecido com 'Relatórios' — [usar]" (botão preenche a sugestão na
+  hora) ou "novo (nunca confirmado)" — pedido do usuário atendido na
+  prática: ela vê de cara qual palpite merece mais atenção, em vez de
+  ter que abrir o print de cada passo pra desconfiar.
+
+**Validado por teste de lógica real, inclusive contra o caso real que
+motivou isso**: o palpite quebrado de verdade ("Movimentos —
+Relatórios — Utilitários — Fax") foi testado direto contra
+`avaliar_palpite()` e volta `"parecido"`, sugerindo "Relatórios" —
+confirma que o sistema reconheceria esse erro específico sozinho.
+Testado também: texto novo vira conhecido depois de
+`registrar_confirmado()`, persistência em disco, e o fluxo completo
+"salvar rotina → aprovar → vocabulário aprende sozinho" ponta a ponta.
+
+**Limitação honesta**: isso é vocabulário de TEXTO, não visão —
+continua sem ajudar em cliques de ÍCONE (passos 8/9/10 daquela mesma
+rotina quebrada, sem texto nenhum pra comparar). Pra isso, o caminho já
+existe mas é outro: `achar_icone_robusto()` (pixel+ORB) e visão por IA
+como último recurso (seção 0.58/0.61) — ferramentas diferentes pra um
+problema diferente (reconhecer imagem, não validar texto).
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

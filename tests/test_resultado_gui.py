@@ -20,7 +20,7 @@ class TestResultadoGui(unittest.TestCase):
         app = types.ModuleType("app")
         app.__path__ = []
         modulos = {"app": app}
-        for nome in ("dominio", "empresas", "historico", "ia", "interacao", "verificacao", "estados", "rotina_gravada"):
+        for nome in ("dominio", "empresas", "historico", "ia", "interacao", "verificacao", "estados", "rotina_gravada", "registro_elementos"):
             modulo = types.ModuleType(f"app.{nome}")
             setattr(app, nome, modulo)
             modulos[f"app.{nome}"] = modulo

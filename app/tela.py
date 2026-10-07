@@ -19,6 +19,7 @@ import ctypes
 from contextlib import contextmanager
 from contextvars import ContextVar
 import hashlib
+import re
 import shutil
 from pathlib import Path
 
@@ -330,6 +331,18 @@ def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
     costuma ser bem menor que o espaço entre item e item de menu)
     resolve isso sem precisar reconhecer menu especificamente.
 
+    **Segundo achado real, mais específico (seção 0.82, 07/10/2026)**:
+    o gap de 1,5x altura sozinho não bastava — o Domínio desenha um
+    traço "—" ENTRE cada item da barra de menu ("Controle — Arquivos —
+    Movimentos..."), e esse traço fica com um espaço pequeno dos dois
+    lados (menor que o limiar), então a expansão atravessa o traço e
+    concatena itens de menu DIFERENTES (ex.: rotina gravada guardou o
+    palpite "Movimentos — Relatórios — Utilitários — Fax" pra um
+    clique só, texto que nunca existe contíguo na tela de verdade —
+    achado contra log real de execução). Um traço isolado agora é
+    tratado como fronteira: a expansão para ali, nunca atravessa, nunca
+    inclui o traço no resultado.
+
     Devolve o texto achado (string, vazia se não achar nada).
     """
     recorte, dx, dy = recortar_ao_redor(imagem, x, y, raio_x=raio_x, raio_y=raio_y)
@@ -360,6 +373,8 @@ def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
     i = posicao - 1
     while i >= 0:
         anterior, atual = mesma_linha[i + 1], mesma_linha[i]
+        if _eh_separador_de_menu(dados["text"][atual]):
+            break
         gap = dados["left"][anterior] - (dados["left"][atual] + dados["width"][atual])
         if gap > gap_maximo:
             break
@@ -368,6 +383,8 @@ def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
     i = posicao + 1
     while i < len(mesma_linha):
         anterior, atual = mesma_linha[i - 1], mesma_linha[i]
+        if _eh_separador_de_menu(dados["text"][atual]):
+            break
         gap = dados["left"][atual] - (dados["left"][anterior] + dados["width"][anterior])
         if gap > gap_maximo:
             break
@@ -375,6 +392,13 @@ def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
         i += 1
 
     return " ".join(dados["text"][i].strip() for i in selecionados)
+
+
+def _eh_separador_de_menu(texto):
+    """Traço isolado (hífen, en dash, em dash) que o Domínio usa pra
+    separar item de menu — ver achado real na docstring de
+    `texto_mais_proximo()` (seção 0.82)."""
+    return bool(re.fullmatch(r"[-‐-―]+", texto.strip()))
 
 
 def achar_texto_ou_no_centro(imagem, alvo, escala=1, debug=False, max_palavras=4):
