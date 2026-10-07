@@ -84,6 +84,9 @@ teclas no Domínio. Só dois modelos PP-OCRv5 são baixados do Hugging Face,
 com revisões fixadas. Depois da primeira instalação, `Atualizar.bat`
 também mantém esse componente opcional. PaddleOCR-VL não é instalado.
 Instalação/inferência e ganho de OCR ainda precisam de teste no Windows.
+O atalho procura Python compatível no ambiente OCR ou no launcher `py`.
+Se o padrão for 3.14 e não houver outro instalado, use Python 3.12/3.13
+de 64 bits lado a lado, preservando o PATH atual; veja a retomada acima.
 
 ## Instalação
 

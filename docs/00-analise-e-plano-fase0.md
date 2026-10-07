@@ -3262,6 +3262,39 @@ testes operacionais e as pendências descritas em `docs/RETOMADA.md`.
 
 ---
 
+### 0.75 Instalador Windows iniciado com Python 3.14.7
+
+**Evidência recebida em 07/10/2026:** ao executar `Instalar OCR Paddle.bat`,
+o usuário recebeu a recusa de compatibilidade. O diagnóstico confirmou
+Python **3.14.7, 64 bits, AMD64**. A arquitetura atende; a versão está
+fora da faixa dos wheels Windows do PaddlePaddle 3.3.1 (até CPython 3.13).
+O instalador recusou antes de criar ambiente ou instalar pacotes.
+
+**Causa no código:** o atalho iniciava o script com `python` do PATH,
+e o script só avaliava esse intérprete. A mensagem não indicava o
+requisito específico nem aproveitava outro Python já instalado.
+
+**Correção:** mostrar versão, implementação, bits, sistema e arquitetura;
+reutilizar o intérprete compatível do ambiente OCR quando disponível, ou
+enumerar instalações pelo launcher `py -0p`. Cada executável candidato
+é verificado por subprocesso isolado de stdlib, com timeout e formato
+JSON validado. Prefere 3.12, depois 3.13/3.11/3.10; exige CPython x64.
+O instalador reinicia explicitamente no candidato aprovado, propagando
+seu resultado sem alterar PATH ou o ambiente do SPED. A listagem não
+dispara instalação automática de outro Python.
+
+Se não houver candidato, explica o pré-requisito: instalar 3.12/3.13
+de 64 bits lado a lado e repetir o atalho. O motor original continua
+com seu Python existente. Testes simulam default 3.14, candidato 3.12,
+venv existente, saída inválida, bitness/implementação erradas, falha,
+timeout, ausência de launcher e propagação de resultado sem reinício
+em loop. **Seleção/instalação ainda precisam de repetição no Windows.**
+
+Validação: 155 testes locais/simulados passaram (nove novos de seleção
+do intérprete), compilação e diff check passaram.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
