@@ -6,7 +6,7 @@ do [roadmap RPA](ROADMAP-RPA.md). O documento `00-analise-e-plano-fase0.md`
 continua na fase de descoberta. O plano original tem dez fases (0–9);
 o roadmap RPA organiza o trabalho atual em seis incrementos.
 
-Validação desta entrega e da seleção de Python: **155 testes locais/simulados passaram**,
+Validação desta entrega e da seleção/instalação de Python: **163 testes locais/simulados passaram**,
 compilação dos arquivos Python alterados e checagem de diff passaram.
 Os testes não operaram a sessão real do Domínio. Separadamente, PP-OCRv5
 foi carregado e executado em CPU/Linux sobre imagem sintética, com caixas
@@ -71,12 +71,17 @@ o detector móvel e o reconhecedor latino PP-OCRv5 de revisões fixadas do
 Hugging Face. Não instala PaddleOCR-VL nem habilita um novo motor padrão.
 Requer Windows x64 e Python 3.10–3.13 (3.12 recomendado). O instalador
 mostra versão/arquitetura e procura um Python compatível no ambiente OCR
-existente ou no launcher `py`, mesmo se `python` no PATH for 3.14.
-Se não encontrar, instale Python 3.12 ou 3.13 de 64 bits lado a lado,
-mantendo o PATH atual e o launcher `py`, e repita o atalho.
+existente, no launcher `py` ou nos diretórios padrão de instalação por
+usuário, mesmo se `python` no PATH for 3.14.
+Se não encontrar, use `Instalar Python OCR.bat`: o operador solicita
+explicitamente a instalação de Python 3.13 x64 via winget, para seu usuário,
+sem alterar PATH, launcher ou associações de arquivos. Após confirmar o
+novo intérprete, o atalho prepara o ambiente OCR. Se winget falhar ou o
+intérprete não for confirmado, interrompe antes de instalar o OCR.
+Se winget não estiver disponível, instale Python 3.12/3.13 de 64 bits
+lado a lado, mantendo PATH e launcher, e repita `Instalar OCR Paddle.bat`.
 Download oficial: <https://www.python.org/downloads/windows/>.
-Depois da
-primeira instalação, `Atualizar.bat` também atualiza o componente
+Depois da primeira instalação, `Atualizar.bat` também atualiza o componente
 opcional. Sem o marcador local, atualizações não instalam Paddle.
 
 Depois use `Avaliar OCR Paddle.bat` e escolha uma captura local. A avaliação

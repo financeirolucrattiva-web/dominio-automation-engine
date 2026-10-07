@@ -3295,6 +3295,36 @@ do intérprete), compilação e diff check passaram.
 
 ---
 
+### 0.76 Pré-requisito Python instalado lado a lado
+
+**Evidência recebida em 07/10/2026:** a repetição do instalador mostrou
+Python 3.14.7 CPython x64 e não encontrou outra versão compatível. O
+próximo passo é instalar um intérprete compatível para o OCR opcional.
+
+`Instalar Python OCR.bat` chama a opção explícita `--instalar-python` do
+bootstrap. Se já houver Python compatível, reutiliza-o; senão solicita
+ao winget `Python.Python.3.13`, arquitetura x64, escopo usuário, fonte
+winget. Os argumentos do instalador oficial preservam PATH, launcher e
+associações. Não desinstala Python 3.14 nem altera dependências do SPED.
+O manifesto oficial do winget e a fonte do launcher CPython 3.13 foram
+consultados para conferir identificador, arquitetura e listagem.
+
+A descoberta passa a consultar também os diretórios padrão de instalação
+por usuário em LOCALAPPDATA, para localizar Python sem launcher. Um
+arquivo existente só é aceito após a sonda stdlib confirmar versão,
+implementação, arquitetura e bits. Falha do winget ou ausência de Python
+confirmado interrompe antes de instalar OCR; ausência de winget indica
+o site oficial para instalação manual. O instalador OCR normal continua
+sem instalar um Python novo automaticamente.
+
+Validação: **163 testes locais/simulados passaram**, com oito novos casos
+de descoberta sem launcher, instalação explícita, preservação de ambiente
+e interrupção após falha. Compilação e diff check passaram. **Não foi
+executado winget nem instalador Python no Windows pela nuvem; o atalho
+precisa ser executado pelo operador.**
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

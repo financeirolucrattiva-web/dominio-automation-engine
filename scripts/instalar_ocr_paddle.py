@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import platform
 import re
@@ -64,33 +65,89 @@ def localizar_python_compativel():
         if dados is not None:
             return str(python_ocr), dados
     launcher = shutil.which("py")
-    if launcher is None:
-        return None
-    try:
-        # Listagem de instalações existentes: não usa py -3.x, que no
-        # Python Install Manager pode disparar um download automático.
-        resultado = subprocess.run([launcher, "-0p"], capture_output=True,
-                                   text=True, timeout=5, check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if resultado.returncode != 0:
-        return None
     candidatos = []
-    for linha in resultado.stdout.splitlines():
-        encontrado = re.match(r'^\s*-\S+\s+(?:\*\s+)?(.+?\.exe)\s*$', linha, re.IGNORECASE)
-        if encontrado:
-            caminho = encontrado.group(1).strip('"')
-            if caminho not in candidatos:
-                candidatos.append(caminho)
+    if launcher is not None:
+        try:
+            # Lista instalações existentes sem disparar download automático.
+            resultado = subprocess.run([launcher, "-0p"], capture_output=True,
+                                       text=True, timeout=5, check=False)
+            if resultado.returncode == 0:
+                for linha in resultado.stdout.splitlines():
+                    encontrado = re.match(r'^\s*-\S+\s+(?:\*\s+)?(.+?\.exe)\s*$', linha, re.IGNORECASE)
+                    if encontrado:
+                        caminho = encontrado.group(1).strip('"')
+                        if caminho not in candidatos:
+                            candidatos.append(caminho)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    candidatos = candidatos[:8]
+    # A instalação por usuário pode não incluir o launcher. Consulta somente
+    # diretórios padrão existentes; confirma versão e arquitetura executando
+    # a mesma sonda stdlib, sem trocar PATH ou o Python usado pelo SPED.
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        for versao in ("312", "313", "311", "310"):
+            caminho = Path(local) / "Programs" / "Python" / f"Python{versao}" / "python.exe"
+            if caminho.is_file() and str(caminho) not in candidatos:
+                candidatos.append(str(caminho))
     validos = []
     preferencia = {12: 0, 13: 1, 11: 2, 10: 3}
-    for caminho in candidatos[:8]:
+    for caminho in candidatos:
         dados = consultar_python(caminho)
         if dados is not None:
             validos.append((caminho, dados))
     if not validos:
         return None
     return min(validos, key=lambda item: preferencia[item[1]["versao"][1]])
+
+
+def iniciar_instalacao_compativel(encontrado):
+    executavel, dados = encontrado
+    print(f"Usando Python {'.'.join(map(str, dados['versao']))} de 64 bits para o OCR opcional.")
+    try:
+        return subprocess.run([executavel, str(Path(__file__).resolve()), "--usar-python-atual"], check=False).returncode
+    except OSError:
+        print("Não consegui iniciar o Python compatível encontrado. Confira sua instalação e rode novamente.")
+        return 1
+
+
+def instalar_python_e_ocr():
+    """Ação explícita do operador: instala o pré-requisito via winget."""
+    if (sys.platform != "win32" or platform.machine().lower() not in ("amd64", "x86_64")
+            or struct.calcsize("P") != 8):
+        mostrar_ambiente()
+        print("O atalho de instalação do Python OCR requer Windows x64.")
+        return 1
+    if ambiente_compativel() and not (PASTA_AMBIENTE / "Scripts" / "python.exe").is_file():
+        return instalar()
+    encontrado = localizar_python_compativel()
+    if encontrado is None:
+        winget = shutil.which("winget")
+        if winget is None:
+            print("winget não encontrado. Instale Python 3.13 de 64 bits pelo site oficial:")
+            print("https://www.python.org/downloads/windows/")
+            print("Mantenha o PATH existente e o launcher py. Depois rode Instalar OCR Paddle.bat.")
+            return 1
+        print("Instalando Python 3.13 x64 para seu usuário. Aguarde a conclusão do winget.")
+        print("O Python atual e o PATH são preservados. Depois será preparado o OCR opcional.")
+        comando = [winget, "install", "--id", "Python.Python.3.13", "--exact",
+                   "--architecture", "x64", "--scope", "user", "--source", "winget",
+                   "--accept-package-agreements", "--accept-source-agreements", "--override",
+                   "/quiet InstallAllUsers=0 PrependPath=0 AppendPath=0 Include_launcher=0 Include_test=0 AssociateFiles=0"]
+        try:
+            resultado = subprocess.run(comando, check=False)
+        except OSError:
+            print("Não consegui iniciar o winget. Confira sua instalação e rode novamente.")
+            return 1
+        if resultado.returncode != 0:
+            print("A instalação do Python não foi concluída. Confira a mensagem do winget acima.")
+            return 1
+        encontrado = localizar_python_compativel()
+        if encontrado is None:
+            print("O winget terminou, mas nenhum Python compatível foi confirmado.")
+            print("Feche este Prompt e rode Instalar OCR Paddle.bat novamente.")
+            return 1
+    return iniciar_instalacao_compativel(encontrado)
 
 
 def instalar():
@@ -122,7 +179,11 @@ def instalar():
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--usar-python-atual", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--instalar-python", action="store_true",
+                        help="Instala Python 3.13 x64 separado via winget, se necessário, e prepara OCR.")
     args = parser.parse_args(argv)
+    if args.instalar_python:
+        return instalar_python_e_ocr()
     if args.usar_python_atual or sys.platform != "win32":
         return instalar()
     # O ambiente opcional já preparado tem precedência sobre o Python
@@ -137,15 +198,10 @@ def main(argv=None):
         if ambiente_compativel() and not python_ocr.is_file():
             return instalar()
         print("Nenhum Python compatível foi encontrado. Instale Python 3.12 ou 3.13 de 64 bits lado a lado com o atual, mantendo o PATH existente e o launcher py.")
+        print("Ou use Instalar Python OCR.bat para instalar o pré-requisito via winget e preparar o OCR.")
         print("Depois rode Instalar OCR Paddle.bat novamente. Download oficial: https://www.python.org/downloads/windows/")
         return 1
-    executavel, dados = encontrado
-    print(f"Usando Python {'.'.join(map(str, dados['versao']))} de 64 bits para o OCR opcional.")
-    try:
-        return subprocess.run([executavel, str(Path(__file__).resolve()), "--usar-python-atual"], check=False).returncode
-    except OSError:
-        print("Não consegui iniciar o Python compatível encontrado. Confira sua instalação e rode novamente.")
-        return 1
+    return iniciar_instalacao_compativel(encontrado)
 
 
 if __name__ == "__main__":

@@ -35,8 +35,11 @@ ou OCR do Windows. Não enviar capturas/dados fiscais ao Hub ou APIs.
 O primeiro teste do instalador Windows encontrou Python 3.14.7 x64,
 fora da faixa de wheels do PaddlePaddle fixado (até 3.13). O bootstrap
 agora mostra o ambiente e procura um CPython compatível já instalado.
-Se não houver, é necessário instalar 3.12/3.13 x64 lado a lado, sem
-trocar o Python do SPED. A seleção automática precisa de teste Windows.
+Na repetição, nenhum outro Python compatível foi encontrado. O novo
+atalho `Instalar Python OCR.bat` solicita via winget Python 3.13 x64 por
+usuário, mantendo PATH/launcher/associações, confirma o intérprete e prepara
+OCR. A descoberta também cobre diretórios padrão sem launcher. Não troca
+o Python do SPED. Instalação/seleção ainda precisam de teste Windows.
 
 A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
 e testes de lógica com dependências de desktop simuladas. Ela não acessa
