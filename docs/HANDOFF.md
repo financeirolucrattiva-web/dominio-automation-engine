@@ -41,6 +41,20 @@ usuário, mantendo PATH/launcher/associações, confirma o intérprete e prepara
 OCR. A descoberta também cobre diretórios padrão sem launcher. Não troca
 o Python do SPED. Instalação/seleção ainda precisam de teste Windows.
 
+O usuário abriu a avaliação OCR, mas enviou apenas a mensagem Windows de
+busca de arquivos, seguida de interrupção e pergunta S/N do CMD. A fonte
+PaddlePaddle 3.3.1 procura `ccache` via `where` no Windows; a mensagem
+isolada não diagnostica falha de Tesseract nem comprova falha de inferência.
+O avaliador agora mostra progresso por leitura, distingue Ctrl+C e informa
+o código de saída. `Avaliar OCR Tela.bat` captura a janela ativa em memória
+para comparação local, sem ações. Teste Windows ainda pendente.
+
+`app/tela.py` reutiliza resultados Tesseract somente durante cada checagem
+de `esperar_por_estado`: região/pixels/escala exatos, escopo ContextVar,
+limpeza ao sair, inclusive após erro. Preserva ordem de detectores,
+coordenadas e retornos. 179 testes passaram; não foi adotado Paddle no
+fluxo de produção por ausência de comparação real que demonstre ganho.
+
 A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
 e testes de lógica com dependências de desktop simuladas. Ela não acessa
 Domínio/GO-Global nem valida ações Windows. O uso de Win32 para conferir

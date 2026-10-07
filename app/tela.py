@@ -16,6 +16,9 @@ suposição:
 """
 
 import ctypes
+from contextlib import contextmanager
+from contextvars import ContextVar
+import hashlib
 import shutil
 from pathlib import Path
 
@@ -145,6 +148,40 @@ def _preparar_para_ocr(imagem, escala):
     return ImageOps.grayscale(maior)
 
 
+_CACHE_OCR = ContextVar("cache_ocr_da_checagem", default=None)
+
+
+@contextmanager
+def reutilizar_ocr():
+    """Reutiliza leituras só nesta checagem; não guarda texto entre estados.
+
+    ContextVar isola execuções/threads. A chave usa pixels exatos, tamanho,
+    modo e escala, evitando reaproveitar uma leitura de região diferente.
+    """
+    cache = {}
+    token = _CACHE_OCR.set(cache)
+    try:
+        yield
+    finally:
+        cache.clear()
+        _CACHE_OCR.reset(token)
+
+
+def _ler_dados_ocr(imagem, escala):
+    cache = _CACHE_OCR.get()
+    chave = None
+    if cache is not None:
+        pixels = imagem.convert("RGBA").tobytes() if imagem.mode == "P" else imagem.tobytes()
+        chave = (imagem.mode, imagem.size, escala, hashlib.sha256(pixels).digest())
+        if chave in cache:
+            return cache[chave]
+    imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
+    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT)
+    if cache is not None and len(cache) < 8:
+        cache[chave] = dados
+    return dados
+
+
 def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
     """Procura `alvo` (uma ou mais palavras, sem diferenciar maiúscula de
     minúscula) no texto lido por OCR em `imagem`.
@@ -165,8 +202,7 @@ def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
 
     Devolve (x, y) do centro do texto encontrado, ou None.
     """
-    imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
-    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT)
+    dados = _ler_dados_ocr(imagem, escala)
 
     indices_validos = [i for i in range(len(dados["text"])) if dados["text"][i].strip()]
     alvo_lower = alvo.lower()

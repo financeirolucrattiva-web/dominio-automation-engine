@@ -6,7 +6,7 @@ do [roadmap RPA](ROADMAP-RPA.md). O documento `00-analise-e-plano-fase0.md`
 continua na fase de descoberta. O plano original tem dez fases (0–9);
 o roadmap RPA organiza o trabalho atual em seis incrementos.
 
-Validação desta entrega e da seleção/instalação de Python: **163 testes locais/simulados passaram**,
+Validação desta entrega: **179 testes locais/simulados passaram**,
 compilação dos arquivos Python alterados e checagem de diff passaram.
 Os testes não operaram a sessão real do Domínio. Separadamente, PP-OCRv5
 foi carregado e executado em CPU/Linux sobre imagem sintética, com caixas
@@ -17,6 +17,8 @@ válidas. Os próximos passos abaixo produzem a evidência Windows.
 - Acompanhamento por etapas nas quatro rotinas conhecidas, com marcadores
   de evidência e logs locais; erro, ação enviada e estado confirmado são
   diferenciados.
+- OCR reutilizado por pixels/região/escala em cada checagem de estado;
+  reduz leituras repetidas de títulos, preservando precedência e retornos.
 - Referência local da área azul da tela principal, medida no Windows;
   retorno exige foco, cabeçalho e duas capturas compatíveis.
 - Lote calibrado interrompe diante de retorno desconhecido/referência
@@ -90,6 +92,21 @@ consulte `scripts/avaliar_ocr_paddle.py --help` e use `--alvo`. O resumo
 não publica texto fiscal. Qualidade real e localização devem ser conferidas
 no conjunto de telas usado pelo SPED, não deduzidas apenas pelo tempo.
 As primeiras execuções podem demorar mais por carregar o modelo.
+
+Para testar percepção na tela real, use `Avaliar OCR Tela.bat`. Abra a
+tela do Domínio desejada, pressione Enter no Prompt e volte ao Domínio
+com Alt+Tab. Aguarde alguns segundos pela captura; depois volte ao Prompt
+para acompanhar as três leituras por motor. A captura permanece só em
+memória. O script exige a mesma janela ativa antes e depois de capturar;
+aceita título Domínio ou cliente GO-Global sem título. Confira visualmente
+o conteúdo do cliente remoto: a classe sozinha não identifica seu estado.
+Não há clique, digitação, execução de rotina ou troca do OCR de produção.
+
+Cada leitura imprime início e conclusão. Uma mensagem Windows de busca
+de arquivo pode vir da procura de `ccache` opcional pelo Paddle; aguarde
+o resultado da etapa. Ctrl+C agora é registrado como cancelamento com
+código 130. A avaliação anterior foi interrompida sem concluir; ainda
+não há evidência de inferência Paddle no Windows.
 
 Instalação/inferência Paddle no Windows e ganho sobre o OCR atual ainda
 precisam de medição local. A nuvem não acessa seu desktop. O prompt define

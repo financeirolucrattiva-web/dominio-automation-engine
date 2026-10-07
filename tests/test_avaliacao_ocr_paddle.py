@@ -45,6 +45,38 @@ class TestAvaliacao(unittest.TestCase):
         self.assertEqual(resultado.returncode, 0, resultado.stderr)
         self.assertIn("--escolher", resultado.stdout)
         self.assertIn("--imagem", resultado.stdout)
+        self.assertIn("--tela", resultado.stdout)
+
+    def test_captura_atual_exige_mesma_janela_antes_e_depois(self):
+        janela = (1, 2, "classe", "titulo", (0, 0, 100, 100))
+        outra = (3, 4, "classe", "titulo", (0, 0, 100, 100))
+        imagem = Image.new("RGB", (100, 100))
+        capturar = Mock(return_value=imagem)
+        with patch.object(avaliacao.time, "sleep"):
+            identificador = Mock(side_effect=[None, janela, outra, janela, janela])
+            self.assertIs(avaliacao.aguardar_captura_atual(identificador, capturar, tentativas=3), imagem)
+        self.assertEqual(capturar.call_count, 2)
+
+    def test_falta_de_janela_ativa_nao_captura_nem_fica_em_loop(self):
+        capturar = Mock()
+        with patch.object(avaliacao.time, "sleep"), self.assertRaises(avaliacao.ErroAvaliacao):
+            avaliacao.aguardar_captura_atual(lambda: None, capturar, tentativas=2)
+        capturar.assert_not_called()
+
+    def test_modo_tela_usa_memoria_sem_seletor_ou_arquivo(self):
+        imagem = Image.new("RGB", (100, 100))
+        with patch.object(avaliacao, "_capturar_tela_atual", return_value=imagem), patch.object(avaliacao, "_carregar_imagem") as abrir, patch.object(avaliacao, "_escolher_imagem") as escolher, patch.object(avaliacao, "avaliar", return_value=()) as avaliar:
+            codigo, _ = self.executar_cli(["--tela"])
+        self.assertEqual(codigo, 0)
+        self.assertIs(avaliar.call_args.args[0], imagem)
+        abrir.assert_not_called()
+        escolher.assert_not_called()
+
+    def test_ctrl_c_e_identificado_e_retorna_130(self):
+        with patch.object(avaliacao, "_carregar_imagem", side_effect=KeyboardInterrupt):
+            codigo, saida = self.executar_cli(["--imagem", "captura.png"])
+        self.assertEqual(codigo, 130)
+        self.assertIn("Ctrl+C", saida)
 
     def test_alvo_simples_nao_inclui_vizinhos_e_repetido_nao_confirma(self):
         textos = (TextoOCR("SPED", .9, (1, 2, 10, 10)), TextoOCR("Fiscal", .8, (12, 2, 30, 10)))
@@ -55,6 +87,41 @@ class TestAvaliacao(unittest.TestCase):
         resumos = avaliacao.avaliar(Image.new("RGB", (100, 100)), "SPED", leitura, leitura)
         self.assertEqual(resumos[0].alvo_encontrado, (False, False, False))
         self.assertEqual(resumos[0].ocorrencias_alvo, (2, 2, 2))
+
+    def test_progresso_identifica_motor_antes_da_leitura_e_so_confirma_depois(self):
+        imagem = Image.new("RGB", (100, 100))
+        textos = (TextoOCR("Empresa Privada", .9, (1, 2, 10, 10)),)
+        eventos = []
+        def reconhecer(_):
+            self.assertIsNone(eventos[-1][2])
+            return textos
+        avaliacao.avaliar(imagem, paddle=reconhecer, tesseract=reconhecer,
+                          progresso=lambda *evento: eventos.append(evento))
+        self.assertEqual(len(eventos), 12)
+        for indice, nome in enumerate(("PP-OCRv5 mobile CPU", "Tesseract por")):
+            for leitura in range(1, 4):
+                inicio, fim = eventos[indice * 6 + (leitura - 1) * 2:indice * 6 + leitura * 2]
+                self.assertEqual(inicio, (nome, leitura, None, None))
+                self.assertEqual(fim[:2], (nome, leitura))
+                self.assertGreaterEqual(fim[2], 0)
+                self.assertEqual(fim[3], 1)
+        self.assertNotIn("Privada", repr(eventos))
+
+    def test_progresso_em_falha_informa_etapa_sem_confirmar_leitura(self):
+        eventos = []
+        with self.assertRaises(ErroOCRPaddle):
+            avaliacao.avaliar(Image.new("RGB", (10, 10)),
+                              paddle=Mock(side_effect=ErroOCRPaddle("Falha de carga.")),
+                              progresso=lambda *evento: eventos.append(evento))
+        self.assertEqual(eventos, [("PP-OCRv5 mobile CPU", 1, None, None)])
+
+    def test_console_progresso_mostra_carregamento_e_nao_imprime_textos(self):
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            avaliacao._mostrar_progresso("PP-OCRv5 mobile CPU", 1, None, None)
+            avaliacao._mostrar_progresso("PP-OCRv5 mobile CPU", 1, 2.3, 0)
+        self.assertIn("A primeira leitura carrega o motor", saida.getvalue())
+        self.assertIn("concluída em 2.300s; segmentos=0", saida.getvalue())
 
     def executar_cli(self, argumentos):
         saida = io.StringIO()

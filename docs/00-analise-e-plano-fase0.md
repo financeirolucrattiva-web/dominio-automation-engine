@@ -3325,6 +3325,56 @@ precisa ser executado pelo operador.**
 
 ---
 
+### 0.77 Progresso OCR, captura atual e reutilização nas decisões de estado
+
+**Evidência recebida em 07/10/2026:** avaliação de imagem aleatória chegou
+a anunciar leituras em CPU e mostrou mensagem do Windows de arquivo não
+encontrado. Depois foi enviada a mensagem genérica de interrupção, seguida
+de pergunta S/N para finalizar o lote. Não há inferência concluída no
+Windows. A pergunta é compatível com interrupção pelo teclado.
+
+**Diagnóstico:** a fonte instalada de PaddlePaddle 3.3.1,
+`paddle/utils/cpp_extension/extension_utils.py`, procura `ccache` opcional
+com `subprocess.check_output(['where', 'ccache'])` no Windows, sem suprimir
+stderr. O aviso pode aparecer mesmo durante importação válida; não prova
+problema de Tesseract. Antes o avaliador só imprimia agregados depois das
+seis leituras, dificultando distinguir carregamento de travamento.
+
+**Entrega:** progresso imediato com motor, leitura 1–3, duração e quantidade
+de segmentos; Ctrl+C explícito com código 130 e código de saída no atalho.
+`Avaliar OCR Tela.bat`/`--tela` capturam a janela atual do Domínio/cliente
+GO-Global em memória, depois que o operador seleciona a janela. Consulta
+Win32 somente para identidade/retângulo/foco; nenhum controle interno de
+GO-Global é inspecionado. Exige identidade estável antes/depois da captura,
+com espera limitada, e pede conferência humana do conteúdo do cliente sem
+título. Não envia ações, salva imagem ou modifica rotina fiscal.
+
+**Otimização de produção:** a inspeção de `esperar_e_achar` mostrou que cada
+título pode repetir OCR da mesma tela e do mesmo recorte central. Agora
+`esperar_por_estado` abre um escopo de reutilização em `tela.reutilizar_ocr`.
+Chave por pixels exatos, tamanho, modo e escala; ContextVar separa execuções,
+limpeza obrigatória ao sair; máximo oito resultados no escopo. Imagens
+indexadas incluem cores da paleta na chave. Só chamadas `achar_texto` com
+a mesma configuração Tesseract participam. Mantém precedência, coordenadas,
+fallback central, espera mínima, tentativas e resultado de sucesso/erro.
+Não troca OCR nem introduz decisão de IA nova.
+
+Uma medição adicional Tesseract CPU/Linux sobre a mesma imagem sintética,
+com seis títulos ausentes e as duas regiões, reduziu **12 chamadas para
+2**, de **2,186s para 0,386s** nesta execução, preservando todas as buscas
+sem posição encontrada. Não mede espera/geração do Domínio nem ganho Windows.
+
+**Validação:** 179 testes passaram (16 novos de progresso, captura, reuso
+e decisões), compilação e diff check passaram. Sucesso, erro, esgotamento,
+regiões/escalas/pixels distintos, exceção, nova tentativa e isolamento de
+thread foram verificados. A comparação sintética CPU/Linux completou
+Paddle 5,116s na primeira leitura e 1,136/1,529s nas aquecidas; Tesseract
+0,432s e 0,389/0,252s. Esses números não medem telas Domínio/Windows nem
+justificam adotar Paddle como padrão. Captura atual e rotinas otimizadas
+**ainda precisam de teste real no Windows**.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

@@ -84,6 +84,12 @@ teclas no Domínio. Só dois modelos PP-OCRv5 são baixados do Hugging Face,
 com revisões fixadas. Depois da primeira instalação, `Atualizar.bat`
 também mantém esse componente opcional. PaddleOCR-VL não é instalado.
 Instalação/inferência e ganho de OCR ainda precisam de teste no Windows.
+`Avaliar OCR Tela.bat` compara a captura atual da janela do Domínio/GO-Global,
+em memória, após você selecioná-la. Mostra o início e término de cada
+leitura para distinguir carregamento, falha e cancelamento. Não envia
+cliques/teclas, salva capturas nem habilita outro OCR na produção.
+O motor de estados agora reutiliza o OCR da mesma região/escala dentro
+de cada checagem, mantendo os títulos e a ordem de decisão existentes.
 O atalho procura Python compatível no ambiente OCR, no launcher `py` ou
 nos diretórios padrão de instalação por usuário. Se o padrão for 3.14 e
 não houver outro instalado, use `Instalar Python OCR.bat`: instala Python

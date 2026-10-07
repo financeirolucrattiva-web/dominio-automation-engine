@@ -200,10 +200,13 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):
             continue
         assinatura_anterior = assinatura_atual
 
-        for nome_estado, funcao in detectores:
-            pos = funcao(imagem)
-            if pos is not None:
-                return imagem, nome_estado, pos
+        # A mesma captura pode ser examinada por vários títulos. Reutiliza
+        # OCR por região/escala nesta tentativa, mantendo a ordem anterior.
+        with tela.reutilizar_ocr():
+            for nome_estado, funcao in detectores:
+                pos = funcao(imagem)
+                if pos is not None:
+                    return imagem, nome_estado, pos
 
         print(f"Nenhum estado esperado reconhecido ainda (tentativa {tentativa}/{tentativas}) — esperando mais {intervalo}s...")
         time.sleep(intervalo)
