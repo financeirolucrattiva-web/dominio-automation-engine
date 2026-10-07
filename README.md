@@ -72,8 +72,10 @@ O [prompt de desenvolvimento](docs/PROMPT-DESENVOLVIMENTO-HUGGING-FACE.md)
 orienta avaliação incremental de componentes, preservando SPED e os
 mecanismos atuais. As [fontes oficiais consultadas](docs/HUGGING-FACE-COMPONENTES.md)
 confirmam PP-OCRv5 com português e PaddleOCR-VL-1.6. PP-OCRv5 passou
-numa leitura sintética em CPU/Linux; não foi medido no Domínio real.
-Tesseract e OCR do Windows continuam disponíveis. Adoção exige comparação
+numa leitura sintética em CPU/Linux e numa captura local no Windows.
+Na captura Windows enviada em 07/10/2026, suas leituras aquecidas levaram
+15,06s em média, contra 0,60s do Tesseract. Mantemos Tesseract como padrão;
+Paddle continua opcional para avaliação. Adoção exige comparação
 local de precisão, coordenadas, tempo, memória e regressão no Windows.
 
 Após atualizar, use `Instalar OCR Paddle.bat` para preparar o primeiro
@@ -83,7 +85,8 @@ candidato em CPU (Windows x64, Python 3.10–3.13). O ambiente opcional
 teclas no Domínio. Só dois modelos PP-OCRv5 são baixados do Hugging Face,
 com revisões fixadas. Depois da primeira instalação, `Atualizar.bat`
 também mantém esse componente opcional. PaddleOCR-VL não é instalado.
-Instalação/inferência e ganho de OCR ainda precisam de teste no Windows.
+Inferência CPU no Windows concluída em uma captura; precisão, coordenadas
+críticas, memória e regressão fiscal ainda precisam de avaliação.
 `Avaliar OCR Tela.bat` compara a captura atual da janela do Domínio/GO-Global,
 em memória, após você selecioná-la. Mostra o início e término de cada
 leitura para distinguir carregamento, falha e cancelamento. Não envia

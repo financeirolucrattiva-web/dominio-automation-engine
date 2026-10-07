@@ -39,7 +39,8 @@ Na repetição, nenhum outro Python compatível foi encontrado. O novo
 atalho `Instalar Python OCR.bat` solicita via winget Python 3.13 x64 por
 usuário, mantendo PATH/launcher/associações, confirma o intérprete e prepara
 OCR. A descoberta também cobre diretórios padrão sem launcher. Não troca
-o Python do SPED. Instalação/seleção ainda precisam de teste Windows.
+o Python do SPED. A rodada seguinte concluiu inferência Paddle CPU no
+Windows; o log não identifica a versão do intérprete usado.
 
 O usuário abriu a avaliação OCR, mas enviou apenas a mensagem Windows de
 busca de arquivos, seguida de interrupção e pergunta S/N do CMD. A fonte
@@ -47,13 +48,20 @@ PaddlePaddle 3.3.1 procura `ccache` via `where` no Windows; a mensagem
 isolada não diagnostica falha de Tesseract nem comprova falha de inferência.
 O avaliador agora mostra progresso por leitura, distingue Ctrl+C e informa
 o código de saída. `Avaliar OCR Tela.bat` captura a janela ativa em memória
-para comparação local, sem ações. Teste Windows ainda pendente.
+para comparação local, sem ações. Em 07/10/2026, o operador completou
+três leituras Paddle e três Tesseract da captura atual. Paddle: inicial
+24,751s, aquecidas 14,309/15,802s, 32 segmentos; Tesseract: inicial 0,935s,
+aquecidas 0,623/0,576s, 35 segmentos. Paddle levou aproximadamente 25 vezes
+mais tempo aquecido nessa captura. O aviso Windows não impediu a conclusão.
+Precisão/coordenadas críticas/RAM não foram medidos. Manter Tesseract como
+padrão e avançar para calibração/validação dos estados e retorno de SPED.
 
 `app/tela.py` reutiliza resultados Tesseract somente durante cada checagem
 de `esperar_por_estado`: região/pixels/escala exatos, escopo ContextVar,
 limpeza ao sair, inclusive após erro. Preserva ordem de detectores,
 coordenadas e retornos. 179 testes passaram; não foi adotado Paddle no
-fluxo de produção por ausência de comparação real que demonstre ganho.
+fluxo de produção: a primeira comparação Windows mostrou perda de tempo
+e não forneceu evidência de ganho de precisão.
 
 A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
 e testes de lógica com dependências de desktop simuladas. Ela não acessa

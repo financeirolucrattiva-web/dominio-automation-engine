@@ -10,7 +10,9 @@ Validação desta entrega: **179 testes locais/simulados passaram**,
 compilação dos arquivos Python alterados e checagem de diff passaram.
 Os testes não operaram a sessão real do Domínio. Separadamente, PP-OCRv5
 foi carregado e executado em CPU/Linux sobre imagem sintética, com caixas
-válidas. Os próximos passos abaixo produzem a evidência Windows.
+válidas. Em 07/10/2026, o operador também concluiu as seis leituras de
+uma captura atual no Windows; isso valida inferência local, sem validar
+precisão, estados ou execução fiscal com Paddle.
 
 ## O que foi preparado
 
@@ -105,14 +107,28 @@ Não há clique, digitação, execução de rotina ou troca do OCR de produção
 Cada leitura imprime início e conclusão. Uma mensagem Windows de busca
 de arquivo pode vir da procura de `ccache` opcional pelo Paddle; aguarde
 o resultado da etapa. Ctrl+C agora é registrado como cancelamento com
-código 130. A avaliação anterior foi interrompida sem concluir; ainda
-não há evidência de inferência Paddle no Windows.
+código 130. A primeira avaliação foi interrompida; a rodada seguinte
+concluiu em 07/10/2026 com os resultados abaixo.
 
-Instalação/inferência Paddle no Windows e ganho sobre o OCR atual ainda
-precisam de medição local. A nuvem não acessa seu desktop. O prompt define
+| Motor CPU | Primeira leitura | Duas aquecidas | Segmentos por leitura |
+| --- | --- | --- | --- |
+| PP-OCRv5 mobile | 24,751s | 14,309s / 15,802s | 32 |
+| Tesseract por | 0,935s | 0,623s / 0,576s | 35 |
+
+Paddle levou aproximadamente 25 vezes mais tempo nas leituras aquecidas
+dessa captura. A quantidade de segmentos não mede acerto; não foi usado
+alvo de texto e RAM não foi medida. A mensagem de busca Windows apareceu,
+mas não impediu a conclusão. **Manter Tesseract no fluxo atual.** Não
+instalar outros modelos antes de revalidar estados/retorno do SPED.
+
+A próxima execução é calibrar a tela principal azul e testar SPED Fiscal
+individualmente em competência fechada, conferindo documento e retorno.
+Paddle fica disponível para comparação de telas em que o OCR atual falha,
+sem adoção automática. A nuvem não acessa seu desktop. O prompt define
 critérios para integrar somente após regressão e ganho demonstrados.
 Resolução de dependências para Windows x64/Python 3.12 passou em dry-run;
-isso confirma resolução, sem comprovar execução dos modelos no Windows.
+isso confirmou resolução; a rodada do operador acrescenta inferência CPU
+concluída, sem confirmar precisão nem a seleção de intérprete por si só.
 
 ## O que falta para concluir o incremento atual
 

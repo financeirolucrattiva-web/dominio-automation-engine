@@ -95,8 +95,16 @@ foram 3,624 s inicialmente e 0,804/0,811 s aquecido nessa máquina e
 imagem; não demonstram precisão/velocidade no Windows ou vantagem sobre
 o pipeline atual de recorte/escala do Domínio. RAM não foi medida.
 
-A avaliação e instalação Windows continuam pendentes; esse smoke apenas
-comprova que os pesos, a API e a normalização funcionaram nesse cenário.
+Esse smoke comprova que os pesos, a API e a normalização funcionaram nesse
+cenário Linux. Posteriormente, em 07/10/2026, o operador concluiu três
+leituras por motor de uma captura atual no Windows: Paddle inicial
+24,751s, aquecidas 14,309/15,802s; Tesseract inicial 0,935s, aquecidas
+0,623/0,576s. Médias aquecidas de 15,06s e 0,60s, respectivamente.
+Paddle levou aproximadamente 25 vezes mais tempo nesse teste; não há
+evidência para promovê-lo a padrão. Manter Tesseract e revalidar estados
+SPED. A precisão não foi medida: 32 segmentos Paddle versus 35 Tesseract
+não representam acerto. RAM, coordenadas críticas e estabilidade em
+múltiplas telas/rotinas ainda precisam de comparação.
 
 ## Fontes e limites desta consulta
 

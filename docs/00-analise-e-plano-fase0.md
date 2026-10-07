@@ -3375,6 +3375,44 @@ justificam adotar Paddle como padrão. Captura atual e rotinas otimizadas
 
 ---
 
+### 0.78 Primeira comparação de inferência OCR concluída no Windows
+
+**Log real recebido em 07/10/2026:** `Avaliar OCR Tela.bat` anunciou captura
+em memória da janela identificada como Domínio/GO-Global e completou uma
+leitura inicial e duas aquecidas por motor. O operador enviou somente o
+resumo agregado, sem texto reconhecido ou captura.
+
+| Motor CPU | Inicial | Aquecida 1 | Aquecida 2 | Segmentos |
+| --- | --- | --- | --- | --- |
+| PP-OCRv5 mobile | 24,751s | 14,309s | 15,802s | 32 / 32 / 32 |
+| Tesseract por | 0,935s | 0,623s | 0,576s | 35 / 35 / 35 |
+
+Médias aquecidas: 15,0555s Paddle e 0,5995s Tesseract, razão 25,11.
+A mensagem Windows de busca de arquivo também apareceu, mas a primeira
+leitura concluiu: ela não comprova uma falha de OCR. A origem provável
+continua sendo `where ccache` descrito na seção anterior.
+
+**Decisão:** manter Tesseract no fluxo atual. Não promover Paddle como
+padrão nem instalar outro modelo agora: a primeira evidência local mostra
+perda de tempo, sem evidência de ganho de precisão. Paddle permanece
+opcional para comparar telas problemáticas no futuro. A otimização de
+reutilização de OCR por estado da seção 0.77 permanece em produção e
+precisa de revalidação real de SPED/Contribuições.
+
+**Limites:** uma captura, sem alvo de texto ou verdade de referência;
+32 versus 35 segmentos não compara precisão. Não foram enviados dados
+de RAM, CPU específico, coordenadas críticas ou versão do intérprete.
+GPU/VRAM não foram usadas. Isso confirma inferência CPU local nesse teste,
+não estabilidade prolongada, ganho geral ou rotina fiscal com Paddle.
+
+Próximo passo operacional: calibrar a tela principal humana confirmada,
+executar SPED Fiscal individualmente em competência já fechada e conferir
+as etapas, documento gerado e retorno. Nenhuma mudança de código nesta
+entrada; conferência documental e diff check, sem repetir testes que já
+passaram no commit anterior.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
