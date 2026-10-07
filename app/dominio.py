@@ -1690,8 +1690,17 @@ def _exigir_tela_principal_lote(contexto_lote, status_documentos=None):
         raise LoteInterrompido("Retorno à tela principal não confirmado pela referência local; lote parado sem novas ações.", status_documentos)
 
 
-def _processar_empresa(e, prefixo_empresa, contexto_lote=None):
-    """Troca e gera documentos; transições exigem tela principal calibrada."""
+def _processar_empresa(e, prefixo_empresa, contexto_lote=None, documentos_personalizados=None):
+    """Troca e gera documentos; transições exigem tela principal calibrada.
+
+    `documentos_personalizados` (opcional, seção 0.82): lista de
+    `(nome, gerador)` pra usar NO LUGAR de
+    `empresas.documentos_necessarios(e)` + `_GERADORES` — é o que
+    permite uma rotina gravada (`app/rotina_gravada.py`) rodar dentro
+    deste MESMO loop (troca de empresa automática, recuperação, pausa,
+    verificação de tela principal), em vez de duplicar essa lógica.
+    `None` (padrão) preserva exatamente o comportamento de sempre
+    (SPED Fiscal/EFD Contribuições pela planilha)."""
     contexto_lote = {} if contexto_lote is None else contexto_lote
     status_documentos = {}
     try:
@@ -1705,10 +1714,13 @@ def _processar_empresa(e, prefixo_empresa, contexto_lote=None):
             return status_documentos
         time.sleep(1)
 
-        for documento in empresas.documentos_necessarios(e):
+        itens = (
+            documentos_personalizados if documentos_personalizados is not None
+            else [(d, _GERADORES.get(d)) for d in empresas.documentos_necessarios(e)]
+        )
+        for documento, gerador in itens:
             print(f"\n--- {documento} ---")
             prefixo = f"{prefixo_empresa}{documento}_"
-            gerador = _GERADORES.get(documento)
             if gerador is None:
                 status_documentos[documento] = "documento desconhecido"
                 continue
@@ -1759,7 +1771,7 @@ def _aguardar_tela_principal_lote(contexto_lote):
     raise ultima_falha or LoteInterrompido("Tela principal não reconhecida no prazo de entrada; lote parado sem novas ações.")
 
 
-def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
+def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None, documentos_personalizados=None):
     """Pergunta o regime, mostra as empresas selecionadas, confirma, e
     roda `trocar_empresa()` + o(s) gerador(es) certo(s) pra cada uma —
     uma empresa pode precisar de 1 ou 2 documentos (`tipo`/`sped`,
@@ -1785,6 +1797,13 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
     interface gráfica usa pra pausar/continuar o lote entre uma
     empresa e outra (nunca no meio de uma ação). `pausa=None` (padrão,
     uso por terminal) nunca pausa.
+
+    `documentos_personalizados` (opcional, seção 0.82): repassado a
+    `_processar_empresa()` — permite rodar uma rotina gravada
+    (aprovada) em várias empresas, reaproveitando este mesmo loop
+    (troca de empresa automática, recuperação, pausa, verificação de
+    tela principal) em vez de duplicá-lo. `None` (padrão) preserva o
+    comportamento de sempre, pela planilha de empresas.
 
     Com referência local calibrada, exige a tela principal antes/depois
     de trocar de empresa e depois de cada documento, mesmo quando a
@@ -1855,7 +1874,7 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
         try:
             if indice == 0 and referencia_existe:
                 _aguardar_tela_principal_lote(contexto_lote)
-            status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote)
+            status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote, documentos_personalizados=documentos_personalizados)
         except LoteInterrompido as erro:
             # O catálogo/IA decidiu parar, ou o guard visual não reconheceu
             # a tela principal. Nenhum desses casos autoriza Esc/retry.
@@ -1880,7 +1899,7 @@ def executar_lote(usar_real=False, regime=None, confirmar=None, pausa=None):
             print(f"\nErro inesperado processando {e['codigo']} ({erro}) — recuperando (Esc) e tentando de novo 1x.")
             interacao.pressionar_esc_repetidas()
             try:
-                status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote)
+                status_documentos = _processar_empresa(e, prefixo_empresa, contexto_lote=contexto_lote, documentos_personalizados=documentos_personalizados)
             except LoteInterrompido as erro2:
                 print(f"\nParando o lote inteiro: {erro2}")
                 resultados.append((e, _status_lote_interrompido(erro2, status_anteriores)))

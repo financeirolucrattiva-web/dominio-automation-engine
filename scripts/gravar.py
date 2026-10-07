@@ -14,7 +14,7 @@ salvo daquele passo antes de usar de verdade** — o rascunho é ponto de
 partida, não substitui o mesmo trabalho de ajuste fino que toda
 automação deste projeto já passou.
 
-**Grava digitação de verdade agora (seção 0.70)** — tudo que você
+**Grava digitação de verdade agora (seção 0.81)** — tudo que você
 digitar entre um clique e outro vira um passo `interacao.digitar(...)`
 no rascunho, com o texto LITERAL que foi digitado. **Isso inclui
 qualquer coisa digitada em QUALQUER janela**, não só no Domínio — o
@@ -165,7 +165,7 @@ class Gravador:
     def _marcar_hover(self):
         """F9 — marca a posição ATUAL do mouse como um passo de hover
         (`interacao.passar_mouse()`), sem clicar. Pedido explícito do
-        usuário (06/10/2026, seção 0.70): hover inferido por pausa do
+        usuário (06/10/2026, seção 0.81): hover inferido por pausa do
         mouse não é confiável o bastante; marcação manual é."""
         self._flush_digitacao_pendente()
         x, y = mouse.Controller().position
@@ -256,7 +256,7 @@ class Gravador:
 
         for passo in self.passos:
             i = passo["indice"]
-            tipo = passo.get("tipo", "clicar")  # gravações antigas (antes da seção 0.70) não tinham "tipo"
+            tipo = passo.get("tipo", "clicar")  # gravações antigas (antes da seção 0.81) não tinham "tipo"
 
             if tipo == "digitar":
                 linhas.append(f"    # Passo {i}: digitou {passo['texto']!r} — confira se deveria ser parâmetro")

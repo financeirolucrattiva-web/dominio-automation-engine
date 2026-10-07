@@ -3499,7 +3499,7 @@ anterior.
 
 ---
 
-### 0.70 Gravador: digitação, hover marcado e espera por fingerprint (fecha as 3 lacunas do incremento 4 do roadmap)
+### 0.81 Gravador: digitação, hover marcado e espera por fingerprint (fecha as 3 lacunas do incremento 4 do roadmap)
 
 Pedido do usuário: terminar o gravador de cliques (`scripts/gravar.py`)
 pra ficar funcional, não só rascunho que precisa reescrever quase tudo
@@ -3558,6 +3558,83 @@ certos e que `time.sleep(2)` fixo sumiu. Suíte completa (196 testes)
 continua passando. **Ainda não usado pra gravar uma automação nova de
 verdade contra o Domínio real** — a próxima vez que alguém gravar uma
 rotina nova é o teste de fato.
+
+---
+
+### 0.82 Rotina gravada ganha ciclo de vida (rascunho → aprovada → lote), sem programador no meio
+
+Pedido do usuário, na sequência do gravador (seção 0.81): hoje uma
+gravação vira um RASCUNHO de Python que precisa de alguém programando
+revisar, parametrizar e colar dentro de `app/dominio.py` — nada disso
+é "fácil ao usuário". Pedido concreto: deixar excluir rotina, testar
+antes de aprovar (podendo apontar correção), e só depois de validada
+ela entrar na opção de lote (várias empresas) ou empresa única — com
+troca de empresa automática entre uma e outra, do mesmo jeito que já
+funciona pro SPED Fiscal.
+
+**Novo módulo `app/rotina_gravada.py`** — executa os passos gravados
+DIRETO do JSON (`scripts/gravar.py` já salva nesse formato), sem gerar
+nem colar nenhum código Python novo:
+- `executar_passos(passos, parametros, prefixo="")`: toca clique,
+  digitar, hover e tecla na ordem gravada, reaproveitando
+  `dominio.achar_ou_parar()` (mesma confiabilidade/catálogo de erro do
+  resto do motor) pro clique e espera por fingerprint entre ações —
+  mesmo princípio do rascunho gerado pelo gravador, só que direto.
+- `salvar_rotina_gravada()`/`listar_rotinas_gravadas()`/
+  `marcar_status()`/`excluir_rotina_gravada()`: catálogo local em
+  `data/rotinas_gravadas/*.json` (gitignored, mesmo padrão de sempre).
+- `criar_gerador(passos, parametros)`: embrulha `executar_passos()` no
+  mesmo formato `(prefixo="") -> bool` que `dominio._GERADORES` já usa
+  — é a peça que permite uma rotina aprovada entrar no motor de lote
+  sem duplicar nada.
+
+**Ciclo de vida**: toda rotina nasce `"status": "rascunho"`. Rodar uma
+rascunho (sempre empresa única, sempre com confirmação de empresa
+selecionada antes) pergunta, ao final, se o resultado no Domínio
+estava correto DE VERDADE (não só "não travou") — só confirmando
+explicitamente ela vira `"aprovada"`. Rascunho que falhou mostra aviso
+pra corrigir (gravar de novo) ou excluir, continua rascunho. Isso é o
+"testar antes de aprovar, podendo apontar correção" pedido.
+
+**Excluir**: botão por rotina na interface, com confirmação, apaga o
+JSON — os prints da gravação original continuam em `capturas/` caso
+precise consultar depois.
+
+**Lote reaproveitando o motor existente, não duplicado** — pedido
+explícito: "quero que seja fluido e que ele entre naquele loop de
+empresas em lote" + "com a troca de empresa como automático". Em vez
+de escrever um segundo loop de empresas paralelo,
+`dominio._processar_empresa()` e `dominio.executar_lote()` ganharam um
+parâmetro opcional `documentos_personalizados` — uma lista
+`[(nome, gerador)]` pra usar NO LUGAR de
+`empresas.documentos_necessarios(e)` + `_GERADORES` quando informado.
+`None` (padrão) preserva exatamente o comportamento de sempre do SPED
+Fiscal/EFD Contribuições — confirmado por teste de lógica real, não só
+leitura de código. Isso significa que uma rotina aprovada herda de
+graça, sem reescrever nada: troca de empresa automática entre uma e
+outra, recuperação (Esc + 1 retry), pausa, verificação de tela
+principal calibrada, e isolamento de falha por empresa — toda a
+robustez que o lote de SPED/EFD já tinha.
+
+Só rotina `"aprovada"` ganha o botão "Em lote" na interface — rascunho
+só roda empresa única, supervisionado, de propósito. Parâmetro (se
+houver) é pedido uma vez só antes do lote começar e vale pra todas as
+empresas dessa rodada — não há ainda valor diferente por empresa
+dentro do mesmo lote (limitação conhecida, não endereçada agora).
+
+**Validado por teste de lógica real** (não só sintaxe): ciclo completo
+rascunho→aprovada, recusa de status inválido, `criar_gerador()`
+chamando `executar_passos()` com os argumentos certos, exclusão
+(inclusive excluir duas vezes sem quebrar), compatibilidade com
+arquivo salvo antes do campo `status` existir (volta como rascunho,
+nunca promove sozinho). E o ponto mais importante pra não quebrar o
+que já funciona: `_processar_empresa()` testado COM e SEM
+`documentos_personalizados`, confirmando que o caminho antigo
+(SPED Fiscal/EFD Contribuições pela planilha) continua byte a byte
+igual a antes quando o parâmetro novo não é usado. Suíte completa (196
+testes) continua passando. **Ainda não usado de ponta a ponta contra o
+Domínio real** — falta gravar, aprovar e rodar em lote uma rotina de
+verdade pela primeira vez.
 
 ---
 

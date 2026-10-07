@@ -53,7 +53,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, verificacao
+from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, rotina_gravada, verificacao
 from gravar import Gravador
 
 PASTA_SAIDA_PADRAO = Path(__file__).resolve().parent.parent / "saida"
@@ -114,6 +114,79 @@ class EscolherRegime(simpledialog.Dialog):
 
     def apply(self):
         self.resultado = self.combo.get()
+
+
+class RevisarGravacao(simpledialog.Dialog):
+    """Depois de gravar (F12), deixa nomear a rotina e marcar quais
+    textos digitados são PARÂMETROS (mudam toda vez — ex.: código da
+    empresa) em vez de ficarem fixos pra sempre — sem editar nenhum
+    arquivo Python. Pedido do usuário (07/10/2026, seção 0.82): criar
+    rotina nova tem que ficar fácil pra quem não programa.
+
+    `self.resultado` fica `None` se cancelado, ou
+    `(nome_exibicao, passos_com_parametro_marcado, lista_de_parametros)`
+    — pronto pra `rotina_gravada.salvar_rotina_gravada()`."""
+
+    def __init__(self, pai, passos, nome_sugerido):
+        self.passos_originais = passos
+        self.nome_sugerido = nome_sugerido
+        self.entradas_parametro = {}
+        self.resultado = None
+        super().__init__(pai, title="Revisar rotina gravada")
+
+    def body(self, master):
+        tb.Label(master, text="Nome da rotina (como vai aparecer na lista):").pack(anchor="w", padx=10, pady=(10, 2))
+        self.entrada_nome = tb.Entry(master, width=50)
+        self.entrada_nome.insert(0, self.nome_sugerido)
+        self.entrada_nome.pack(padx=10, pady=(0, 10), fill=X)
+
+        passos_digitar = [p for p in self.passos_originais if p.get("tipo") == "digitar"]
+        if passos_digitar:
+            tb.Label(
+                master,
+                text='Pra cada texto digitado, deixe em branco se é sempre igual, ou dê um\n'
+                     'nome curto se muda toda vez que rodar (vira um campo pra preencher):',
+                justify="left",
+            ).pack(anchor="w", padx=10, pady=(0, 6))
+
+            quadro = tb.Frame(master)
+            quadro.pack(padx=10, pady=(0, 10), fill=BOTH, expand=True)
+            altura = min(220, 36 * len(passos_digitar) + 10)
+            canvas = tk.Canvas(quadro, height=altura, highlightthickness=0)
+            rolagem = tb.Scrollbar(quadro, orient="vertical", command=canvas.yview)
+            interno = tb.Frame(canvas)
+            interno.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            canvas.create_window((0, 0), window=interno, anchor="nw")
+            canvas.configure(yscrollcommand=rolagem.set)
+            canvas.pack(side=LEFT, fill=BOTH, expand=True)
+            rolagem.pack(side=RIGHT, fill=Y)
+
+            for passo in passos_digitar:
+                linha = tb.Frame(interno)
+                linha.pack(fill=X, pady=3)
+                tb.Label(linha, text=f'Passo {passo["indice"]}: {passo["texto"]!r}', width=35, anchor="w").pack(side=LEFT, padx=(0, 6))
+                entrada = tb.Entry(linha, width=20)
+                entrada.pack(side=LEFT)
+                self.entradas_parametro[passo["indice"]] = entrada
+        else:
+            tb.Label(master, text="(essa gravação não tem nenhum texto digitado pra revisar)").pack(padx=10, pady=(0, 10))
+
+        return self.entrada_nome
+
+    def apply(self):
+        nome_exibicao = self.entrada_nome.get().strip() or self.nome_sugerido
+        passos_marcados = []
+        parametros = []
+        for passo in self.passos_originais:
+            passo = dict(passo)
+            if passo.get("tipo") == "digitar":
+                entrada = self.entradas_parametro.get(passo["indice"])
+                nome_parametro = entrada.get().strip() if entrada is not None else ""
+                if nome_parametro:
+                    passo["parametro"] = nome_parametro
+                    parametros.append(nome_parametro)
+            passos_marcados.append(passo)
+        self.resultado = (nome_exibicao, passos_marcados, parametros)
 
 
 def _abrir_no_explorador(caminho):
@@ -426,10 +499,21 @@ class JanelaPrincipal:
 
         self._montar_secao_registro_saidas(pai)
 
+        # Rotinas gravadas e salvas direto (seção 0.82) — sem precisar
+        # de programador colando código em app/dominio.py. Separado de
+        # AUTOMACOES_EXTRAS de propósito: essas nunca foram revisadas
+        # linha a linha por um programador, só pelo texto que o OCR
+        # adivinhou na hora da gravação.
+        self._secao_rotinas_gravadas = tb.Labelframe(
+            pai, text="Rotinas gravadas (sem código)", padding=10, bootstyle="success",
+        )
+        self._secao_rotinas_gravadas.pack(fill=X, pady=(0, 10))
+        self._recarregar_rotinas_gravadas()
+
         if self.modo != "operador":
             secao_gravar = tb.Labelframe(pai, text="Criar automação nova", padding=10, bootstyle="secondary")
             secao_gravar.pack(fill=X, pady=(0, 10))
-            self._botao(secao_gravar, "Gravar clique (rascunho de automação nova)", self.acao_gravar, estilo="secondary")
+            self._botao(secao_gravar, "Gravar clique (nova rotina)", self.acao_gravar, estilo="secondary")
 
         secao_config = tb.Labelframe(pai, text="Configuração", padding=10, bootstyle="secondary")
         secao_config.pack(fill=X, pady=(0, 10))
@@ -791,20 +875,22 @@ class JanelaPrincipal:
         messagebox.showinfo("Salvo", f"Chave salva em {ia.ARQUIVO_CHAVE} (local, nunca sobe pro GitHub).")
 
     def acao_gravar(self):
-        nome_funcao = simpledialog.askstring(
-            "Gravar clique — automação nova",
-            "Nome da função nova (ex.: gerar_dctf):",
+        nome_sugerido = simpledialog.askstring(
+            "Gravar clique — rotina nova",
+            "Nome da rotina nova (ex.: Emitir DCTF):",
         )
-        if not nome_funcao:
+        if not nome_sugerido:
             return
         if not messagebox.askyesno(
             "Pronto pra gravar?",
-            "A partir de agora, todo clique seu no Domínio vai ser gravado\n"
-            "(posição + print + palpite de texto por OCR).\n\n"
-            "Clique normal nos passos do caminho novo que você quer ensinar.\n"
-            "Aperte F12 quando terminar — aí sim gera o rascunho.\n\n"
-            "Gera rascunho pra revisar, não automação pronta — confira cada\n"
-            "palpite contra o print antes de usar de verdade.\n\n"
+            "A partir de agora, clique e digite normal nos passos do caminho novo\n"
+            "que você quer ensinar (posição, texto digitado e palpite de OCR ficam\n"
+            "gravados).\n\n"
+            "F9 = marcar hover (passar o mouse sem clicar, pra abrir submenu).\n"
+            "F12 = terminar — aí abre uma telinha pra você nomear e revisar\n"
+            "antes de salvar como rotina de verdade.\n\n"
+            "Atenção: tudo que você digitar é gravado, em qualquer janela — se\n"
+            "precisar digitar senha fora do Domínio, pare (F12) antes.\n\n"
             "Continuar?",
         ):
             return
@@ -812,9 +898,181 @@ class JanelaPrincipal:
         def rodar():
             gravador = Gravador()
             gravador.gravar()
-            gravador.gerar_rascunho(nome_funcao.strip())
+            gravador.gerar_rascunho(nome_sugerido.strip())
+            self.root.after(0, self._revisar_gravacao, gravador.passos, nome_sugerido.strip())
 
         self._rodar_em_thread(rodar)
+
+    def _revisar_gravacao(self, passos, nome_sugerido):
+        """Mostrado depois que F12 encerra a gravação (agendado via
+        `root.after`, roda na thread do Tk) — deixa nomear a rotina e
+        marcar parâmetros antes de salvar. Nada é salvo se a pessoa
+        cancelar o diálogo."""
+        if not passos:
+            messagebox.showinfo("Nada gravado", "Nenhum passo foi gravado — nada pra revisar.")
+            return
+        dialogo = RevisarGravacao(self.root, passos, nome_sugerido)
+        if dialogo.resultado is None:
+            return
+        nome_exibicao, passos_marcados, parametros = dialogo.resultado
+        caminho = rotina_gravada.salvar_rotina_gravada(nome_exibicao, passos_marcados, parametros)
+        self._recarregar_rotinas_gravadas()
+        messagebox.showinfo(
+            "Rotina salva",
+            f'"{nome_exibicao}" salva em {caminho.name} — já aparece em "Rotinas gravadas", '
+            "pronta pra rodar. Supervisione a primeira execução.",
+        )
+
+    def _recarregar_rotinas_gravadas(self):
+        # Descarta referência a botões já destruídos antes de reconstruir
+        # a seção — evita acumular widget morto em self.botoes a cada
+        # rotina nova gravada/salva/excluída.
+        self.botoes = [b for b in self.botoes if b.winfo_exists()]
+        for widget in self._secao_rotinas_gravadas.winfo_children():
+            widget.destroy()
+        rotinas = rotina_gravada.listar_rotinas_gravadas()
+        if not rotinas:
+            tb.Label(
+                self._secao_rotinas_gravadas,
+                text='Nenhuma ainda — grave uma em "Criar automação nova" abaixo.',
+            ).pack(anchor="w")
+            return
+        for info in rotinas:
+            aprovada = info["status"] == rotina_gravada.STATUS_APROVADA
+            linha = tb.Frame(self._secao_rotinas_gravadas)
+            linha.pack(fill=X, pady=2)
+
+            rotulo_status = "aprovada" if aprovada else "rascunho — testar antes"
+            botao = tb.Button(
+                linha, text=f'{info["nome_exibicao"]}  ({rotulo_status})',
+                bootstyle="success" if aprovada else "warning",
+                command=lambda i=info: self.acao_rotina_gravada(i),
+            )
+            botao.pack(side=LEFT, fill=X, expand=True)
+            self.botoes.append(botao)
+
+            if aprovada:
+                botao_lote = tb.Button(
+                    linha, text="Em lote", bootstyle="success-outline", width=9,
+                    command=lambda i=info: self.acao_rotina_gravada_lote(i),
+                )
+                botao_lote.pack(side=LEFT, padx=(4, 0))
+                self.botoes.append(botao_lote)
+
+            botao_excluir = tb.Button(
+                linha, text="Excluir", bootstyle="danger-outline", width=8,
+                command=lambda i=info: self.acao_excluir_rotina_gravada(i),
+            )
+            botao_excluir.pack(side=LEFT, padx=(4, 0))
+            self.botoes.append(botao_excluir)
+
+    def acao_excluir_rotina_gravada(self, info):
+        if not messagebox.askyesno(
+            "Excluir rotina",
+            f'Excluir "{info["nome_exibicao"]}" de vez? Não dá pra desfazer\n'
+            "(mas os prints da gravação original continuam em capturas/, se precisar).",
+        ):
+            return
+        rotina_gravada.excluir_rotina_gravada(info["caminho"])
+        self._recarregar_rotinas_gravadas()
+
+    def acao_rotina_gravada(self, info):
+        """Roda numa empresa só, sempre supervisionado — rascunho ou
+        aprovada. Ao final de uma rotina ainda RASCUNHO, pergunta se
+        funcionou certinho; só confirmando explicitamente é que ela
+        vira APROVADA (e passa a poder rodar em lote)."""
+        if not self._confirmar_empresa_selecionada(
+            info["nome_exibicao"],
+            extra="Rotina gravada pelo usuário — sem revisão de programador linha a linha, "
+                  "só o texto que o OCR adivinhou na hora da gravação. Supervisione.\n\n",
+        ):
+            return
+
+        parametros = {}
+        for nome_parametro in info["parametros"]:
+            valor = simpledialog.askstring("Valor do parâmetro", f"{nome_parametro}:")
+            if valor is None:
+                return  # cancelou
+            parametros[nome_parametro] = valor
+
+        era_rascunho = info["status"] != rotina_gravada.STATUS_APROVADA
+
+        def rodar():
+            passos = rotina_gravada.carregar_passos(info["caminho"])
+            resultado = rotina_gravada.executar_passos(passos, parametros=parametros)
+            if era_rascunho:
+                self.root.after(0, self._perguntar_aprovacao, info, resultado)
+            return resultado
+
+        self._rodar_em_thread(rodar, nome_rotina=info["nome_exibicao"])
+
+    def _perguntar_aprovacao(self, info, resultado):
+        if not resultado:
+            messagebox.showwarning(
+                "Não funcionou",
+                "A rotina não terminou certo dessa vez — continua como rascunho.\n"
+                "Confira o log/print de erro, grave de novo corrigindo o passo que falhou,\n"
+                "ou exclua e recomece.",
+            )
+            return
+        if messagebox.askyesno(
+            "Funcionou certinho?",
+            f'"{info["nome_exibicao"]}" terminou sem erro. Conferiu que o resultado\n'
+            "no Domínio está correto de verdade (não só que não travou)?\n\n"
+            "Se sim, ela vira APROVADA e passa a poder rodar em lote, em várias\n"
+            "empresas de uma vez.",
+        ):
+            rotina_gravada.marcar_status(info["caminho"], rotina_gravada.STATUS_APROVADA)
+            self._recarregar_rotinas_gravadas()
+            messagebox.showinfo("Aprovada", f'"{info["nome_exibicao"]}" aprovada — já aparece com a opção "Em lote".')
+
+    def acao_rotina_gravada_lote(self, info):
+        """Só pra rotina já APROVADA — entra no MESMO loop de lote do
+        SPED Fiscal/EFD Contribuições (`dominio.executar_lote()`, seção
+        0.82): troca de empresa automática entre uma e outra, falha
+        isolada por empresa, pausa, verificação de tela principal.
+        Parâmetro (se houver) é pedido uma vez só e usado em todas as
+        empresas do lote — não por empresa individualmente ainda."""
+        parametros = {}
+        for nome_parametro in info["parametros"]:
+            valor = simpledialog.askstring(
+                "Valor do parâmetro (vale pra todas as empresas do lote)", f"{nome_parametro}:",
+            )
+            if valor is None:
+                return
+            parametros[nome_parametro] = valor
+
+        gerador = rotina_gravada.criar_gerador(
+            rotina_gravada.carregar_passos(info["caminho"]), parametros=parametros,
+        )
+        documentos_personalizados = [(info["nome_exibicao"], gerador)]
+
+        regimes = empresas.regimes_disponiveis(empresas.carregar_empresas(empresas.ARQUIVO_EXEMPLO))
+        dialogo = EscolherRegime(self.root, regimes)
+        regime = dialogo.resultado
+        if not regime:
+            return
+
+        usar_real = messagebox.askyesno(
+            "Empresas reais ou exemplo?",
+            "Rodar contra empresas REAIS (data/empresas.csv)?\n\n"
+            "Não = roda contra a planilha de exemplo (sem risco), pra testar o lote em si.",
+        )
+
+        def confirmar(selecionadas):
+            lista = "\n".join(f'  {e["codigo"]} - {e["apelido"]}' for e in selecionadas)
+            return messagebox.askyesno(
+                "Confirmar lote",
+                f'Rodar "{info["nome_exibicao"]}" (aprovada) em {len(selecionadas)} empresa(s)?\n\n{lista}',
+            )
+
+        def rodar():
+            dominio.executar_lote(
+                usar_real=usar_real, regime=regime, confirmar=confirmar,
+                pausa=self.evento_pausa, documentos_personalizados=documentos_personalizados,
+            )
+
+        self._rodar_em_thread(rodar, pausavel=True)
 
 
 def _normalizar_resultado(resultado, deu_erro):

@@ -18,7 +18,7 @@ as etapas das quatro rotinas conhecidas, distinguindo ação e evidência.
 A revalidação Windows dos incrementos recentes continua pendente.
 O gravador agora grava digitação (passos próprios, não mistura com
 clique), hover marcado manualmente (F9, não inferido) e espera por
-fingerprint em vez de tempo fixo entre passos (seção 0.70) — validado
+fingerprint em vez de tempo fixo entre passos (seção 0.81) — validado
 por teste de lógica real com `pynput`, ainda sem uma gravação real
 contra o Domínio.
 
@@ -94,6 +94,16 @@ testar com supervisão e só então incluí-la no catálogo.
 Aprendizado também significa guardar padrões de erro, estratégias de
 leitura que funcionaram e variações observadas. Guardar uma gravação ou
 uma resposta da IA não comprova que a rotina foi aprendida corretamente.
+
+Testar com supervisão antes de incluir no catálogo agora existe
+(`app/rotina_gravada.py`, seção 0.82): toda rotina gravada nasce
+rascunho, roda empresa única supervisionada, e só vira "aprovada"
+depois de confirmação explícita de que o resultado no Domínio estava
+certo. Rotina aprovada entra no mesmo motor de lote do SPED
+Fiscal/EFD Contribuições (`dominio.executar_lote(documentos_personalizados=...)`),
+sem duplicar o loop de empresas. Sem IA sugerindo a rotina ainda — a
+demonstração em si é a proposta, revisão humana decide parâmetro e
+aprovação. Ainda sem revalidação Windows de ponta a ponta.
 
 Critério de conclusão: uma demonstração vira proposta testável, e uma
 rotina só passa a estar disponível depois de validada. Mudanças de tela
