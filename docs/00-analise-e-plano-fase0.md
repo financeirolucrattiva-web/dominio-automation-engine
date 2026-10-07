@@ -3471,6 +3471,34 @@ o painel não os apresenta como concluídos nem os habilita.
 
 ---
 
+### 0.80 Primeira calibração da tela principal concluída no Windows
+
+**Evidência do operador em 07/10/2026:** a ferramenta informou
+`Referência local salva em data/tela_principal.json`, tamanho da captura
+`[1440, 900]`, área azul `[0, 128, 1377, 823]` e código de saída 0.
+O Prompt permaneceu aberto até Enter, conforme o wrapper da aba Projeto.
+
+Isso confirma a execução da calibração e a gravação dos metadados locais.
+Nenhuma captura nem referência do operador foi copiada para o Git;
+este checkpoint registra somente as medidas relatadas. As coordenadas
+medidas não viraram posições fixas de cliques ou recortes no código.
+
+**Próximo teste:** SPED Fiscal individual na empresa correta. O gerador
+seleciona o mês anterior à data do computador; o operador precisa
+confirmar que sua apuração está fechada. Conferir documento gerado,
+etapas no Painel, `encerrar: confirmado (tela_principal_reconhecida)`
+e resultado `fim` no log, além do retorno visual à tela principal.
+
+**Ainda pendente:** comparação de retorno após geração, revalidação
+SPED/Contribuições, isolamento de falha no lote e demais incrementos.
+Calibrar uma tela não comprova a execução fiscal nem a robustez contra
+todas as janelas sobrepostas. Pendência de período/nome PDF permanece
+pausada. Nenhuma alteração de código ou dependências; conferência de
+documentação e diff check, sem repetir a suíte de 196 testes do commit
+anterior.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

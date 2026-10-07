@@ -62,7 +62,9 @@ execução registra o que foi concluído, recusado ou ficou pendente.
 Implementados para teste: referência local de retorno, verificação em
 duas capturas com foco/cabeçalho, etapas SPED/Contribuições e proteção das
 transições do lote calibrado. Falta validar esses comportamentos no
-Windows. A pendência de período/nome do PDF continua pausada.
+Windows. A calibração foi concluída pelo operador em 07/10/2026;
+retorno após geração e transições de lote continuam pendentes.
+A pendência de período/nome do PDF continua pausada.
 
 ## 3. Criar um catálogo de capacidades
 
@@ -148,7 +150,10 @@ Agora a referência é medida localmente pelo operador no Windows, via
 `Calibrar Tela Principal.bat`. A cor/geometria vêm da captura real;
 somente metadados são salvos. Comparação exige área calibrada uniforme,
 foco e cabeçalho em duas capturas. Os critérios conservadores passaram
-por testes sintéticos, mas ainda não foram validados no Domínio real.
+por testes sintéticos. Em 07/10/2026, a calibração real concluiu com
+código 0 e referência salva: captura 1440×900, área azul
+`[0, 128, 1377, 823]`. Falta validar a comparação de retorno após uma
+rotina real; a calibração isolada não conclui essa verificação.
 Nenhuma nova ação de fechamento foi introduzida.
 
 O lote calibrado interrompe transições quando não confirma retorno,

@@ -21,7 +21,7 @@ GUI preserva `False` no histórico de SPED/Contribuições. O catálogo
 sem executar ou habilitar agentes. Os novos comportamentos precisam
 de validação no Windows; testes simulados não comprovam a sessão real.
 
-Última evidência Windows: PDF novo foi exportado, conferência recusou o
+Última evidência fiscal Windows: PDF novo foi exportado, conferência recusou o
 período, recuperação exigiu foco antes de Esc e o usuário confirmou
 retorno à tela principal. A falha de período/nome permanece pausada
 pelo usuário. Não altere a conferência para declarar sucesso.
@@ -54,7 +54,8 @@ três leituras Paddle e três Tesseract da captura atual. Paddle: inicial
 aquecidas 0,623/0,576s, 35 segmentos. Paddle levou aproximadamente 25 vezes
 mais tempo aquecido nessa captura. O aviso Windows não impediu a conclusão.
 Precisão/coordenadas críticas/RAM não foram medidos. Manter Tesseract como
-padrão e avançar para calibração/validação dos estados e retorno de SPED.
+padrão e avançar para validação dos estados e retorno de SPED com a
+referência agora calibrada.
 
 `app/tela.py` reutiliza resultados Tesseract somente durante cada checagem
 de `esperar_por_estado`: região/pixels/escala exatos, escopo ContextVar,
@@ -86,6 +87,16 @@ lote agora passam pela fila para a thread Tk. Ciclo com worker real,
 eventos fiscais simulados e diálogos/minimização simulados passou: falha
 chega ao painel/histórico e os botões são liberados. Erro OSError ao
 gravar histórico avisa no log e preserva finalização/resultado.
+
+Em 07/10/2026, o operador concluiu a calibração real no Windows:
+referência salva em `data/tela_principal.json`, captura 1440×900, área
+azul `[0, 128, 1377, 823]` e código de saída 0. O resultado também
+confirma que o wrapper da ferramenta mantém o Prompt até Enter.
+Somente esse relato de medidas foi registrado no Git; a referência e
+as capturas permanecem locais. Ainda falta observar retorno automático
+com essa referência após uma execução fiscal. Próximo teste: SPED
+Fiscal individual, empresa correta e mês anterior com apuração fechada;
+conferir documento, `encerrar`/`fim` no log e tela principal ao término.
 
 A nuvem atual consegue executar Tesseract sobre imagens locais/sintéticas
 e testes de lógica com dependências de desktop simuladas. Ela não acessa

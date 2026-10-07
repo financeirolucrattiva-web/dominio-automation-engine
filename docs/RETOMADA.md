@@ -40,24 +40,33 @@ precisão, estados ou execução fiscal com Paddle.
   e [pesquisa oficial](HUGGING-FACE-COMPONENTES.md), com avaliação de OCR
   opcional. A rotina de produção continua usando o OCR existente.
 
-## Primeiro teste ao voltar
+## Próximo teste no Windows
 
-1. Rode `Atualizar.bat` e confira que terminou sem erro.
-   Abra `Abrir Interface Gráfica.bat` e confira as novas abas. Na aba
-   Projeto, use "Calibrar tela principal do Domínio" ou o atalho abaixo.
-2. Deixe o Domínio maximizado na tela principal azul, sem relatório,
-   diálogo ou menu aberto. Essa condição precisa ser conferida por você.
-3. Rode `Calibrar Tela Principal.bat`. Pressione Enter quando solicitado
-   e volte ao Domínio com Alt+Tab. Aguarde sem mover mouse/teclado.
-4. Confira a mensagem `Referência local salva em data/tela_principal.json`.
-   O arquivo contém somente tamanho, retângulo e cor. Uma falha de
-   medição não substitui uma referência anterior válida.
-5. Repita a rotina de Saídas já testada, na empresa correta e em uma
-   competência cuja apuração esteja fechada. Guarde o log local.
+**Calibração concluída em 07/10/2026:** o operador recebeu
+`Referência local salva em data/tela_principal.json`, captura 1440×900,
+área azul `[0, 128, 1377, 823]` e código de saída 0. Somente medidas e
+cor ficaram na máquina; nenhuma captura foi salva ou publicada.
+Isso confirma a preparação da referência, ainda sem testar o retorno
+automático após uma rotina fiscal.
+
+1. Pressione Enter no Prompt da ferramenta para voltar à interface.
+   Não é necessário recalibrar mantendo o mesmo tamanho da sessão.
+2. Confira a empresa selecionada no Domínio e deixe a tela principal
+   azul visível, sem relatório, diálogo ou menu aberto.
+3. Na aba Rotinas, execute **Gerar SPED Fiscal** individualmente.
+   O gerador seleciona o mês anterior à data do computador; confirme
+   antes que a apuração desse período está fechada.
+4. Aguarde sem mexer no mouse/teclado. Ao término, confira o documento,
+   os estados no Painel e o retorno visual à tela principal.
+5. Guarde o log da aba Log ou `data/ultimo_log.txt`. Para retorno
+   confirmado, procure `[estado] encerrar: confirmado
+   (tela_principal_reconhecida)`; sucesso da rotina deve registrar
+   `[estado] fim: concluido (rotina_concluida)`. Se falhar, preserve
+   o log com a etapa e a evidência, sem declarar o teste aprovado.
 
 A falha de período no PDF continua pendente, por sua decisão anterior.
-Ela pode reaparecer. O teste agora é a recuperação: deve continuar
-registrando falha em `conferir_pdf`, e só registrar
+Ela pode reaparecer quando repetir Saídas. Nesse teste de recuperação,
+deve continuar registrando falha em `conferir_pdf`, e só registrar
 `recuperar_interface: confirmado (tela_principal_reconhecida)` se a
 referência for reconhecida. Confira também visualmente o retorno.
 Retornar à interface não transforma a conferência do PDF em sucesso.
@@ -69,14 +78,13 @@ janelas fora dessa área podem exigir verificações adicionais. Recalibre
 quando mudar resolução/tamanho da sessão. Não reduza os critérios só
 para aceitar uma captura sem entender a divergência.
 
-Depois desse teste, revalide SPED Fiscal e EFD Contribuições individualmente
-em competência já fechada. Esses geradores selecionam o mês anterior;
-confirme que a apuração desse período está fechada antes de iniciar.
-Também é possível começar pela revalidação SPED, mantendo a pendência
-PDF pausada. Confira as etapas e o retorno no Painel quando a interface
-voltar. Só então
-teste lote supervisionado, verificando documento/empresa no resumo. Ao
-iniciar lote calibrado, volte ao Domínio por Alt+Tab se solicitado.
+Depois do SPED, revalide EFD Contribuições individualmente na empresa
+correta e em competência já fechada; esse gerador também seleciona o
+mês anterior. Confira etapas, documento e retorno. Saídas/Entradas
+continuam com a pendência PDF explícita. Só depois das verificações
+individuais teste lote supervisionado, verificando documento/empresa
+no resumo. Ao iniciar lote calibrado, volte ao Domínio por Alt+Tab se
+solicitado.
 
 ## Avaliar OCR do Hugging Face
 
@@ -134,8 +142,9 @@ alvo de texto e RAM não foi medida. A mensagem de busca Windows apareceu,
 mas não impediu a conclusão. **Manter Tesseract no fluxo atual.** Não
 instalar outros modelos antes de revalidar estados/retorno do SPED.
 
-A próxima execução é calibrar a tela principal azul e testar SPED Fiscal
-individualmente em competência fechada, conferindo documento e retorno.
+A referência da tela principal já foi calibrada no Windows. A próxima
+execução é testar SPED Fiscal individualmente em competência fechada,
+conferindo documento e retorno.
 Paddle fica disponível para comparação de telas em que o OCR atual falha,
 sem adoção automática. A nuvem não acessa seu desktop. O prompt define
 critérios para integrar somente após regressão e ganho demonstrados.
@@ -145,9 +154,10 @@ concluída, sem confirmar precisão nem a seleção de intérprete por si só.
 
 ## O que falta para concluir o incremento atual
 
-Calibração e retorno automático validados no Windows; revalidação das
-etapas SPED/Contribuições; lote supervisionado com falha isolada sem
-contaminar o próximo documento/empresa; resultado/conteúdo final conferido.
+Retorno automático usando a referência calibrada validado no Windows;
+revalidação das etapas SPED/Contribuições; lote supervisionado com falha
+isolada sem contaminar o próximo documento/empresa; resultado/conteúdo
+final conferido.
 Conferência de período e nome dos PDFs permanece pausada e é uma pendência
 explícita. O catálogo é preparação do incremento 3, sem executor de agentes.
 
