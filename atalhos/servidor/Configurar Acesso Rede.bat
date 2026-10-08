@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 python scripts\configurar_servidor.py
 set "DOMINIO_CODIGO_REDE=%errorlevel%"
 pause

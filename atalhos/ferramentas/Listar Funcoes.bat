@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 python scripts\listar_capacidades.py %*
 set "catalogo_status=%errorlevel%"
 echo.

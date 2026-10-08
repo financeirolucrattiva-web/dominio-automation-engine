@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 python scripts\calibrar_tela_principal.py
 set "calibracao_status=%errorlevel%"
 echo.

@@ -56,6 +56,6 @@ echo.
 echo Proximos passos:
 echo   1. Copie data\empresas.exemplo.csv para data\empresas.csv
 echo      e preencha com as empresas de verdade.
-echo   2. No dia a dia, use "Abrir Interface Grafica (Operador).bat".
+echo   2. No dia a dia, use "atalhos\interface\Abrir Interface Gráfica (Operador).bat".
 echo.
 pause

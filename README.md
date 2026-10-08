@@ -7,6 +7,25 @@ uma rotina ligada a SPED. Projeto irmão do
 organiza documento fiscal que **chega** ao escritório); este aqui **opera
 o próprio Domínio**, risco maior, repositório separado de propósito.
 
+## Onde encontrar os instaladores e atalhos
+
+Na raiz ficam apenas `Instalar Servidor.bat`, `Instalar Interface.bat`,
+`Instalar.bat` (motor local) e `Atualizar.bat`.
+
+Os demais atalhos continuam disponíveis, organizados por finalidade:
+
+| Pasta | Uso |
+| --- | --- |
+| `atalhos/servidor/` | Abrir servidor, configurar rede, liberar acesso, simular e executar |
+| `atalhos/interface/` | Abrir a interface gráfica local, completa ou de operador |
+| `atalhos/ocr/` | Instalar Python/Paddle opcionais e avaliar OCR |
+| `atalhos/ferramentas/` | Calibrar tela, diagnosticar PDF, listar funções e abrir o menu SPED |
+
+Veja o [índice dos atalhos](atalhos/README.md). Todos os 21 arquivos BAT
+foram preservados; apenas os caminhos dos auxiliares mudaram. Pode abrir
+os atalhos por duplo clique dentro de suas pastas. Esta organização não
+exige reinstalar aplicativos ou apagar `data/`.
+
 ## Site conectado ao servidor
 
 O projeto agora inclui uma interface web para enviar tarefas individuais
@@ -15,7 +34,7 @@ instalada no PC como aplicativo pelo Chrome/Edge. A GUI local continua
 disponível para manutenção, calibração e gravação de rotinas.
 
 Para testar: `Atualizar.bat` → `Instalar Servidor.bat` →
-`Testar Interface Servidor.bat`. O teste é simulado e não opera o Domínio.
+`atalhos/servidor/Testar Interface Servidor.bat`. O teste é simulado e não opera o Domínio.
 Consulte [instalação, conexão e execução real](docs/SERVIDOR-E-INTERFACE.md).
 O servidor informado ainda precisa do Domínio configurado.
 
@@ -67,7 +86,7 @@ usuário confirmou o retorno à tela principal; a recuperação funcionou
 nesse caso.
 
 O novo incremento verifica o retorno com uma referência medida localmente:
-use `Calibrar Tela Principal.bat` no Windows, com a tela principal azul
+use `atalhos/ferramentas/Calibrar Tela Principal.bat` no Windows, com a tela principal azul
 maximizada e vazia. São conferidos foco, cabeçalho e duas capturas estáveis;
 somente medidas e cor ficam em `data/tela_principal.json`, sem imagem.
 Essa verificação ainda precisa de teste no Domínio real. A comparação é
@@ -83,7 +102,7 @@ Essas mudanças passaram por testes simulados e precisam de revalidação
 Windows. O Adobe pode continuar instalado e aberto.
 
 Consulte [docs/RETOMADA.md](docs/RETOMADA.md) para o próximo teste.
-`Listar Funcoes.bat` mostra o catálogo preparatório das quatro rotinas,
+`atalhos/ferramentas/Listar Funcoes.bat` mostra o catálogo preparatório das quatro rotinas,
 sem executar nada ou habilitar agentes. A conferência de período/nome
 do PDF continua pendente e pausada pelo usuário.
 
@@ -99,16 +118,16 @@ Na captura Windows enviada em 07/10/2026, suas leituras aquecidas levaram
 Paddle continua opcional para avaliação. Adoção exige comparação
 local de precisão, coordenadas, tempo, memória e regressão no Windows.
 
-Após atualizar, use `Instalar OCR Paddle.bat` para preparar o primeiro
+Após atualizar, use `atalhos/ocr/Instalar OCR Paddle.bat` para preparar o primeiro
 candidato em CPU (Windows x64, Python 3.10–3.13). O ambiente opcional
 `.venv-ocr-paddle` preserva as dependências do SPED. Depois use
-`Avaliar OCR Paddle.bat` para escolher uma captura local, sem cliques ou
+`atalhos/ocr/Avaliar OCR Paddle.bat` para escolher uma captura local, sem cliques ou
 teclas no Domínio. Só dois modelos PP-OCRv5 são baixados do Hugging Face,
 com revisões fixadas. Depois da primeira instalação, `Atualizar.bat`
 também mantém esse componente opcional. PaddleOCR-VL não é instalado.
 Inferência CPU no Windows concluída em uma captura; precisão, coordenadas
 críticas, memória e regressão fiscal ainda precisam de avaliação.
-`Avaliar OCR Tela.bat` compara a captura atual da janela do Domínio/GO-Global,
+`atalhos/ocr/Avaliar OCR Tela.bat` compara a captura atual da janela do Domínio/GO-Global,
 em memória, após você selecioná-la. Mostra o início e término de cada
 leitura para distinguir carregamento, falha e cancelamento. Não envia
 cliques/teclas, salva capturas nem habilita outro OCR na produção.
@@ -116,7 +135,7 @@ O motor de estados agora reutiliza o OCR da mesma região/escala dentro
 de cada checagem, mantendo os títulos e a ordem de decisão existentes.
 O atalho procura Python compatível no ambiente OCR, no launcher `py` ou
 nos diretórios padrão de instalação por usuário. Se o padrão for 3.14 e
-não houver outro instalado, use `Instalar Python OCR.bat`: instala Python
+não houver outro instalado, use `atalhos/ocr/Instalar Python OCR.bat`: instala Python
 3.13 x64 via winget para seu usuário, preserva o PATH e o launcher atual,
 e depois prepara o OCR opcional. Se winget não estiver disponível, o
 atalho indica a instalação manual oficial; veja a retomada acima.
@@ -127,7 +146,7 @@ A interface local agora inclui **Painel**, **Rotinas**, **Funções disponíveis
 **Histórico**, **Projeto** e **Log**. O painel acompanha os eventos do motor,
 separando etapa confirmada, ação enviada, falha e retorno à tela principal.
 A aba Projeto reúne o andamento e as ferramentas dos próximos testes.
-Depois de atualizar, abra `Abrir Interface Gráfica.bat`.
+Depois de atualizar, abra `atalhos/interface/Abrir Interface Gráfica.bat`.
 
 Prévia da interface com eventos simulados, sem operação fiscal:
 
@@ -163,7 +182,7 @@ documento) — sem editor de código, só usando os atalhos `.bat`:
    sozinho (`pip install -r requirements.txt`).
 5. Copie `data\empresas.exemplo.csv` para `data\empresas.csv` e
    preencha com as empresas de verdade desse operador.
-6. No dia a dia, use **`Abrir Interface Gráfica (Operador).bat`** —
+6. No dia a dia, use **`atalhos/interface/Abrir Interface Gráfica (Operador).bat`** —
    igual à completa, menos o botão de empresas de EXEMPLO e a seção
    "Criar automação nova" (gravador, seção 0.35). O botão de lote
    aparece como **"Rodar SPED"** nesse modo (seção 0.45).
@@ -178,7 +197,7 @@ sessão não roda Tkinter/pyautogui, seção 0.1).
 ### Jeito fácil (recomendado)
 
 Com o Domínio Escrita Fiscal aberto e visível na tela, dá duplo clique
-em **`Abrir Motor SPED.bat`** (na raiz desta pasta). Abre um menu
+em **`atalhos/ferramentas/Abrir Motor SPED.bat`** (em `atalhos/ferramentas`). Abre um menu
 numerado (rodar em lote por regime, trocar empresa, gerar SPED numa
 empresa só) — não precisa digitar comando nenhum (seção 0.18 do
 documento). A janela fica aberta no final pra você ler o resultado.
@@ -188,12 +207,12 @@ Antes, se fizer um tempo que você não mexe nisso, dá duplo clique em
 GitHub — ele já confere/instala dependência nova sozinho
 (`pip install -r requirements.txt`), não precisa rodar isso à parte.
 
-**Novo, ainda em teste:** `Abrir Interface Gráfica.bat` — mesmas ações,
+**Novo, ainda em teste:** `atalhos/interface/Abrir Interface Gráfica.bat` — mesmas ações,
 em janela com botão em vez de menu numerado, visual modernizado
 (`ttkbootstrap`), abas "Rotinas"/"Histórico" (lista as últimas
 execuções, com botão pra abrir o arquivo gerado ou a pasta de saída —
 seção 0.57 do documento), e o andamento aparece numa caixa de texto na
-própria janela. Não substitui `Abrir Motor SPED.bat` ainda — os dois
+própria janela. Não substitui `atalhos/ferramentas/Abrir Motor SPED.bat` ainda — os dois
 convivem até a interface gráfica ser validada contra o Domínio real
 pela primeira vez.
 
@@ -270,7 +289,7 @@ competência cuja apuração já esteja fechada. A interface gráfica
 continua usando os campos de período existentes.
 
 Se a exportação ficar como `exportacao_...pdf` e o log recusar o período,
-use `Diagnosticar PDF.bat`: ele lê o temporário mais recente e mostra
+use `atalhos/ferramentas/Diagnosticar PDF.bat`: ele lê o temporário mais recente e mostra
 apenas posições/resultado da conferência, sem conteúdo fiscal. O padrão
 é Saídas em 08/2026; para outro período/arquivo, consulte
 `python scripts/diagnosticar_pdf.py --help`.
@@ -359,12 +378,12 @@ em `AUTOMACOES_EXTRAS` após revisão/teste; não cole uma gravação sem confer
 - `scripts/executar_lote.py` — troca de empresa + gera o SPED Fiscal
   pra cada empresa do regime escolhido.
 - `scripts/app.py` — menu único (texto) que reúne as opções acima; é o
-  que `Abrir Motor SPED.bat` roda.
+  que `atalhos/ferramentas/Abrir Motor SPED.bat` roda.
 - `scripts/explorar_registro_saidas.py` — gera o Livro Registro de
   Saídas numa empresa só (ver aviso na seção "Scripts individuais"
   acima — parcialmente validado).
 - `scripts/gui.py` — mesmas ações, em janela (`ttkbootstrap`, abas
-  Rotinas/Histórico); é o que `Abrir Interface Gráfica.bat` roda
+  Rotinas/Histórico); é o que `atalhos/interface/Abrir Interface Gráfica.bat` roda
   (seção 0.33, reescrita visualmente na seção 0.57 — ainda em teste
   contra o Domínio real).
 - `scripts/gravar.py` — grava cliques, digitação, teclas e hover marcado
@@ -374,9 +393,9 @@ em `AUTOMACOES_EXTRAS` após revisão/teste; não cole uma gravação sem confer
 - `Instalar.bat` — prepara um computador novo (Python/Tesseract já
   instalados, só falta a dependência Python do projeto) — seção 0.41,
   pensado pra instalar num computador de outro operador.
-- `Abrir Motor SPED.bat` / `Abrir Interface Gráfica.bat` /
-  `Abrir Interface Gráfica (Operador).bat` / `Atualizar.bat` — atalhos
-  de duplo clique (raiz do repositório) pro dia a dia, sem linha de
+- `atalhos/ferramentas/Abrir Motor SPED.bat` / `atalhos/interface/Abrir Interface Gráfica.bat` /
+  `atalhos/interface/Abrir Interface Gráfica (Operador).bat` / `Atualizar.bat` — atalhos
+  de duplo clique (organizados em `atalhos/`) pro dia a dia, sem linha de
   comando. A versão "(Operador)" esconde só "Criar automação nova"
   (gravador) e o botão de empresas de EXEMPLO (seção 0.45) — pensada
   pro computador de outro operador.

@@ -1,7 +1,7 @@
 """Ponto de entrada único do motor — menu de texto simples.
 
 Pensado pra ser aberto com duplo clique no atalho
-`Abrir Motor SPED.bat` (raiz do repositório), sem precisar digitar
+`atalhos/ferramentas/Abrir Motor SPED.bat` (pasta atalhos/ferramentas), sem precisar digitar
 nenhum comando. Reúne as ações já existentes (trocar empresa, gerar
 SPED Fiscal numa empresa, rodar em lote por regime) num único lugar —
 "abrir o Domínio, apertar no app, e pronto" (pedido do usuário, seção

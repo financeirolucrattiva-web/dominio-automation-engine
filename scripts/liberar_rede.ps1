@@ -3,7 +3,7 @@ try {
     $identidade = [Security.Principal.WindowsIdentity]::GetCurrent()
     $usuario = New-Object Security.Principal.WindowsPrincipal($identidade)
     if (-not $usuario.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Clique com o botao direito em Liberar Acesso Rede.bat e escolha Executar como administrador.'
+        throw 'Clique com o botao direito em atalhos/servidor/Liberar Acesso Rede.bat e escolha Executar como administrador.'
     }
     $arquivo = Join-Path $PSScriptRoot '..\data\rede_local\config.json'
     $config = Get-Content -LiteralPath $arquivo -Raw | ConvertFrom-Json
@@ -16,7 +16,7 @@ try {
         throw 'A regra exige um IPv4 da rede local.'
     }
     if (-not (Get-NetIPAddress -IPAddress $config.ip -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {
-        throw 'Este IPv4 nao pertence ao PC atual. Repita Configurar Acesso Rede.bat.'
+        throw 'Este IPv4 nao pertence ao PC atual. Repita atalhos/servidor/Configurar Acesso Rede.bat.'
     }
     $nome = 'DominioAutomationEngineRedeLocal'
     $regra = Get-NetFirewallRule -Name $nome -ErrorAction SilentlyContinue

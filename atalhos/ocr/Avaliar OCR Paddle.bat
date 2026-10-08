@@ -1,7 +1,7 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 if not exist ".venv-ocr-paddle\Scripts\python.exe" (
-    echo OCR opcional nao instalado. Rode "Instalar OCR Paddle.bat" primeiro.
+    echo OCR opcional nao instalado. Rode "atalhos\ocr\Instalar OCR Paddle.bat" primeiro.
     pause
     exit /b 1
 )

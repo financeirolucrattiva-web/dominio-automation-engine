@@ -43,7 +43,7 @@ def main(argv=None):
             args.host, args.porta = config["ip"], config["porta"]
             args.certificado, args.chave_tls = config["certificado"], config["chave_tls"]
         except (OSError, ValueError, KeyError, TypeError):
-            print("Configure a rede com Instalar Servidor.bat ou Configurar Acesso Rede.bat antes de iniciar.")
+            print("Configure a rede com Instalar Servidor.bat ou atalhos/servidor/Configurar Acesso Rede.bat antes de iniciar.")
             return 1
     if args.porta is None:
         args.porta = 8765

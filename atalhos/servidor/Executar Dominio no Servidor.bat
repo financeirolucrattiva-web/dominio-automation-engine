@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 echo Requer Windows, sessao ativa, Dominio visivel e calibrado.
 echo A empresa e o periodo serao conferidos antes de cada tarefa.
 python scripts\servidor.py --executar

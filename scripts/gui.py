@@ -275,7 +275,7 @@ class JanelaPrincipal:
         # "operador" esconde gravador e ações de empresa única — pra
         # instalação enxuta em outro computador, que só roda lote
         # (pedido do usuário, seção 0.41): setado por
-        # "Abrir Interface Gráfica (Operador).bat", não pelos outros.
+        # "atalhos/interface/Abrir Interface Gráfica (Operador).bat", não pelos outros.
         self.modo = os.environ.get("DOMINIO_MODO", "completo").strip().lower()
         titulo = "Automação Fiscal Domínio"
         if self.modo == "operador":
@@ -520,7 +520,7 @@ class JanelaPrincipal:
         elif identificador == "ocr":
             python_ocr = ROOT / ".venv-ocr-paddle" / "Scripts" / "python.exe"
             if not python_ocr.is_file():
-                messagebox.showinfo("OCR opcional", "Prepare o OCR com Instalar Python OCR.bat antes de comparar.")
+                messagebox.showinfo("OCR opcional", "Prepare o OCR com atalhos/ocr/Instalar Python OCR.bat antes de comparar.")
                 return
             comando = [str(python_ocr), str(ROOT / "scripts" / "abrir_ferramenta.py"), "ocr"]
         else:

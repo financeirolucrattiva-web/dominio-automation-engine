@@ -7,6 +7,15 @@ branch remoto `main`. Codex e Claude Code podem trabalhar juntos;
 confira alterações e versão remota antes de publicar, sem force push.
 O texto abaixo deste checkpoint mantém o histórico de setembro.
 
+Pedido mais recente: somente organizar arquivos em pastas, mantendo
+as funcionalidades. Os três instaladores principais e `Atualizar.bat`
+ficam na raiz; os outros 17 BAT foram movidos para `atalhos/servidor/`,
+`atalhos/interface/`, `atalhos/ocr/` e `atalhos/ferramentas/`.
+Índice em `atalhos/README.md`. Os atalhos continuam usando os mesmos
+scripts e opções; diretório de trabalho, chamada entre BAT e caminhos
+nas instruções foram ajustados. Não unificar modos nem cortar dependências
+por conta desta organização. Preservar o pacote público de cliente.
+
 Pedido atual: terminar o site no projeto existente. Lote deixou de ser
 prioridade; manter execução individual e resultados verificáveis.
 Interface web instalável/PWA em `web/`, API em `app/api_servidor.py`,
@@ -40,9 +49,9 @@ gera HTTPS por IPv4 privado e pacote público `data/rede_local/interface_cliente
 `Instalar Interface.bat` nesse pacote cria atalho Edge/Chrome em janela
 própria, sem Python/OCR/Domínio no cliente; endereço salvo, chave informada
 na página. Confiança HTTPS é instalada no usuário Windows do cliente.
-`Liberar Acesso Rede.bat` é manual, como administrador, restrito à
+`atalhos/servidor/Liberar Acesso Rede.bat` é manual, como administrador, restrito à
 porta/IP/Python e sub-rede local nos perfis Private/Domain.
-`Testar Interface na Rede.bat` simula; `Executar Dominio na Rede.bat`
+`atalhos/servidor/Testar Interface na Rede.bat` simula; `atalhos/servidor/Executar Dominio na Rede.bat`
 usa o executor existente. Configuração/CA/chaves permanecem gitignored;
 autoridade reaproveitada ao mudar IP. 253 testes passaram, incluindo TLS
 real e recusa de hostname divergente. Sintaxe PowerShell conferida;
@@ -76,11 +85,11 @@ Leia [RETOMADA.md](RETOMADA.md) para os atalhos e testes Windows,
 
 O incremento atual é execução/recuperação (2). Há acompanhamento das
 quatro rotinas em `app/estados.py`, referência visual local em
-`app/tela_principal.py`, calibração por `Calibrar Tela Principal.bat`
+`app/tela_principal.py`, calibração por `atalhos/ferramentas/Calibrar Tela Principal.bat`
 e proteção das transições de lote quando calibrado. Sem referência,
 preserva o fluxo supervisionado anterior; não a aprende automaticamente.
 GUI preserva `False` no histórico de SPED/Contribuições. O catálogo
-`app/capacidades.py`/`Listar Funcoes.bat` descreve funções e pendências,
+`app/capacidades.py`/`atalhos/ferramentas/Listar Funcoes.bat` descreve funções e pendências,
 sem executar ou habilitar agentes. Os novos comportamentos precisam
 de validação no Windows; testes simulados não comprovam a sessão real.
 
@@ -99,7 +108,7 @@ O primeiro teste do instalador Windows encontrou Python 3.14.7 x64,
 fora da faixa de wheels do PaddlePaddle fixado (até 3.13). O bootstrap
 agora mostra o ambiente e procura um CPython compatível já instalado.
 Na repetição, nenhum outro Python compatível foi encontrado. O novo
-atalho `Instalar Python OCR.bat` solicita via winget Python 3.13 x64 por
+atalho `atalhos/ocr/Instalar Python OCR.bat` solicita via winget Python 3.13 x64 por
 usuário, mantendo PATH/launcher/associações, confirma o intérprete e prepara
 OCR. A descoberta também cobre diretórios padrão sem launcher. Não troca
 o Python do SPED. A rodada seguinte concluiu inferência Paddle CPU no
@@ -110,7 +119,7 @@ busca de arquivos, seguida de interrupção e pergunta S/N do CMD. A fonte
 PaddlePaddle 3.3.1 procura `ccache` via `where` no Windows; a mensagem
 isolada não diagnostica falha de Tesseract nem comprova falha de inferência.
 O avaliador agora mostra progresso por leitura, distingue Ctrl+C e informa
-o código de saída. `Avaliar OCR Tela.bat` captura a janela ativa em memória
+o código de saída. `atalhos/ocr/Avaliar OCR Tela.bat` captura a janela ativa em memória
 para comparação local, sem ações. Em 07/10/2026, o operador completou
 três leituras Paddle e três Tesseract da captura atual. Paddle: inicial
 24,751s, aquecidas 14,309/15,802s, 32 segmentos; Tesseract: inicial 0,935s,
@@ -271,7 +280,7 @@ app/
                    percepção, só depois de OCR/OpenCV falharem — ver regra de
                    segurança acima antes de mexer aqui
 scripts/
-  app.py                    — menu único (o que `Abrir Motor SPED.bat` roda)
+  app.py                    — menu único (o que `atalhos/ferramentas/Abrir Motor SPED.bat` roda)
   explorar.py                — SPED Fiscal numa empresa só (já selecionada)
   explorar_contribuicoes.py  — EFD Contribuições numa empresa só
   explorar_competencia.py    — testa só a seleção de competência, isolado
@@ -285,7 +294,7 @@ docs/
   00-analise-e-plano-fase0.md — documento vivo, histórico completo (leia antes de tudo)
   HANDOFF.md                   — este arquivo
 README.md                — visão geral e instruções de uso
-Abrir Motor SPED.bat      — atalho de duplo clique, roda scripts/app.py
+atalhos/ferramentas/Abrir Motor SPED.bat      — atalho de duplo clique, roda scripts/app.py
 Atualizar.bat             — atalho de duplo clique, roda git pull origin main
 ```
 

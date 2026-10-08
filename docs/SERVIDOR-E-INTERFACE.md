@@ -33,11 +33,11 @@ No PC com Domínio:
    `data/rede_local/interface_cliente`. Copie **essa pasta inteira**
    para o outro PC. Ela contém o instalador, endereço e certificado
    público; não contém chave privada nem chave de acesso.
-4. Clique com o botão direito em `Liberar Acesso Rede.bat` e escolha
+4. Clique com o botão direito em `atalhos/servidor/Liberar Acesso Rede.bat` e escolha
    **Executar como administrador**. A regra libera somente a porta,
    IP e Python configurados, para a sub-rede local, em perfil privado
    ou de domínio. Confira que esse Wi-Fi está como rede privada no Windows.
-5. Abra `Testar Interface na Rede.bat` e mantenha o Prompt aberto.
+5. Abra `atalhos/servidor/Testar Interface na Rede.bat` e mantenha o Prompt aberto.
 
 No outro PC:
 
@@ -49,7 +49,7 @@ No outro PC:
 4. Envie uma tarefa simulada para conferir conexão, etapas e histórico.
 
 Após a conexão funcionar, encerre a simulação no servidor e abra
-`Executar Dominio na Rede.bat`, com Domínio calibrado/visível e empresa
+`atalhos/servidor/Executar Dominio na Rede.bat`, com Domínio calibrado/visível e empresa
 correta. Execute individualmente, com apuração fechada, e confira o
 documento/retorno. O cliente usa o mesmo endereço e chave.
 
@@ -58,7 +58,7 @@ Para mudar o endereço da interface, repita o instalador ou use
 Quando o endereço usa certificado HTTPS já confiável, o instalador
 da raiz também aceita o endereço manual, sem pacote de autoridade local.
 
-Se o IP do servidor mudar, rode `Configurar Acesso Rede.bat`, repita a
+Se o IP do servidor mudar, rode `atalhos/servidor/Configurar Acesso Rede.bat`, repita a
 regra de acesso e leve o pacote atualizado ao cliente. A autoridade
 local é reutilizada, mantendo a confiança; não apague suas chaves para
 renovar endereço. O certificado do servidor vale até um ano e a
@@ -91,7 +91,7 @@ Na máquina que vai hospedar a interface:
 1. Rode `Atualizar.bat` na pasta atual do projeto.
 2. Rode `Instalar Servidor.bat` e escolha **1 — somente neste PC**.
    Instala componentes de API/HTTPS; não instala OCR, modelos ou Domínio.
-3. Rode `Testar Interface Servidor.bat` e mantenha o Prompt aberto.
+3. Rode `atalhos/servidor/Testar Interface Servidor.bat` e mantenha o Prompt aberto.
 4. Nesse computador, abra `http://127.0.0.1:8765` no navegador.
    Esse endereço é da instalação local, não do ambiente Codex.
 5. Abra localmente `data/servidor_chave.txt`, gerado no primeiro início,
@@ -102,7 +102,7 @@ Na máquina que vai hospedar a interface:
 O modo simulado não importa módulos de mouse/teclado, não acessa o
 Domínio e não gera documento fiscal. O banco `data/servidor_simulado.sqlite3`
 é separado do histórico de operação. Feche com Ctrl+C antes de abrir
-outro servidor na mesma porta. `Abrir Servidor.bat` inicia somente
+outro servidor na mesma porta. `atalhos/servidor/Abrir Servidor.bat` inicia somente
 consulta: lê o histórico de operação, mas não recebe execuções.
 
 Depois da primeira instalação, `Atualizar.bat` também mantém as
@@ -116,11 +116,11 @@ Paddle é um ambiente opcional separado e não é requisito do site.
    Rode `Instalar.bat` e confira Tesseract com idioma português conforme
    o README.
 2. No Domínio maximizado, com a tela azul vazia, rode
-   `Calibrar Tela Principal.bat`. Calibre **no servidor**, na resolução
+   `atalhos/ferramentas/Calibrar Tela Principal.bat`. Calibre **no servidor**, na resolução
    que será usada; não copie a referência do PC como prova de equivalência.
 3. Encerre ferramentas/console de operação e deixe a empresa correta
    selecionada, com a tela azul visível, sem menu ou diálogo aberto.
-4. Rode `Executar Dominio no Servidor.bat`, volte ao Domínio e mantenha
+4. Rode `atalhos/servidor/Executar Dominio no Servidor.bat`, volte ao Domínio e mantenha
    a sessão desbloqueada, visível e com resolução estável.
 5. No site, informe o código da empresa selecionada. Teste primeiro
    SPED Fiscal individual em competência com apuração fechada. Confira

@@ -114,8 +114,8 @@ recortes e tarefas da automação. As capturas reais e suas anotações ficam
 locais, fora do Git; publique apenas resultados agregados sem dados de
 clientes. Testes sintéticos devem ser identificados como sintéticos.
 
-Já há um ponto de partida opcional: `Instalar OCR Paddle.bat` e
-`Avaliar OCR Paddle.bat`. Ele lê uma imagem local, compara contagem,
+Já há um ponto de partida opcional: `atalhos/ocr/Instalar OCR Paddle.bat` e
+`atalhos/ocr/Avaliar OCR Paddle.bat`. Ele lê uma imagem local, compara contagem,
 ocorrência de âncora e uma leitura inicial/duas aquecidas. Não controla
 ações e não mede precisão geral, RAM ou p50/p95. Reaproveite esse
 instrumento, ampliando-o apenas para uma tarefa/medida necessária;

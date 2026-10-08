@@ -128,7 +128,7 @@ def criar_processador(pasta_modelos=CAMINHO_MODELOS):
     diretorios = [pasta_modelos / nome for nome in NOMES_MODELOS]
     if any(not (pasta / arquivo).is_file() or (pasta / arquivo).stat().st_size == 0
            for pasta in diretorios for arquivo in ARQUIVOS_MODELO):
-        raise ErroOCRPaddle("Modelos locais ausentes ou incompletos. Execute Instalar OCR Paddle.bat.")
+        raise ErroOCRPaddle("Modelos locais ausentes ou incompletos. Execute atalhos/ocr/Instalar OCR Paddle.bat.")
     try:
         with _execucao_local():
             from paddleocr import PaddleOCR
@@ -147,7 +147,7 @@ def criar_processador(pasta_modelos=CAMINHO_MODELOS):
                 use_textline_orientation=False,
             )
     except ImportError:
-        raise ErroOCRPaddle("PaddleOCR opcional não está instalado. Execute Instalar OCR Paddle.bat.") from None
+        raise ErroOCRPaddle("PaddleOCR opcional não está instalado. Execute atalhos/ocr/Instalar OCR Paddle.bat.") from None
     except Exception:
         raise ErroOCRPaddle("Não consegui carregar os modelos locais do PaddleOCR em CPU.") from None
 

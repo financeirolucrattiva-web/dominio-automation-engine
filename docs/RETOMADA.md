@@ -1,5 +1,11 @@
 # Retomada do projeto — 08/10/2026
 
+Organização dos arquivos: os três instaladores principais e `Atualizar.bat`
+continuam na raiz. Os outros 17 atalhos estão em `atalhos/servidor/`,
+`atalhos/interface/`, `atalhos/ocr/` e `atalhos/ferramentas/`.
+Nenhuma função foi removida. Consulte o [índice](../atalhos/README.md).
+Não precisa reinstalar aplicativos para receber esta organização.
+
 ## Site e servidor dedicado
 
 O pedido atual prioriza fechar o app individual; lote fica adiado.
@@ -9,7 +15,7 @@ O usuário informou que o servidor está pronto, mas o Domínio ainda não.
 Não houve implantação nem execução fiscal nessa máquina.
 
 Para testar o site: `Atualizar.bat` → `Instalar Servidor.bat` →
-`Testar Interface Servidor.bat`. Consulte
+`atalhos/servidor/Testar Interface Servidor.bat`. Consulte
 [SERVIDOR-E-INTERFACE.md](SERVIDOR-E-INTERFACE.md) para abrir a interface,
 conectar, instalar no PC e configurar execução/HTTPS no servidor.
 O teste simulado não acessa o Domínio nem gera documento fiscal.
@@ -21,7 +27,7 @@ e certificado público, cria atalho em janela Edge/Chrome e entra com a
 chave do servidor. Python/OCR/Domínio ficam no servidor.
 O instalador do servidor pergunta acesso local ou rede; para o teste
 anterior no próprio PC, escolha 1. Para outro PC na rede, escolha 2.
-Siga o guia para a regra de firewall e `Testar Interface na Rede.bat`.
+Siga o guia para a regra de firewall e `atalhos/servidor/Testar Interface na Rede.bat`.
 O PC atual com Domínio pode ser servidor temporário. HTTPS/certificados
 passaram em testes locais; atalho, confiança e firewall exigem teste Windows.
 
@@ -128,7 +134,7 @@ validação supervisionada separada por documento/empresa.
 ## Avaliar OCR do Hugging Face
 
 `Atualizar.bat` entrega os scripts, mas uma instalação inicial de modelos
-opcionais precisa ser solicitada pelo operador. Use `Instalar OCR Paddle.bat`
+opcionais precisa ser solicitada pelo operador. Use `atalhos/ocr/Instalar OCR Paddle.bat`
 para o primeiro candidato em CPU. Ele cria `.venv-ocr-paddle` dentro deste
 mesmo projeto, preservando as dependências usadas pelo SPED, e baixa somente
 o detector móvel e o reconhecedor latino PP-OCRv5 de revisões fixadas do
@@ -137,25 +143,25 @@ Requer Windows x64 e Python 3.10–3.13 (3.12 recomendado). O instalador
 mostra versão/arquitetura e procura um Python compatível no ambiente OCR
 existente, no launcher `py` ou nos diretórios padrão de instalação por
 usuário, mesmo se `python` no PATH for 3.14.
-Se não encontrar, use `Instalar Python OCR.bat`: o operador solicita
+Se não encontrar, use `atalhos/ocr/Instalar Python OCR.bat`: o operador solicita
 explicitamente a instalação de Python 3.13 x64 via winget, para seu usuário,
 sem alterar PATH, launcher ou associações de arquivos. Após confirmar o
 novo intérprete, o atalho prepara o ambiente OCR. Se winget falhar ou o
 intérprete não for confirmado, interrompe antes de instalar o OCR.
 Se winget não estiver disponível, instale Python 3.12/3.13 de 64 bits
-lado a lado, mantendo PATH e launcher, e repita `Instalar OCR Paddle.bat`.
+lado a lado, mantendo PATH e launcher, e repita `atalhos/ocr/Instalar OCR Paddle.bat`.
 Download oficial: <https://www.python.org/downloads/windows/>.
 Depois da primeira instalação, `Atualizar.bat` também atualiza o componente
 opcional. Sem o marcador local, atualizações não instalam Paddle.
 
-Depois use `Avaliar OCR Paddle.bat` e escolha uma captura local. A avaliação
+Depois use `atalhos/ocr/Avaliar OCR Paddle.bat` e escolha uma captura local. A avaliação
 compara leitura e tempo; não controla o Domínio. Para conferir uma âncora,
 consulte `scripts/avaliar_ocr_paddle.py --help` e use `--alvo`. O resumo
 não publica texto fiscal. Qualidade real e localização devem ser conferidas
 no conjunto de telas usado pelo SPED, não deduzidas apenas pelo tempo.
 As primeiras execuções podem demorar mais por carregar o modelo.
 
-Para testar percepção na tela real, use `Avaliar OCR Tela.bat`. Abra a
+Para testar percepção na tela real, use `atalhos/ocr/Avaliar OCR Tela.bat`. Abra a
 tela do Domínio desejada, pressione Enter no Prompt e volte ao Domínio
 com Alt+Tab. Aguarde alguns segundos pela captura; depois volte ao Prompt
 para acompanhar as três leituras por motor. A captura permanece só em

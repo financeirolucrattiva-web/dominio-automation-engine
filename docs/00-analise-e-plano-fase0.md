@@ -3867,6 +3867,33 @@ foram ampliados ou declarados concluídos nesta entrega.
 
 ---
 
+### 0.87 Atalhos organizados em pastas, sem remover funcionalidades (08/10/2026)
+
+**Pedido:** reduzir os arquivos visíveis na raiz, mantendo todas as
+funcionalidades. O usuário esclareceu que deseja apenas organizar,
+sem apagar instaladores ou alterar o funcionamento.
+
+Os três instaladores principais (`Instalar.bat`, `Instalar Servidor.bat`
+e `Instalar Interface.bat`) e `Atualizar.bat` continuam na raiz.
+Os outros 17 BAT estão em `atalhos/servidor/`, `atalhos/interface/`,
+`atalhos/ocr/` e `atalhos/ferramentas/`. Índice em `atalhos/README.md`.
+Os nomes citados nas seções anteriores correspondem à localização
+antiga; os guias de uso atuais indicam os caminhos novos.
+
+Diretório de trabalho, chamada entre os BAT de OCR e caminho do
+PowerShell foram ajustados. Scripts, opções, dependências, modos e
+dados locais foram preservados. Mensagens de orientação e documentação
+apontam para as novas pastas. O pacote público da interface cliente
+continua igual; não exige reinstalação de aplicativos.
+
+**Validação:** todos os 21 BAT preservados, comparação dos comandos e
+opções com a versão anterior, resolução dos caminhos/chamada OCR/links,
+sintaxe Python/PowerShell e 253 testes locais/simulados passaram.
+Os atalhos reorganizados ainda precisam do teste por duplo clique no
+Windows; a nuvem não executou a sessão real do Domínio.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

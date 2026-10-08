@@ -3,7 +3,7 @@ para cada empresa do regime escolhido.
 
 Wrapper fino em cima de app/dominio.py::executar_lote(). Pra uso do
 dia a dia sem linha de comando, prefira `scripts/app.py` (menu único,
-aberto pelo atalho `Abrir Motor SPED.bat` na raiz do repositório).
+aberto pelo atalho `atalhos/ferramentas/Abrir Motor SPED.bat` em atalhos/ferramentas).
 
 TRAVA DE SEGURANÇA, DE PROPÓSITO: por padrão só roda contra
 data/empresas.exemplo.csv (empresas de demonstração, sem risco). Pra

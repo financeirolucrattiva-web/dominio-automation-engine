@@ -126,7 +126,7 @@ def instalar_python_e_ocr():
         if winget is None:
             print("winget não encontrado. Instale Python 3.13 de 64 bits pelo site oficial:")
             print("https://www.python.org/downloads/windows/")
-            print("Mantenha o PATH existente e o launcher py. Depois rode Instalar OCR Paddle.bat.")
+            print("Mantenha o PATH existente e o launcher py. Depois rode atalhos/ocr/Instalar OCR Paddle.bat.")
             return 1
         print("Instalando Python 3.13 x64 para seu usuário. Aguarde a conclusão do winget.")
         print("O Python atual e o PATH são preservados. Depois será preparado o OCR opcional.")
@@ -145,7 +145,7 @@ def instalar_python_e_ocr():
         encontrado = localizar_python_compativel()
         if encontrado is None:
             print("O winget terminou, mas nenhum Python compatível foi confirmado.")
-            print("Feche este Prompt e rode Instalar OCR Paddle.bat novamente.")
+            print("Feche este Prompt e rode atalhos/ocr/Instalar OCR Paddle.bat novamente.")
             return 1
     return iniciar_instalacao_compativel(encontrado)
 
@@ -171,7 +171,7 @@ def instalar():
     except Exception as erro:
         print(f"Instalação opcional não concluída ({type(erro).__name__}). Confira a mensagem acima e rode este instalador novamente.")
         return 1
-    print("Instalação opcional preparada. Use Avaliar OCR Paddle.bat para comparar uma captura local.")
+    print("Instalação opcional preparada. Use atalhos/ocr/Avaliar OCR Paddle.bat para comparar uma captura local.")
     print("Isso não habilita PaddleOCR como padrão nem comprova precisão no Domínio.")
     return 0
 
@@ -198,8 +198,8 @@ def main(argv=None):
         if ambiente_compativel() and not python_ocr.is_file():
             return instalar()
         print("Nenhum Python compatível foi encontrado. Instale Python 3.12 ou 3.13 de 64 bits lado a lado com o atual, mantendo o PATH existente e o launcher py.")
-        print("Ou use Instalar Python OCR.bat para instalar o pré-requisito via winget e preparar o OCR.")
-        print("Depois rode Instalar OCR Paddle.bat novamente. Download oficial: https://www.python.org/downloads/windows/")
+        print("Ou use atalhos/ocr/Instalar Python OCR.bat para instalar o pré-requisito via winget e preparar o OCR.")
+        print("Depois rode atalhos/ocr/Instalar OCR Paddle.bat novamente. Download oficial: https://www.python.org/downloads/windows/")
         return 1
     return iniciar_instalacao_compativel(encontrado)
 

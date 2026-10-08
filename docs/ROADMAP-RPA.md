@@ -81,7 +81,7 @@ com entradas válidas e pré-condições atendidas.
 Critério de conclusão: uma rotina validada pode ser solicitada por uma
 entrada estruturada e produzir um resultado igualmente estruturado.
 
-Preparação disponível: `app/capacidades.py` e `Listar Funcoes.bat`
+Preparação disponível: `app/capacidades.py` e `atalhos/ferramentas/Listar Funcoes.bat`
 descrevem as quatro rotinas e suas limitações. A API agora aceita pedidos
 estruturados para essas funções, com parâmetros e pré-condições restritos.
 Seu adaptador reutiliza os geradores existentes; ainda precisa de
@@ -171,7 +171,7 @@ de Esc, e o usuário confirmou que voltou à tela principal. A recuperação
 funcionou nessa rodada, mantendo a falha original de conferência do PDF.
 
 Agora a referência é medida localmente pelo operador no Windows, via
-`Calibrar Tela Principal.bat`. A cor/geometria vêm da captura real;
+`atalhos/ferramentas/Calibrar Tela Principal.bat`. A cor/geometria vêm da captura real;
 somente metadados são salvos. Comparação exige área calibrada uniforme,
 foco e cabeçalho em duas capturas. Os critérios conservadores passaram
 por testes sintéticos. Em 07/10/2026, a calibração real concluiu com
