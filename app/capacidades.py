@@ -54,6 +54,11 @@ _PREFIXO = Parametro(
     "prefixo", "str", False,
     "Prefixo local de evidências; não define empresa ou competência.",
 )
+_PARAMETROS_SPED = (
+    _PREFIXO,
+    Parametro("data_inicial", "str | None", False, "DD/MM/AAAA; competência escolhida pelo usuário; chamadas locais antigas usam mês anterior."),
+    Parametro("data_final", "str | None", False, "Último dia da mesma competência passada, informada junto com a data inicial."),
+)
 _PARAMETROS_LIVROS = (
     Parametro("pasta_destino", "str | Path", True, "Pasta local de saída dos PDFs."),
     Parametro("data_inicial", "str | None", False, "DD/MM/AAAA; sem datas, usa o mês anterior."),
@@ -113,12 +118,12 @@ _CAPACIDADES = (
     Capacidade(
         id="sped_fiscal", nome="SPED Fiscal",
         objetivo="Gerar EFD ICMS/IPI pela rotina de exportação conhecida.",
-        funcao="app.dominio.gerar_sped_fiscal", parametros=(_PREFIXO,),
+        funcao="app.dominio.gerar_sped_fiscal", parametros=_PARAMETROS_SPED,
         contexto=_CONTEXTO, precondicoes=_PRECONDICOES + (
             "Destino de exportação configurado e conferido dentro do Domínio.",
             "Competência já entregue disponível para comparação de conteúdo.",
         ),
-        politica_periodo="Seleciona automaticamente o mês anterior; não aceita datas como argumento.",
+        politica_periodo="Competência passada escolhida pelo usuário; sem argumentos, chamadas locais preservam o mês anterior.",
         operacoes_permitidas=("gerar", "ler"), etapas=_ETAPAS_SPED,
         resultado="bool; não devolve caminho nem comprovação independente do arquivo.",
         checagens_atuais=(
@@ -138,12 +143,12 @@ _CAPACIDADES = (
     Capacidade(
         id="efd_contribuicoes", nome="EFD Contribuições",
         objetivo="Gerar EFD PIS/COFINS pela rotina de exportação conhecida.",
-        funcao="app.dominio.gerar_efd_contribuicoes", parametros=(_PREFIXO,),
+        funcao="app.dominio.gerar_efd_contribuicoes", parametros=_PARAMETROS_SPED,
         contexto=_CONTEXTO, precondicoes=_PRECONDICOES + (
             "Destino de exportação configurado e conferido dentro do Domínio.",
             "Competência já entregue disponível para comparação de conteúdo.",
         ),
-        politica_periodo="Seleciona automaticamente o mês anterior; não aceita datas como argumento.",
+        politica_periodo="Competência passada escolhida pelo usuário; sem argumentos, chamadas locais preservam o mês anterior.",
         operacoes_permitidas=("gerar", "ler"), etapas=_ETAPAS_SPED,
         resultado="bool; não devolve caminho nem comprovação independente do arquivo.",
         checagens_atuais=(

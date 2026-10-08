@@ -376,6 +376,25 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual({e["execution_id"] for e in self.rotina.eventos}, {self.rotina.execution_id})
         self.assertTrue(any(e["step"] == "gerar_documento" and e["status"] == "falha" and e["attempt"] == 1 for e in self.rotina.eventos))
 
+    def test_competencia_escolhida_sobrevive_a_retry_sem_chamar_anterior(self):
+        self.preparar_sped()
+        selecionada = self.stack.enter_context(patch.object(self.dominio, "selecionar_competencia", return_value=True))
+        self.espera.side_effect = [("frame", (100, 100), True), ("frame", (100, 100), False)]
+        self.stack.enter_context(patch.object(self.dominio, "_ler_texto_caixa", return_value="erro fiscal privado"))
+        self.stack.enter_context(patch.object(self.dominio, "_fechar_caixa_erro"))
+        self.stack.enter_context(patch.object(self.dominio.erros, "decidir", return_value=self.dominio.erros.TENTAR_DE_NOVO))
+        self.assertTrue(self.dominio.gerar_sped(self.item_sped, self.confirmacao_sped, data_inicial="01/02/2024", data_final="29/02/2024"))
+        self.assertEqual(selecionada.call_count, 2)
+        for chamada in selecionada.call_args_list:
+            self.assertEqual(chamada.args, ("01/02/2024", "29/02/2024"))
+        self.competencia.assert_not_called()
+
+    def test_competencia_incompleta_recusa_antes_de_mouse_ou_captura(self):
+        self.preparar_sped()
+        self.assertFalse(self.dominio.gerar_sped(self.item_sped, self.confirmacao_sped, data_inicial="02/02/2024", data_final="29/02/2024"))
+        self.dominio.interacao.focar_dominio.assert_not_called()
+        self.dominio.tela.capturar_tela.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

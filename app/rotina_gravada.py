@@ -229,8 +229,15 @@ def executar_passos(passos, parametros=None, prefixo=""):
             continue
 
         if tipo == "hover":
-            print(f"Passo {indice}: hover em ({passo['x']}, {passo['y']})")
-            interacao.passar_mouse(passo["x"], passo["y"])
+            alvo = passo.get("texto_adivinhado")
+            if alvo:
+                pos = dominio.achar_ou_parar(tela.capturar_tela(), alvo, f"{prefixo}erro_hover_gravado_{indice:02d}.png")
+                if pos is None:
+                    return False
+            else:
+                pos = (passo["x"], passo["y"])
+            print(f"Passo {indice}: hover em {pos}")
+            interacao.passar_mouse(*pos)
             time.sleep(0.5)
             continue
 

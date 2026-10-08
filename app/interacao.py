@@ -21,6 +21,7 @@ import unicodedata
 from ctypes import wintypes
 
 import pyautogui
+from .controle_execucao import ponto_seguro
 
 _SW_MINIMIZE = 6
 
@@ -45,6 +46,7 @@ def focar_dominio():
     0.37) e clica num ponto vazio e seguro do meio da tela, só pra
     garantir que a janela do Domínio fica em foco antes de qualquer
     ação."""
+    ponto_seguro()
     _minimizar_console_proprio()
     largura, altura = pyautogui.size()
     pyautogui.click(largura // 2, altura // 2)
@@ -215,6 +217,7 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
 
 def clicar(x, y):
     """Clique 'devagar': move até o ponto, pausa, pressiona, pausa, solta."""
+    ponto_seguro()
     pyautogui.moveTo(x, y, duration=0.3)
     time.sleep(0.3)
     pyautogui.mouseDown()
@@ -225,6 +228,7 @@ def clicar(x, y):
 def passar_mouse(x, y):
     """Só move o mouse até o ponto (sem clicar) — usado pra abrir
     submenu em cascata."""
+    ponto_seguro()
     pyautogui.moveTo(x, y, duration=0.4)
 
 
@@ -232,6 +236,7 @@ def pressionar_tecla(tecla):
     """Pressiona uma tecla isolada (ex.: "f8", "enter") — atalho de
     teclado em vez de achar-e-clicar. Útil pra ação que o Domínio expõe
     por tecla de função (ex.: F8 pra "Troca de empresas")."""
+    ponto_seguro()
     pyautogui.press(tecla)
 
 
@@ -279,6 +284,7 @@ def selecionar_tudo():
     depois de `selecionar_tudo()` + digitar, sem mudar nada. Preferir
     `selecionar_tudo_alternativo()` (Home + Shift+End) pra esse caso,
     mais universal entre tipos de campo."""
+    ponto_seguro()
     pyautogui.hotkey("ctrl", "a")
 
 
@@ -287,6 +293,7 @@ def selecionar_tudo_alternativo():
     em vez de Ctrl+A — mais universal entre tipos de campo (funciona
     até em campo mascarado que não trata Ctrl+A como "selecionar tudo",
     achado real da seção 0.23)."""
+    ponto_seguro()
     pyautogui.press("home")
     pyautogui.hotkey("shift", "end")
 
@@ -311,6 +318,7 @@ def clicar_com_desvio(x, y):
     certo, longe da coluna do vizinho) garante que o mouse nunca passa
     por cima do vizinho no meio do caminho.
     """
+    ponto_seguro()
     _, y_atual = pyautogui.position()
     pyautogui.moveTo(x, y_atual, duration=0.2)
     time.sleep(0.15)
@@ -321,4 +329,5 @@ def digitar(texto):
     """Digita um texto, tecla por tecla (com pequeno intervalo, mesma
     lógica do clique "devagar" — dar tempo da tela remota do GO-Global
     registrar cada uma). Usado pra preencher campo de busca."""
+    ponto_seguro()
     pyautogui.write(texto, interval=0.06)

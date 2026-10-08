@@ -7,13 +7,15 @@ import secrets
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr, SecretStr, Field, field_validator
 
 from app import capacidades
 from app.servidor import PrecondicaoRecusada, SessaoOcupada, periodo_anterior
+from app.autenticacao import CredenciaisLogin, LoginRecusado
+from app import configuracao_rotinas
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,6 +28,46 @@ class PedidoTarefa(BaseModel):
     inicio: StrictStr
     fim: StrictStr
     apuracao_confirmada: StrictBool
+
+
+class PedidoLogin(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: StrictStr = Field(min_length=3, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    senha_onvio: SecretStr = Field(min_length=1, max_length=256)
+    usuario_dominio: StrictStr = Field(min_length=1, max_length=100)
+    senha_dominio: SecretStr = Field(min_length=1, max_length=256)
+    confirmar_reinicio: StrictBool = False
+
+    @field_validator("usuario_dominio", "senha_dominio")
+    @classmethod
+    def validar_teclado_remoto(cls, valor):
+        texto = valor.get_secret_value() if isinstance(valor, SecretStr) else valor
+        if not texto.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in texto):
+            raise ValueError("O teclado remoto exige caracteres ASCII imprimíveis.")
+        return valor
+
+
+class PedidoCodigo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    solicitacao_id: StrictStr = Field(pattern=r"^[0-9a-f]{32}$")
+    codigo: SecretStr = Field(min_length=4, max_length=16)
+
+
+class PedidoCalibracao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tela_principal_confirmada: StrictBool
+
+
+class PassoRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tipo: StrictStr = Field(max_length=10)
+    valor: StrictStr = Field(max_length=100)
+
+
+class PedidoRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    nome: StrictStr = Field(min_length=1, max_length=100)
+    passos: list[PassoRotina] = Field(min_length=1, max_length=80)
 
 
 def obter_chave(caminho=ROOT / "data" / "servidor_chave.txt"):
@@ -42,7 +84,7 @@ def obter_chave(caminho=ROOT / "data" / "servidor_chave.txt"):
     return chave
 
 
-def criar_app(servico, chave, pasta_saida=ROOT / "saida"):
+def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configuracao_rotinas.PASTA):
     if not isinstance(chave, str) or len(chave) < 32:
         raise ValueError("Configure uma chave de acesso de pelo menos 32 caracteres.")
     pasta_saida = Path(pasta_saida).resolve()
@@ -82,12 +124,77 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida"):
         inicio, fim = periodo_anterior()
         return {"modo": servico.modo, "execucao_habilitada": servico.disponivel,
                 "periodo_anterior": {"inicio": inicio, "fim": fim},
-                "ocupado": any(item["status"] in ("pendente", "executando") for item in servico.repositorio.listar())}
+                "controle_execucao": servico.estado_controle(),
+                "login": servico.estado_login(),
+                "ocupado": servico.ocupado}
+
+    def iniciar_login(pedido, reiniciar=False):
+        if reiniciar and not pedido.confirmar_reinicio:
+            raise HTTPException(422, "Confirme o fechamento do ciclo antes de reiniciar.")
+        credenciais = CredenciaisLogin(pedido.email, pedido.senha_onvio.get_secret_value(),
+                                      pedido.usuario_dominio, pedido.senha_dominio.get_secret_value())
+        try:
+            return servico.solicitar_login(credenciais, reiniciar=reiniciar)
+        except SessaoOcupada:
+            credenciais.limpar()
+            raise HTTPException(409, "A sessão está ocupada; cancele o login ativo antes de reiniciar.") from None
+        except PrecondicaoRecusada:
+            credenciais.limpar()
+            raise HTTPException(503, "Login requer o executor Windows e os componentes do servidor.") from None
+
+    @app.post("/api/login/iniciar", status_code=202, dependencies=[Depends(autorizar)])
+    def login_iniciar(pedido: PedidoLogin):
+        return iniciar_login(pedido)
+
+    @app.post("/api/login/reiniciar", status_code=202, dependencies=[Depends(autorizar)])
+    def login_reiniciar(pedido: PedidoLogin):
+        return iniciar_login(pedido, reiniciar=True)
+
+    @app.post("/api/login/codigo", dependencies=[Depends(autorizar)])
+    def login_codigo(pedido: PedidoCodigo):
+        try:
+            servico.sessao_login.fornecer_codigo(pedido.solicitacao_id, pedido.codigo.get_secret_value())
+            return {"recebido": True}
+        except LoginRecusado:
+            raise HTTPException(409, "O pedido de código expirou ou já foi atendido; confira o painel.") from None
+
+    @app.post("/api/login/cancelar", dependencies=[Depends(autorizar)])
+    def login_cancelar():
+        servico.sessao_login.cancelar()
+        return servico.estado_login()
+
+    @app.post("/api/sessao/calibrar", status_code=202, dependencies=[Depends(autorizar)])
+    def calibrar(pedido: PedidoCalibracao):
+        if not pedido.tela_principal_confirmada:
+            raise HTTPException(422, "Confirme a tela principal azul, sem menus ou relatórios, para calibrar.")
+        try:
+            return servico.solicitar_calibracao()
+        except SessaoOcupada:
+            raise HTTPException(409, "Aguarde a sessão ficar disponível.") from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, "Calibração requer o executor Windows.") from None
+
+    @app.post("/api/sessao/capturar", status_code=202, dependencies=[Depends(autorizar)])
+    def capturar():
+        try:
+            return servico.solicitar_sessao("capturar")
+        except SessaoOcupada:
+            raise HTTPException(409, "Aguarde o login ou a execução terminar para capturar.") from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, "Captura requer o executor Windows.") from None
+
+    @app.get("/api/sessao/captura", dependencies=[Depends(autorizar)])
+    def captura():
+        imagem = servico.login.obter_captura() if servico.login is not None else None
+        if imagem is None:
+            raise HTTPException(404, "A captura expirou; solicite outra no painel.")
+        return Response(imagem, media_type="image/png")
 
     @app.get("/api/capacidades", dependencies=[Depends(autorizar)])
     def catalogo():
         return [{"id": item.id, "nome": item.nome, "objetivo": item.objetivo,
-                 "periodo": ("Usa o mês anterior à data do servidor. Confira se a apuração está fechada."
+                 "tipo_periodo": "competencia" if item.id in ("sped_fiscal", "efd_contribuicoes") else "datas",
+                 "periodo": ("Escolha o mês e ano da competência, com a apuração fechada."
                              if item.id in ("sped_fiscal", "efd_contribuicoes") else
                              "Usa o período informado nos campos. Confira se a apuração está fechada."),
                  "pendencias": item.pendencias} for item in capacidades.listar_capacidades()]
@@ -95,6 +202,19 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida"):
     @app.get("/api/tarefas", dependencies=[Depends(autorizar)])
     def listar():
         return servico.repositorio.listar()
+
+    @app.get("/api/rotinas", dependencies=[Depends(autorizar)])
+    def rotinas_listar():
+        return configuracao_rotinas.listar(pasta_rotinas)
+
+    @app.post("/api/rotinas", status_code=201, dependencies=[Depends(autorizar)])
+    def rotinas_salvar(pedido: PedidoRotina):
+        try:
+            return configuracao_rotinas.salvar(pedido.model_dump(), pasta_rotinas)
+        except ValueError:
+            raise HTTPException(422, "Confira nome e passos de geração/leitura. Digitação exige um parâmetro de período ou empresa.") from None
+        except OSError:
+            raise HTTPException(503, "Não consegui salvar o rascunho no servidor.") from None
 
     @app.post("/api/tarefas", status_code=202, dependencies=[Depends(autorizar)])
     def solicitar(pedido: PedidoTarefa):
@@ -113,6 +233,20 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida"):
         if tarefa is None:
             raise HTTPException(404, "Tarefa não encontrada.")
         return {**tarefa, "eventos": servico.repositorio.eventos(identificador)}
+
+    def controlar(identificador, acao):
+        try:
+            return servico.controlar(identificador, acao)
+        except SessaoOcupada:
+            raise HTTPException(409, "Esta execução não está ativa; confira o histórico.") from None
+
+    @app.post("/api/tarefas/{identificador}/pausar", dependencies=[Depends(autorizar)])
+    def pausar(identificador: str):
+        return controlar(identificador, "pausar")
+
+    @app.post("/api/tarefas/{identificador}/continuar", dependencies=[Depends(autorizar)])
+    def continuar(identificador: str):
+        return controlar(identificador, "continuar")
 
     @app.get("/api/tarefas/{identificador}/arquivo", dependencies=[Depends(autorizar)])
     def arquivo(identificador: str):

@@ -48,9 +48,16 @@ class TestValidacaoServidor(unittest.TestCase):
             with self.subTest(extra=extra), self.assertRaises(ValueError):
                 validar_pedido({**pedido(), **extra}, hoje=dt.date(2026, 10, 7))
 
-    def test_sped_recusa_periodo_diferente_do_mes_anterior(self):
-        with self.assertRaises(ValueError):
-            validar_pedido({**pedido(), "inicio": "2026-08-01", "fim": "2026-08-31"}, hoje=dt.date(2026, 10, 7))
+    def test_sped_aceita_mes_passado_escolhido_inclusive_bissexto(self):
+        for inicio, fim in (("2026-08-01", "2026-08-31"), ("2024-02-01", "2024-02-29")):
+            dados = {**pedido(), "inicio": inicio, "fim": fim}
+            self.assertEqual(validar_pedido(dados, hoje=dt.date(2026, 10, 7)), dados)
+
+    def test_sped_recusa_mes_incompleto_atual_ou_intervalo_entre_meses(self):
+        for inicio, fim in (("2026-08-02", "2026-08-31"), ("2026-08-01", "2026-08-30"),
+                            ("2026-08-01", "2026-09-30"), ("2026-10-01", "2026-10-31")):
+            with self.subTest(inicio=inicio, fim=fim), self.assertRaises(ValueError):
+                validar_pedido({**pedido(), "inicio": inicio, "fim": fim}, hoje=dt.date(2026, 10, 7))
 
     def test_livro_aceita_periodo_passado_escolhido(self):
         dados = {**pedido(), "capacidade": "registro_saidas", "inicio": "2026-08-01", "fim": "2026-08-31"}

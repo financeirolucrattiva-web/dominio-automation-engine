@@ -45,6 +45,15 @@ pequena para copiar ao outro PC. O cliente cria um atalho em janela
 própria pelo Edge/Chrome, sem instalar Python/OCR/Domínio. Siga o
 [passo a passo da rede local](docs/SERVIDOR-E-INTERFACE.md).
 
+A interface agora oferece Pausar/Continuar na tarefa ativa, calendário
+obrigatório (competência ou datas), login Onvio com código humano,
+cancelamento/reinício, captura temporária e calibração da tela do servidor.
+Configurar novas rotinas salva rascunhos compatíveis com o gravador para
+revisão e teste; ainda não executa rascunhos remotamente. Lotes por regime
+e agendamento por empresa são as próximas entregas do
+[roadmap](docs/ROADMAP-RPA.md). Os novos controles/login precisam da
+rodada Windows; testes da nuvem usam execução e autenticação simuladas.
+
 ![Site com tarefa simulada](docs/preview-interface-conectada.png)
 
 ## Estado atual: consolidar execução e recuperação — incremento 2 do RPA

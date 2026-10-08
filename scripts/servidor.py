@@ -13,9 +13,11 @@ sys.path.insert(0, str(ROOT))
 def simular(pedido, receber_evento):
     """Eventos sintéticos; nunca importa ou opera o desktop."""
     from app import painel
+    from app.controle_execucao import ponto_seguro
     identificador = pedido["request_id"].replace("-", "")
     etapas = painel.ETAPAS_LIVROS if pedido["capacidade"].startswith("registro_") else painel.ETAPAS_GERACAO
     for etapa in etapas + ("fim",):
+        ponto_seguro()
         time.sleep(0.15)
         receber_evento({"execution_id": identificador, "routine_id": pedido["capacidade"], "attempt": 1,
                         "step": etapa, "status": "concluido" if etapa == "fim" else "confirmado",
@@ -75,15 +77,17 @@ def main(argv=None):
     except OSError:
         print("Não foi possível acessar data/servidor_chave.txt. Confira as permissões da pasta data e do arquivo.")
         return 1
-    executor, modo = None, "consulta"
+    executor, modo, login = None, "consulta", None
     if args.simular:
         executor, modo = simular, "simulacao"
     elif args.executar:
         from app.executor_servidor import ExecutorDominio
+        from app.login_windows import LoginWindows
         executor, modo = ExecutorDominio(), "windows"
+        login = LoginWindows()
     nome_banco = "servidor_simulado.sqlite3" if args.simular else "servidor.sqlite3"
     try:
-        servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo)
+        servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo, login=login)
         app = criar_app(servico, chave)
         print(f"Modo do servidor: {modo}. Porta {args.porta}.")
         if args.rede_local:

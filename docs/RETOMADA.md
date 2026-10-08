@@ -8,7 +8,8 @@ Não precisa reinstalar aplicativos para receber esta organização.
 
 ## Site e servidor dedicado
 
-O pedido atual prioriza fechar o app individual; lote fica adiado.
+O pedido atual é concluir pausa, calendário e login pelo site; em seguida
+configurar lotes por empresas/regime e rotinas. Agendamento é futuro.
 A interface web/PWA foi preparada no mesmo projeto, com conexão por
 chave, envio de tarefas, etapas e histórico persistido no servidor.
 O usuário informou que o servidor está pronto, mas o Domínio ainda não.
@@ -43,6 +44,29 @@ foi conferido. Isso não valida operação fiscal real no Windows.
 As alterações de gravação/digitação/hover e aprovação trazidas pelo
 Claude foram integradas. A GUI mantém a gravação/revisão local;
 rotinas gravadas não são executadas automaticamente pelo site.
+
+## Teste dos novos controles
+
+1. No PC servidor, `Atualizar.bat` e reabra
+   `atalhos/servidor/Executar Dominio na Rede.bat`. No cliente, Ctrl+F5.
+2. Escolha empresa já selecionada e competência passada/apuração fechada;
+   o calendário não tem data automática. Teste SPED Fiscal individual.
+3. Na tarefa ativa, Pausar execução → aguarde Execução pausada → Continuar.
+   A mesma tarefa deve terminar, com documento e retorno conferidos.
+4. Acesso ao Domínio e recuperação do servidor reúne login/código,
+   Cancelar login, Reiniciar ciclo, Ver tela e Calibrar tela principal.
+   Senhas são informadas no formulário, não neste chat, e não são salvas.
+5. Para primeira calibração remota, confira a captura da tela azul,
+   confirme a caixa e calibre. Para login completo, acompanhe a etapa,
+   informe o código de e-mail no painel e confira o retorno à tela azul.
+6. Configurar novas rotinas salva rascunhos no catálogo do gravador.
+   Revisão/teste/aprovação continuam no fluxo existente; não entram no
+   executor remoto automaticamente. Lote remoto por regime vem depois,
+   com teste real de troca de empresa e isolamento dos resultados.
+
+O servidor precisa de sessão Windows gráfica desbloqueada. Nuvem testou
+lógica, API e navegador com fiscal/login externos simulados; não testou
+Onvio autenticado, GO-Global ou conteúdo fiscal real dessa entrega.
 
 ## Execução e recuperação
 

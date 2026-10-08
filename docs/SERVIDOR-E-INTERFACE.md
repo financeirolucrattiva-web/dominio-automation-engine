@@ -137,8 +137,8 @@ necessária ao RPA. Este incremento não configura o Domínio automaticamente.
 
 Antes de chamar a rotina, o executor confere referência, foco, tela
 principal e código da empresa. Se houver divergência, recusa a tarefa;
-não troca a empresa automaticamente. SPED/Contribuições usam o mês
-anterior do relógio do servidor. Livros usam as datas informadas.
+não troca a empresa automaticamente. SPED/Contribuições usam a
+competência passada escolhida no calendário. Livros usam as datas informadas.
 A confirmação de apuração é exigida: calendário não comprova fechamento.
 
 Há uma tarefa por vez. Executor, GUI e ferramentas compartilham uma
@@ -146,7 +146,102 @@ trava na mesma instalação. Encerre o executor antes de calibrar ou operar
 pela GUI. Use uma única pasta por sessão e não rode scripts fiscais
 antigos em paralelo, pois eles não participam dessa trava.
 
-## Acesso pelo PC do usuário
+## Controles, período e login pela interface (08/10/2026)
+
+No servidor, execute `Atualizar.bat`, que instala a nova dependência
+Playwright quando `data/servidor_instalado.json` existe. Caso esse
+marcador não exista, use `Instalar Servidor.bat`. Não há novo instalador,
+modelo OCR ou dependência a instalar no PC da interface. Playwright usa
+Edge ou Chrome já instalado no servidor, em um perfil próprio local;
+não requer `playwright install`. A wheel x64 e suas dependências foram
+verificadas para Python 3.14. Reinicie o executor Windows após atualizar;
+na interface use Ctrl+F5 para carregar os novos controles.
+
+**Período:** SPED e Contribuições pedem mês/ano e derivam o primeiro e
+último dia, inclusive ano bissexto. Livros pedem datas inicial/final.
+Os campos começam vazios e são limpos após envio aceito. A API recusa
+período atual, futuro, SPED de mês incompleto e apuração não confirmada.
+Chamadas locais antigas sem datas preservam o mês anterior.
+
+**Pausa:** aparece ao acompanhar a tarefa ativa. Pausa solicitada aguarda
+o próximo ponto entre ações completas. Continuar retoma a mesma tarefa;
+o adaptador exige foco e quadro compatíveis com o observado ao pausar,
+mantendo a imagem apenas em memória. Se a tela mudou, interrompe, em vez
+de executar uma ação com posição antiga. Encerrar o servidor durante
+pausa interrompe a tarefa; não a retoma. Fechar a interface não pausa.
+
+**Login:** abra Acesso ao Domínio e recuperação do servidor. A chave da
+interface é diferente das credenciais Onvio e Domínio. Informe e-mail,
+senha Onvio, usuário e senha Fiscal no formulário; não cole segredos em
+chats. O fluxo segue as capturas do operador: Onvio/Entrar, credenciais,
+método E-mail, código humano, Domínio Web/Entrar, Lista de Programas/
+Escrita Fiscal, Conectando/credenciais/OK e tela principal azul.
+
+Senhas ficam em memória durante a tentativa e são descartadas ao terminar.
+O formulário também apaga senhas após envio. O código tem solicitação
+única, prazo de cinco minutos e é consumido uma vez; não fica no histórico.
+Reenvio de código expirado é recusado. Não há leitura automática de e-mail.
+O login não dispara uma rotina fiscal automaticamente. Conectar em é
+preservado: a captura mostrou Contábil e o operador orientou só credenciais
+e OK. O teclado Fiscal atual admite ASCII imprimível; recusa outros
+caracteres antes de digitar. Credenciais web usam preenchimento DOM.
+
+Somente destinos HTTPS conhecidos recebem credenciais. Campos web são
+localizados por rótulo/semântica. Lista de Programas e Conectando usam
+OCR exato e único; os campos são medidos pelos retângulos ao lado dos
+rótulos, sem coordenadas inventadas. Ambiguidade interrompe o login e
+mostra a etapa. A confirmação final exige referência calibrada.
+
+**Conferência/calibração remota:** Ver tela do Domínio captura apenas
+a janela Domínio/Lista de Programas/Conectando reconhecida, quando a
+sessão está livre. A imagem fica em memória por até 30 segundos e é
+entregue somente ao cliente autenticado; não vai para IA, Git ou logs.
+A interface a oculta após 30 segundos ou por Ocultar captura. Não captura
+o navegador com credenciais. Confira a tela azul nessa imagem, confirme
+a caixa e use Calibrar tela principal. Maximiza somente o Domínio
+identificado e reaproveita as duas capturas/foco/cabeçalho da calibração
+existente. Não aprende a referência automaticamente durante login.
+
+**Reiniciar ciclo:** exige credenciais e confirmação de fechamento.
+Interrompe a tarefa num checkpoint e marca pendentes como interrompidas,
+sem repetir geração. Fecha as janelas Domínio/Lista de Programas
+identificadas e o navegador próprio do RPA, sem matar processos do Windows.
+Espera o fechamento antes de abrir outro ciclo. Se uma janela pedir
+confirmação e continuar aberta, informa falha. Durante login ativo, use
+Cancelar login e aguarde o fim antes de Reiniciar ciclo. Leitores PDF e
+outros programas não identificados ficam fora dessa operação.
+
+**Novas rotinas:** Configurar novas rotinas salva nome, cliques por texto,
+hover por texto, teclas de formulário e parâmetros de empresa/período no
+mesmo `data/rotinas_gravadas/` do gravador. Não aceita código Python,
+caminhos enviados pelo cliente nem senhas literais. Nasce rascunho;
+revisão, teste supervisionado e aprovação seguem o fluxo local existente.
+Esse catálogo ainda não executa rascunhos remotamente. Lote remoto por
+regime e agendamento são as próximas entregas descritas no roadmap.
+
+**Menus:** `data/mapa_menus.json` aprende regiões de alvos dos caminhos
+já conhecidos, depois de localizar por OCR. A leitura seguinte começa
+no recorte, relê o alvo e recai na região original quando necessário;
+resolução diferente invalida o recorte. Abertura dos submenus usa polling
+visual em vez das esperas fixas de dois segundos. Preserva clique em L,
+formulários, conferências e recuperação. Tempo real ainda precisa ser
+medido no Windows; não significa que todos os menus foram mapeados.
+
+Testes automatizados e Chromium usam fiscal/login externos simulados.
+Regressão: `python -m unittest discover -s tests -q`.
+Teste opcional do navegador: `python tests/smoke_interface_web.py`, com
+Chromium instalado ou `DOMINIO_BROWSER_BIN` apontando ao executável do
+Chrome/Edge. O teste cria API/banco temporários, não usa a chave real,
+não opera o desktop fiscal nem envia credenciais a provedores externos.
+Também foi conferida a entrada CLI `scripts/servidor.py --simular`: site,
+JavaScript, API autenticada e tarefa sintética com seis eventos.
+O caminho completo Onvio/GO-Global, reconhecimento dos novos campos,
+eventual confirmação de abertura do cliente remoto pelo navegador e
+velocidade de menus ainda precisam da primeira rodada Windows.
+Servidor dedicado continua precisando de sessão gráfica desbloqueada,
+mesmo quando o usuário só vê a interface em outro PC.
+
+## Endereço e aplicativo no PC do usuário
 
 O endereço padrão aceita somente o próprio servidor. Para outro PC,
 configure HTTPS e um endereço acessível ao usuário. Pode usar proxy

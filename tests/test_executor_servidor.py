@@ -40,7 +40,19 @@ class TestExecutorServidor(unittest.TestCase):
 
     def test_preserva_rotina_sped_sem_reescrever_navegacao(self):
         self.assertTrue(self.executar())
-        self.desktop["dominio"].gerar_sped_fiscal.assert_called_once_with(prefixo="servidor_" + self.dados["request_id"].replace("-", "") + "_")
+        import datetime as dt
+        self.desktop["dominio"].gerar_sped_fiscal.assert_called_once_with(
+            prefixo="servidor_" + self.dados["request_id"].replace("-", "") + "_",
+            data_inicial=dt.date.fromisoformat(self.dados["inicio"]).strftime("%d/%m/%Y"),
+            data_final=dt.date.fromisoformat(self.dados["fim"]).strftime("%d/%m/%Y"))
+
+    def test_competencia_escolhida_nao_e_substituida_pelo_mes_anterior(self):
+        self.dados.update(capacidade="efd_contribuicoes", inicio="2024-02-01", fim="2024-02-29")
+        self.executar()
+        gerador = self.desktop["dominio"].gerar_efd_contribuicoes
+        self.assertEqual(gerador.call_args.kwargs["data_inicial"], "01/02/2024")
+        self.assertEqual(gerador.call_args.kwargs["data_final"], "29/02/2024")
+        self.desktop["dominio"].competencia_anterior.assert_not_called()
 
     def test_empresa_divergente_nao_chama_gerador(self):
         self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")

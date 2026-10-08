@@ -12,6 +12,8 @@ import uuid
 
 from app import capacidades, painel
 from app.trava_execucao import TravaExecucao
+from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
+from app.autenticacao import SessaoLogin, LoginRecusado
 
 
 class SessaoOcupada(ValueError):
@@ -49,7 +51,8 @@ def validar_pedido(pedido, hoje=None):
         if inicio > fim or fim >= hoje.replace(day=1):
             raise ValueError
         if pedido["capacidade"] in ("sped_fiscal", "efd_contribuicoes"):
-            if (pedido["inicio"], pedido["fim"]) != periodo_anterior(hoje):
+            proximo_mes = (inicio.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+            if inicio.day != 1 or fim != proximo_mes - dt.timedelta(days=1):
                 raise ValueError
     except (ValueError, TypeError, AttributeError, KeyError):
         raise ValueError("Confira função, empresa, período passado e confirmação da apuração.") from None
@@ -137,6 +140,10 @@ class RepositorioTarefas:
                 return dict(item)
         return None
 
+    def interromper_pendentes(self):
+        with self.conectar() as banco:
+            banco.execute("UPDATE tarefas SET status='interrompida', resultado=NULL, motivo='reinicio_solicitado', atualizado=? WHERE status='pendente'", (_agora(),))
+
     def concluir(self, identificador, status, resultado=None, arquivo=None, motivo=None):
         with self.conectar() as banco:
             banco.execute("UPDATE tarefas SET status=?, resultado=?, arquivo=?, motivo=?, atualizado=? WHERE id=?",
@@ -160,11 +167,18 @@ class RepositorioTarefas:
 class ServicoExecucao:
     """Um único worker; novas tarefas são recusadas enquanto a sessão ocupa."""
 
-    def __init__(self, repositorio, executor=None, modo="consulta"):
+    def __init__(self, repositorio, executor=None, modo="consulta", login=None):
         self.repositorio, self.executor, self.modo = repositorio, executor, modo
         self._acordar = threading.Event()
         self._parar = threading.Event()
         self._worker = None
+        self._controle_lock = threading.Lock()
+        self._controle = None
+        self._tarefa_atual = None
+        self.login = login
+        self.sessao_login = SessaoLogin()
+        self._operacao = None
+        self._operacao_ativa = False
         self._trava = TravaExecucao(repositorio.caminho.parent / ("sessao_executor.lock" if modo == "windows" else "executor_simulado.lock"))
 
     @property
@@ -187,17 +201,85 @@ class ServicoExecucao:
     def encerrar(self):
         self._parar.set()
         self._acordar.set()
+        with self._controle_lock:
+            self.sessao_login.cancelar()
+            if self._operacao and self._operacao[1] is not None:
+                self._operacao[1].limpar()
+            self._operacao = None
+            if self._controle is not None:
+                self._controle.encerrar()
         if self._worker is not None:
             self._worker.join()  # termina a ação atual; não mata o mouse/teclado no meio
         self._trava.liberar()
+
+    @property
+    def ocupado(self):
+        with self._controle_lock:
+            return self._ocupado()
+
+    def _ocupado(self):
+        return (self._operacao is not None or self._operacao_ativa or
+                any(t["status"] in ("pendente", "executando") for t in self.repositorio.listar()))
+
+    def estado_login(self):
+        return {**self.sessao_login.publico(), "disponivel": self.login is not None and self.disponivel}
+
+    def solicitar_login(self, credenciais, reiniciar=False):
+        with self._controle_lock:
+            if self.login is None or not self.disponivel:
+                raise PrecondicaoRecusada("login_indisponivel")
+            if self._operacao is not None or self._operacao_ativa or (not reiniciar and self._ocupado()):
+                raise SessaoOcupada("A sessão está ocupada.")
+            if reiniciar:
+                self.repositorio.interromper_pendentes()
+                if self._controle is not None:
+                    self._controle.interromper()
+            self.sessao_login.iniciar()
+            self._operacao = ("reiniciar" if reiniciar else "login", credenciais)
+            self._acordar.set()
+            return self.estado_login()
+
+    def solicitar_sessao(self, acao):
+        if acao not in ("calibrar", "capturar"):
+            raise ValueError("Operação inválida.")
+        with self._controle_lock:
+            if self.login is None or not self.disponivel:
+                raise PrecondicaoRecusada("login_indisponivel")
+            if self._ocupado():
+                raise SessaoOcupada("A sessão está ocupada.")
+            self.sessao_login.iniciar()
+            self._operacao = (acao, None)
+            self._acordar.set()
+            return self.estado_login()
+
+    def solicitar_calibracao(self):
+        return self.solicitar_sessao("calibrar")
+
+    def estado_controle(self):
+        with self._controle_lock:
+            if self._controle is None:
+                return None
+            return {"tarefa_id": self._tarefa_atual, "estado": self._controle.estado}
+
+    def controlar(self, identificador, acao):
+        if acao not in ("pausar", "continuar"):
+            raise ValueError("Controle inválido.")
+        with self._controle_lock:
+            if self._parar.is_set() or identificador != self._tarefa_atual or self._controle is None:
+                raise SessaoOcupada("Esta execução não está ativa; confira o histórico.")
+            getattr(self._controle, acao)()
+            return {"tarefa_id": identificador, "estado": self._controle.estado}
 
     def solicitar(self, pedido):
         if not self.disponivel:
             raise PrecondicaoRecusada("executor_indisponivel")
         pedido = validar_pedido(pedido)
-        tarefa, nova = self.repositorio.criar(pedido, self.modo)
-        if nova:
-            self._acordar.set()
+        with self._controle_lock:
+            if self._operacao is not None or self._operacao_ativa:
+                raise SessaoOcupada("Login ou recuperação em andamento.")
+            tarefa, nova = self.repositorio.criar(pedido, self.modo)
+            if nova:
+                self._acordar.set()
         return tarefa
 
     def _trabalhar(self):
@@ -208,6 +290,37 @@ class ServicoExecucao:
             # manual, sem repetir uma geração cujo resultado se perdeu.
             self._parar.set()
             logging.getLogger(__name__).exception("Executor interrompido por falha de persistência.")
+        finally:
+            if self.login is not None:
+                # Playwright/contexto são criados e fechados na mesma thread.
+                self.login.encerrar()
+
+    def _executar_operacao(self, operacao):
+        acao, credenciais = operacao
+        try:
+            self.sessao_login.verificar()
+            if acao == "calibrar":
+                self.login.calibrar(self.sessao_login)
+            elif acao == "capturar":
+                self.login.capturar(self.sessao_login)
+            else:
+                if acao == "reiniciar":
+                    self.login.reiniciar(self.sessao_login)
+                self.login.executar(credenciais, self.sessao_login)
+        except LoginRecusado as erro:
+            motivos = {"login_cancelado", "codigo_expirado", "navegador_indisponivel", "destino_nao_permitido",
+                       "tela_login_nao_reconhecida", "campos_login_nao_confirmados", "janela_login_nao_confirmada",
+                       "tela_principal_nao_confirmada", "fechamento_nao_confirmado", "calibracao_nao_confirmada"}
+            motivo = str(erro) if str(erro) in motivos else "login_nao_confirmado"
+            self.sessao_login.fase("cancelado" if motivo == "login_cancelado" else "falha", motivo)
+        except Exception:
+            # Exceções de navegador podem conter senhas em traces; não registrar.
+            self.sessao_login.fase("falha", "login_nao_confirmado")
+        finally:
+            if credenciais is not None:
+                credenciais.limpar()
+            with self._controle_lock:
+                self._operacao_ativa = False
 
     def _executar_pendentes(self):
         while not self._parar.is_set():
@@ -215,13 +328,27 @@ class ServicoExecucao:
             self._acordar.clear()
             if self._parar.is_set():
                 break
-            tarefa = self.repositorio.proxima()
+            with self._controle_lock:
+                operacao, self._operacao = self._operacao, None
+                if operacao is not None:
+                    self._operacao_ativa = True
+                    tarefa = None
+                else:
+                    tarefa = self.repositorio.proxima()
+                    if tarefa is not None:
+                        controle = ControleExecucao()
+                        self._controle, self._tarefa_atual = controle, tarefa["id"]
+            if operacao is not None:
+                self._executar_operacao(operacao)
+                continue
             if tarefa is None:
                 continue
             identificador = tarefa["id"]
             try:
                 pedido = validar_pedido(json.loads(tarefa["pedido"]))
-                resultado = self.executor(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
+                with controlar_execucao(controle):
+                    resultado = self.executor(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
+                controle.verificar_interrupcao()
                 arquivo = None
                 if isinstance(resultado, tuple) and len(resultado) == 2 and type(resultado[0]) is bool:
                     resultado, arquivo = resultado
@@ -235,6 +362,9 @@ class ServicoExecucao:
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
                 self.repositorio.concluir(identificador, status, resultado, arquivo,
                                          None if status != "nao_confirmada" else "resultado_ou_retorno_nao_confirmado")
+            except ExecucaoInterrompida as erro:
+                motivo = str(erro) if str(erro) in ("retomada_nao_confirmada", "servidor_encerrado_durante_pausa", "reinicio_solicitado") else "retomada_nao_confirmada"
+                self.repositorio.concluir(identificador, "interrompida", None, motivo=motivo)
             except PrecondicaoRecusada as erro:
                 motivos = {"executor_requer_windows", "calibracao_indisponivel", "dominio_fora_de_foco",
                            "tela_principal_nao_confirmada", "empresa_nao_confirmada", "periodo_nao_confirmado"}
@@ -244,3 +374,6 @@ class ServicoExecucao:
                 # Sem exceções/capturas/caminhos privados na resposta remota.
                 logging.getLogger(__name__).exception("Falha na tarefa %s", identificador)
                 self.repositorio.concluir(identificador, "falha", False, motivo="erro_execucao_consulte_servidor")
+            finally:
+                with self._controle_lock:
+                    self._controle, self._tarefa_atual = None, None

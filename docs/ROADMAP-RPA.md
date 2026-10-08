@@ -57,11 +57,14 @@ Resolver falhas confirmadas pelos logs sem inventar novas posições na
 tela. Acrescentar limites de espera, interrupção entre ações e estratégias
 de recuperação para cenários observados. Confirmar retorno à tela
 esperada antes de iniciar outra tarefa. Levar estados às demais rotinas.
-Por prioridade do usuário, fechar o app individual; lote fica adiado.
+Prioridade atualizada em 08/10/2026: concluir controles/login da interface
+e depois configurar lotes de rotinas por empresas e regime. O lote remoto
+ainda não está habilitado.
 
 Critério de conclusão atual: execução individual com resultado/conteúdo
 e retorno conferidos; falha e recuperação registradas sem falso sucesso.
-Quando lote voltar ao escopo, validar isolamento por empresa/documento.
+Para lote, validar isolamento por empresa/documento e troca de empresa
+antes de liberar a execução remota.
 
 Implementados para teste: referência local de retorno, verificação em
 duas capturas com foco/cabeçalho, etapas SPED/Contribuições e proteção das
@@ -201,3 +204,44 @@ esta sequência de projeto. Avaliação de PaddleOCR começa opcional,
 local e sem ações; substituição do OCR depende de ganho nas mesmas
 telas e regressão SPED. VL/layout entram apenas com dificuldade concreta
 que os justifique. Isso não cria uma fase paralela nem habilita agentes.
+
+## Próxima entrega: lotes por regime e rotinas
+
+Pedido de 08/10/2026: escolher, por exemplo, Simples Nacional e um
+conjunto de rotinas, configurar os roteiros na interface e executar as
+combinações aprovadas. Reusar `app/empresas.py` e o formato local
+`codigo;apelido;regime;tipo;sped`, sem confundir arquivo de exemplo com
+cadastro real. O regime filtra empresas; ele não determina sozinho
+quais obrigações cada empresa deve gerar.
+
+Sequência de implementação/teste:
+
+1. Cadastro/importação de empresas pela interface, com filtro por regime.
+2. Seleção das empresas e rotinas aprovadas, calendário obrigatório e
+   revisão das combinações antes do envio. Rascunhos precisam de teste
+   supervisionado e validação do resultado antes de entrar no lote.
+3. Troca de empresa pelo caminho F8 já existente, confirmando modo de
+   busca por Código e relendo o código no cabeçalho. Hoje o executor
+   remoto exige que a empresa já esteja selecionada; não presumir que
+   o lote remoto já existe porque há um lote local na GUI.
+4. Fila persistida no servidor, uma combinação por vez. Só avançar com
+   resultado e retorno confirmados; pausa/cancelamento preservam os
+   resultados anteriores. Reinício não repete uma geração inacabada.
+5. Rodada Windows com duas empresas reais autorizadas e rotinas já
+   validadas; revisar os documentos e os estados antes de ampliar.
+
+## Agendamento futuro por empresa
+
+Guardar empresa/regime selecionado, rotinas aprovadas, dia, horário,
+fuso explícito (`America/Sao_Paulo`), repetição e regra de competência.
+Materializar a lista de empresas e o período em cada ocorrência e
+submeter à mesma fila exclusiva do lote. Calendário corrente não autoriza
+operação fiscal: o período precisa ser passado e ter apuração confirmada.
+
+Registrar a ocorrência com identificador único para não duplicar geração
+após reinício ou desconexão. Se o horário foi perdido, marcar para revisão;
+não executar atrasados automaticamente. Se Onvio pedir novo código,
+mostrar Aguardando código na interface, com prazo e cancelamento.
+Definir armazenamento protegido de credenciais no Windows antes de
+prometer login sem presença: a entrega atual usa senhas só em memória
+durante cada tentativa e não agenda execuções.

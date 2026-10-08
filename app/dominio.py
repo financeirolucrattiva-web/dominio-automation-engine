@@ -274,6 +274,27 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     return imagem, pos, estado == "erro"
 
 
+def _esperar_item_menu(contexto, alvo, nome_erro):
+    """Reconhece o próximo menu assim que abrir; cache sempre relido por OCR."""
+    from .mapa_menus import MapaMenus
+    from .controle_execucao import ponto_seguro
+    mapa = MapaMenus()
+    anterior = None
+    for tentativa in range(15):
+        ponto_seguro()
+        area = tela.recortar_area_menu(tela.capturar_tela())
+        pixels = area.tobytes() if hasattr(area, "tobytes") else None
+        if tentativa == 0 or pixels is None or pixels != anterior:
+            pos = mapa.localizar(area, contexto, alvo, lambda img, texto: tela.achar_texto(img, texto, escala=2))
+            if pos is not None:
+                return pos
+            anterior = pixels
+        if tentativa < 14:
+            time.sleep(0.15)
+    # Preserva diagnóstico/fallback existente depois da espera visual.
+    return achar_ou_parar(area, alvo, nome_erro)
+
+
 def _ler_texto_caixa(imagem, pos):
     """Lê o texto da caixa de erro/aviso encontrada em `pos`, num
     recorte pequeno ao redor dela (não a tela inteira — mesmo motivo de
@@ -399,7 +420,7 @@ def trocar_empresa(codigo, prefixo=""):
     return True
 
 
-def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
+def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data_final=None):
     """Acompanha geração observada e saída, sem validar conteúdo SPED/EFD."""
     if item_menu == "SPED Fiscal":
         rotina = "sped_fiscal"
@@ -409,7 +430,8 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
         rotina = "geracao_fiscal"
     acompanhamento = estados.AcompanhamentoRotina(rotina)
     try:
-        resultado = _executar_sped(item_menu, texto_confirmacao, prefixo=prefixo, acompanhamento=acompanhamento)
+        resultado = _executar_sped(item_menu, texto_confirmacao, prefixo=prefixo, acompanhamento=acompanhamento,
+                                  data_inicial=data_inicial, data_final=data_final)
         acompanhamento.concluir(resultado)
         return resultado
     except BaseException:
@@ -417,7 +439,7 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo=""):
         raise
 
 
-def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None):
+def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None, data_inicial=None, data_final=None):
     """Navega Relatórios > Informativos > Federais > `item_menu`, clica
     OK, confirma o aviso de sucesso e fecha a tela — ponta a ponta.
 
@@ -440,6 +462,14 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     Devolve True se terminou com a confirmação de sucesso vista e a
     tela fechada, False se parou em algum passo no meio do caminho.
     """
+    # O cliente conectado fornece a competência; chamadas locais antigas
+    # preservam o mês anterior. Valida antes de qualquer ação de desktop.
+    if data_inicial is not None or data_final is not None:
+        try:
+            validar_competencia(data_inicial, data_final)
+        except (ValueError, TypeError):
+            print("Competência inválida: informe um mês completo passado, com apuração fechada.")
+            return False
     # Refaz o foco no Domínio antes de qualquer ação — mesmo motivo de
     # trocar_empresa() (seção 0.28): o foco pode ter ido pra outra
     # janela (ex.: console do script) entre um documento e outro do
@@ -457,33 +487,24 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
         return False
     print(f"Clicando em Relatórios: {pos}")
     interacao.clicar(*pos)
-    time.sleep(2)
 
     # 2. Informativos (dentro do menu suspenso — precisa de escala=2)
-    imagem = tela.capturar_tela()
-    area = tela.recortar_area_menu(imagem)
-    pos = achar_ou_parar(area, "Informativ", f"{prefixo}erro_informativos.png")
+    pos = _esperar_item_menu("relatorios", "Informativ", f"{prefixo}erro_informativos.png")
     if pos is None:
         return False
     print(f"Passando o mouse em Informativos: {pos}")
     interacao.passar_mouse(*pos)
-    time.sleep(2)
 
     # 3. Federais (submenu de Informativos)
-    imagem = tela.capturar_tela()
-    area = tela.recortar_area_menu(imagem)
-    pos = achar_ou_parar(area, "Federais", f"{prefixo}erro_federais.png")
+    pos = _esperar_item_menu("relatorios/informativos", "Federais", f"{prefixo}erro_federais.png")
     if pos is None:
         return False
     print(f"Passando o mouse em Federais: {pos}")
     interacao.passar_mouse(*pos)
-    time.sleep(2)
 
     # 4. Item de menu (submenu de Federais) — "SPED Fiscal", "EFD
     # Contribuições", etc.
-    imagem = tela.capturar_tela()
-    area = tela.recortar_area_menu(imagem)
-    pos = achar_ou_parar(area, item_menu, f"{prefixo}erro_menu.png")
+    pos = _esperar_item_menu("relatorios/informativos/federais", item_menu, f"{prefixo}erro_menu.png")
     if pos is None:
         return False
     acompanhamento.confirmar("item_menu_reconhecido")
@@ -499,13 +520,15 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
 
     salvar(tela.capturar_tela(), f"{prefixo}depois_menu.png")
 
-    # Sempre seleciona a competência anterior (mês já fechado) antes de
-    # prosseguir — nunca confia no período que já estiver na tela.
+    # Seleciona a competência solicitada (ou anterior nas chamadas locais)
+    # antes de prosseguir; nunca confia no período que já estiver na tela.
     # Pedido do usuário, vale pra todo documento (SPED Fiscal e EFD
     # Contribuições, seção 0.23) — reforça na prática a regra de
     # segurança da seção 5.7 (nunca operar sobre competência corrente).
-    if not selecionar_competencia_anterior(prefixo=prefixo):
-        print("Não consegui selecionar a competência anterior. Parando.")
+    selecionada = (selecionar_competencia_anterior(prefixo=prefixo)
+                   if data_inicial is None else selecionar_competencia(data_inicial, data_final, prefixo=prefixo))
+    if not selecionada:
+        print("Não consegui selecionar a competência solicitada. Parando.")
         _fechar_tela_geracao(item_menu, prefixo)
         return False
 
@@ -614,7 +637,8 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
             if acao == erros.TENTAR_DE_NOVO and not prefixo.endswith("retry_"):
                 print("Tentando gerar este documento mais uma vez.")
                 acompanhamento.tentar_novamente()
-                return _executar_sped(item_menu, texto_confirmacao, prefixo=f"{prefixo}retry_", acompanhamento=acompanhamento)
+                return _executar_sped(item_menu, texto_confirmacao, prefixo=f"{prefixo}retry_", acompanhamento=acompanhamento,
+                                      data_inicial=data_inicial, data_final=data_final)
             return False
     if ancora_confirm is None:
         print(f"Não achei a confirmação ('{texto_confirmacao}') depois de esperar. Deu erro na geração?")
@@ -763,14 +787,14 @@ def _fechar_tela_geracao(item_menu, prefixo="", pos_fechar_conhecido=None):
     return False
 
 
-def gerar_sped_fiscal(prefixo=""):
+def gerar_sped_fiscal(prefixo="", data_inicial=None, data_final=None):
     """SPED Fiscal (EFD ICMS/IPI) — validado ponta a ponta com o
     Domínio real (seções 0.8, 0.11-0.13). Wrapper fino sobre
     `gerar_sped()`."""
-    return gerar_sped("SPED Fiscal", "exporta", prefixo=prefixo)
+    return gerar_sped("SPED Fiscal", "exporta", prefixo=prefixo, data_inicial=data_inicial, data_final=data_final)
 
 
-def gerar_efd_contribuicoes(prefixo=""):
+def gerar_efd_contribuicoes(prefixo="", data_inicial=None, data_final=None):
     """EFD Contribuições (PIS/COFINS) — validado ponta a ponta com o
     Domínio real (seção 0.40): navegação (Relatórios > Informativos >
     Federais > "Contribui"), competência anterior, OK e Fechar todos
@@ -779,7 +803,7 @@ def gerar_efd_contribuicoes(prefixo=""):
     (mesma limitação das seções 0.10/0.29) — quando isso acontece, o
     fallback de `esperar_e_achar()` pelo diálogo de um só botão
     (Enter) fecha do mesmo jeito. Wrapper fino sobre `gerar_sped()`."""
-    return gerar_sped("Contribui", "sucesso", prefixo=prefixo)
+    return gerar_sped("Contribui", "sucesso", prefixo=prefixo, data_inicial=data_inicial, data_final=data_final)
 
 
 def competencia_anterior():
@@ -797,9 +821,22 @@ def competencia_anterior():
     return primeiro_dia_mes_anterior.strftime(fmt), ultimo_dia_mes_anterior.strftime(fmt)
 
 
+def validar_competencia(data_inicial, data_final):
+    inicio = datetime.datetime.strptime(data_inicial, "%d/%m/%Y").date()
+    fim = datetime.datetime.strptime(data_final, "%d/%m/%Y").date()
+    proximo = (inicio.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    if inicio.day != 1 or fim != proximo - datetime.timedelta(days=1) or fim >= datetime.date.today().replace(day=1):
+        raise ValueError("Competência precisa ser um mês completo passado.")
+    return inicio, fim
+
+
 def selecionar_competencia_anterior(prefixo=""):
+    return selecionar_competencia(*competencia_anterior(), prefixo=prefixo)
+
+
+def selecionar_competencia(data_inicial, data_final, prefixo=""):
     """Preenche Data inicial/Data final da tela de geração já aberta
-    com o mês fechado anterior ao atual (`competencia_anterior()`) —
+    com a competência passada solicitada —
     mouse (clica no campo) + teclado (seleciona o valor atual, digita
     por cima, Tab pra confirmar) — pedido do usuário, seção 0.23.
 
@@ -827,8 +864,12 @@ def selecionar_competencia_anterior(prefixo=""):
     OCR** que os dois valores batem com o esperado. False em qualquer
     outro caso, com print de erro salvo.
     """
-    data_inicial, data_final = competencia_anterior()
-    print(f"Selecionando competência anterior: {data_inicial} a {data_final}")
+    try:
+        validar_competencia(data_inicial, data_final)
+    except (ValueError, TypeError):
+        print("Competência inválida. Parando antes de preencher campos.")
+        return False
+    print(f"Selecionando competência solicitada: {data_inicial} a {data_final}")
 
     imagem = tela.capturar_tela()
 
@@ -870,7 +911,7 @@ def selecionar_competencia_anterior(prefixo=""):
         salvar(imagem_depois, f"{prefixo}erro_competencia_nao_confirmada.png")
         return False
 
-    print("Competência anterior confirmada nos dois campos.")
+    print("Competência solicitada confirmada nos dois campos.")
     return True
 
 
@@ -1187,17 +1228,13 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         return False, None
     print(f"Clicando em Relatórios: {pos}")
     interacao.clicar(*pos)
-    time.sleep(2)
 
     # 2. Livros (hover, pra abrir "Livros Fiscais" / "Pedido de Uso")
-    imagem = tela.capturar_tela()
-    area = tela.recortar_area_menu(imagem)
-    pos = achar_ou_parar(area, "Livros", f"{prefixo}erro_livros.png")
+    pos = _esperar_item_menu("relatorios", "Livros", f"{prefixo}erro_livros.png")
     if pos is None:
         return False, None
     print(f"Passando o mouse em Livros: {pos}")
     interacao.passar_mouse(*pos)
-    time.sleep(2)
 
     # 3. Livros Fiscais (clique — abre a tela de configuração, não mais
     # um submenu). clicar_com_desvio porque "Informativos" é vizinho
@@ -1206,9 +1243,7 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
     # trocar o submenu aberto sem querer (mesmo risco documentado na
     # seção 0.24 pra "Federais"/"Estaduais" — visto acontecer de novo
     # nesta própria investigação, por isso o cuidado aqui).
-    imagem = tela.capturar_tela()
-    area = tela.recortar_area_menu(imagem)
-    pos = achar_ou_parar(area, "Livros Fiscais", f"{prefixo}erro_livros_fiscais.png")
+    pos = _esperar_item_menu("relatorios/livros", "Livros Fiscais", f"{prefixo}erro_livros_fiscais.png")
     if pos is None:
         return False, None
     print(f"Clicando em Livros Fiscais: {pos}")

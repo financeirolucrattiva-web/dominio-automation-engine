@@ -3920,6 +3920,73 @@ O novo diagnóstico ainda precisa ser visto no Windows.
 
 ---
 
+### 0.89 Controles remotos, competência escolhida, login humano e menus (08/10/2026)
+
+**Pedidos/evidências:** após conectar os dois PCs, o usuário informou
+que a execução remota funcionou, sem log/documento detalhado dessa rodada.
+Pediu Pausar, calendário e login integral pelo cliente. Forneceu o caminho
+Onvio → Entrar → e-mail/senha → método E-mail → código → Continuar →
+Domínio Web/Entrar → Lista de Programas/Escrita Fiscal → Conectando/
+usuário/senha/OK → tela azul. A captura mostrou Conectar em = Contábil;
+preservar esse campo. Também pediu configuração de rotinas, recuperação
+sem acessar o PC servidor e redução dos 12–15s percebidos nos menus.
+
+**Implementação:** controle cooperativo por ContextVar, checkpoints entre
+ações, pausa/retomada autenticadas e estado distinto de pausa solicitada.
+Retomada exige foco/quadro compatíveis; divergência ou encerramento durante
+pausa interrompe a tarefa sem repetição. No cliente, SPED/Contribuições
+pedem mês/ano e Livros pedem datas. Campos obrigatórios começam vazios.
+API aceita meses completos passados além do anterior; os geradores recebem
+datas explícitas e as preservam no retry. Chamadas locais antigas mantêm
+mês anterior; máscara, Tab, OCR de confirmação e geração foram preservados.
+
+Login e manutenção usam o mesmo worker/trava fiscal. Playwright 1.63 usa
+Edge/Chrome local, perfil próprio, destinos HTTPS conhecidos e campos DOM.
+O código é informado pelo usuário na interface, tem ID único/prazo de
+cinco minutos/consumo único. Senhas/código não entram no banco/logs.
+Na parte GO-Global, texto exato/único por OCR e retângulos medidos ao lado
+dos rótulos localizam campos, sem offsets inventados nem UI Automation.
+Ambiguidade recusa digitação. Falha preserva a etapa para diagnóstico.
+
+Reiniciar ciclo interrompe num checkpoint, não repete geração e fecha
+somente Domínio/Lista de Programas identificados e navegador próprio.
+Não mata processos nem fecha apps indiscriminadamente. Falta confirmar
+fechamento para abrir o ciclo novo. Calibração remota reaproveita medidas,
+foco e duas capturas existentes; requer confirmação humana. Captura de
+janela reconhecida fica só em memória, disponível por 30s ao cliente
+autenticado, sem disco/IA. Isso amplia deliberadamente o contrato antigo
+sem imagens para permitir conferência no outro PC.
+
+Configuração no painel salva rascunhos no catálogo existente. Cliques e
+hover por texto, teclas de formulário e parâmetros de empresa/período;
+sem Python livre ou senhas literais. Hover antigo x/y continua igual.
+Não promove rascunhos nem habilita execução remota de gravações.
+
+Navegação conhecida usa polling visual no lugar de três esperas fixas de
+2s no SPED/Contribuições e duas nos Livros. Mapa local guarda regiões já
+confirmadas; relê por OCR, recai na região original e invalida por tamanho.
+Mantém clique em L e espera de geração. Medição sintética Linux/Tesseract:
+três leituras, medianas 1,028s na região original e 0,275s no recorte;
+não mede velocidade ou precisão no Domínio Windows.
+
+**Validação:** 290 testes passaram, incluindo SPED/Contribuições, mês
+bissexto/recusa de período atual/incompleto, retry, pausa/retomada/encerramento,
+segredos, solicitação expirada, exclusividade login/fiscal, reinício,
+rascunhos, hover antigo/novo e fallback de mapa. Chromium com API/worker
+reais e fiscal/login simulados conferiu os controles, responsividade
+1440/900/390, logout e offline. Wheels Playwright/greenlet compatíveis
+com Windows x64/Python 3.14 foram baixadas pelo PyPI. Compilação, pip check,
+JavaScript e diff passaram. Ainda sem validação completa do login/campos
+novos, autorização de abertura do GO-Global ou velocidade real no Windows.
+Conferência de período/nome PDF permanece pausada, sem afrouxar critérios.
+
+Prioridade seguinte reaberta pelo usuário: lotes por regime/empresas ×
+rotinas aprovadas, após esses controles. Agendamento por empresa/dia/hora
+é futuro; desenho e validações em ROADMAP-RPA.md. Lote remoto e agendamento
+não estão habilitados nesta entrega.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

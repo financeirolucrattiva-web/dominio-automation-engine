@@ -7,9 +7,11 @@ Só o processo no servidor importa os módulos que operam o desktop.
 import datetime as dt
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 
 from app.servidor import PrecondicaoRecusada, validar_pedido
+from app.controle_execucao import verificar_retomada
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,11 +47,28 @@ class ExecutorDominio:
             "registro_entradas": dominio.gerar_registro_entradas,
         }
         prefixo = f"servidor_{pedido['request_id'].replace('-', '')}_"
-        with estados.observar_eventos(receber_evento):
+        def preparar_retomada():
+            referencia = tela_principal.carregar_referencia()
+            if referencia is None or not interacao.janela_dominio_em_foco(janela):
+                return lambda: False
+            imagem = tela.capturar_tela()
+            # Exclui a barra do Windows (relógio), usando a medição local.
+            area = (0, 0, imagem.width, referencia["retangulo"][3])
+            antes = imagem.crop(area).convert("RGB")
+            def verificar():
+                for tentativa in range(4):
+                    if not interacao.janela_dominio_em_foco(janela):
+                        return False
+                    atual = tela.capturar_tela()
+                    if atual.size == imagem.size and atual.crop(area).convert("RGB").tobytes() == antes.tobytes():
+                        return interacao.janela_dominio_em_foco(janela)
+                    if tentativa < 3:
+                        time.sleep(0.25)  # admite outra fase do cursor piscante
+                return False
+            return verificar
+        with verificar_retomada(preparar_retomada), estados.observar_eventos(receber_evento):
+            datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
             if pedido["capacidade"].startswith("registro_"):
-                datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
                 return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],
                                                        data_final=datas["fim"], prefixo=prefixo)
-            if dominio.competencia_anterior() != tuple(dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")):
-                raise PrecondicaoRecusada("periodo_nao_confirmado")
-            return geradores[pedido["capacidade"]](prefixo=prefixo)
+            return geradores[pedido["capacidade"]](prefixo=prefixo, data_inicial=datas["inicio"], data_final=datas["fim"])

@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from . import tela
+from .controle_execucao import ponto_seguro
 
 
 _OBSERVADOR = ContextVar("observador_estados_da_execucao", default=None)
@@ -130,6 +131,7 @@ class AcompanhamentoRotina:
                 self._aviso_log = True
 
     def iniciar(self, etapa):
+        ponto_seguro()
         if self.finalizada or etapa not in self.ETAPAS:
             raise ValueError("Etapa de rotina inválida.")
         esperado = self.ETAPAS[len(self.confirmadas)] if len(self.confirmadas) < len(self.ETAPAS) else None
@@ -217,6 +219,7 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):
     time.sleep(espera_minima)
     assinatura_anterior = None
     for tentativa in range(1, tentativas + 1):
+        ponto_seguro()
         imagem = tela.capturar_tela()
         assinatura_atual = tela.assinatura_tela(imagem)
         if not tela.tela_mudou(assinatura_anterior, assinatura_atual):

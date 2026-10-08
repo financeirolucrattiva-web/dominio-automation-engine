@@ -28,7 +28,7 @@ class TestApiServidor(unittest.TestCase):
             return True
         self.servico = ServicoExecucao(self.repo, executar, modo="simulacao")
         self.chave = "x" * 48
-        self.client = TestClient(criar_app(self.servico, self.chave, self.saida))
+        self.client = TestClient(criar_app(self.servico, self.chave, self.saida, pasta_rotinas=self.pasta / "rotinas"))
         self.client.__enter__()
         self.addCleanup(self.client.__exit__, None, None, None)
         self.headers = {"Authorization": f"Bearer {self.chave}"}
@@ -38,6 +38,11 @@ class TestApiServidor(unittest.TestCase):
             with self.subTest(rota=rota):
                 self.assertEqual(self.client.get("/api/" + rota).status_code, 401)
         self.assertEqual(self.client.post("/api/tarefas", json=pedido()).status_code, 401)
+        for rota in ("login/iniciar", "login/reiniciar", "login/codigo", "login/cancelar", "sessao/calibrar", "sessao/capturar", "rotinas", "tarefas/x/pausar", "tarefas/x/continuar"):
+            with self.subTest(rota=rota):
+                self.assertEqual(self.client.post("/api/" + rota, json={}).status_code, 401)
+        for rota in ("sessao/captura", "rotinas"):
+            self.assertEqual(self.client.get("/api/" + rota).status_code, 401)
         self.assertEqual(self.client.get("/api/estado", headers={"Authorization": "Bearer errado"}).status_code, 401)
 
     def test_interface_e_manifesto_sem_segredos(self):
@@ -73,6 +78,37 @@ class TestApiServidor(unittest.TestCase):
         self.assertEqual(resposta.status_code, 422)
         self.assertNotIn("PRIVADO", resposta.text)
         self.assertEqual(self.repo.listar(), [])
+
+    def test_login_invalido_nao_publica_senha_ou_codigo(self):
+        dados = {"email": "teste@example.invalid", "senha_onvio": "SENHA-PRIVADA", "usuario_dominio": "GERENTE", "senha_dominio": "PRIVADA", "comando": "livre"}
+        resposta = self.client.post("/api/login/iniciar", json=dados, headers=self.headers)
+        self.assertEqual(resposta.status_code, 422)
+        self.assertNotIn("PRIVADA", resposta.text)
+        self.assertNotIn("PRIVADA", self.client.get("/api/estado", headers=self.headers).text)
+        self.assertEqual(self.client.post("/api/login/codigo", json={"solicitacao_id": "x", "codigo": "PRIVADO"}, headers=self.headers).status_code, 422)
+
+    def test_login_no_modo_consulta_ou_simulacao_sem_adapter_recusa(self):
+        dados = {"email": "teste@example.invalid", "senha_onvio": "privada", "usuario_dominio": "GERENTE", "senha_dominio": "privada"}
+        self.assertEqual(self.client.post("/api/login/iniciar", json=dados, headers=self.headers).status_code, 503)
+        self.assertEqual(self.client.post("/api/login/reiniciar", json=dados, headers=self.headers).status_code, 422)
+        self.assertEqual(self.repo.listar(), [])
+
+    def test_codigo_expirado_e_controle_de_tarefa_antiga_sao_recusados(self):
+        self.assertEqual(self.client.post("/api/login/codigo", json={"solicitacao_id": "a"*32, "codigo": "123456"}, headers=self.headers).status_code, 409)
+        for acao in ("pausar", "continuar"):
+            self.assertEqual(self.client.post("/api/tarefas/antiga/" + acao, headers=self.headers).status_code, 409)
+
+    def test_rotina_configurada_e_rascunho_e_nao_entra_no_catalogo_fiscal(self):
+        dados = {"nome": "Roteiro de teste", "passos": [{"tipo": "clicar", "valor": "Relatórios"}]}
+        resposta = self.client.post("/api/rotinas", json=dados, headers=self.headers)
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(resposta.json()["status"], "rascunho")
+        self.assertEqual(len(self.client.get("/api/rotinas", headers=self.headers).json()), 1)
+        self.assertEqual(len(self.client.get("/api/capacidades", headers=self.headers).json()), 4)
+
+    def test_calibracao_exige_confirmacao_humana_e_captura_expira(self):
+        self.assertEqual(self.client.post("/api/sessao/calibrar", json={"tela_principal_confirmada": False}, headers=self.headers).status_code, 422)
+        self.assertEqual(self.client.get("/api/sessao/captura", headers=self.headers).status_code, 404)
 
     def test_arquivo_so_pode_vir_da_pasta_de_saida(self):
         tarefa, _ = self.repo.criar(pedido())

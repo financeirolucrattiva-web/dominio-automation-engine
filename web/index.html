@@ -32,7 +32,8 @@
             <label for="capacidade">Rotina</label><select id="capacidade" required></select>
             <p id="descricao" class="discreto"></p>
             <label for="empresa">Código da empresa</label><input id="empresa" inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12" required placeholder="Código no Domínio">
-            <div class="datas"><div><label for="inicio">Data inicial</label><input id="inicio" type="date" required></div><div><label for="fim">Data final</label><input id="fim" type="date" required></div></div>
+            <div id="campo-competencia"><label for="competencia">Competência (mês e ano)</label><input id="competencia" type="month" required><p id="periodo-competencia" class="discreto">Escolha a competência no calendário.</p></div>
+            <div id="campo-datas" class="datas" hidden><div><label for="inicio">Data inicial</label><input id="inicio" type="date" required disabled></div><div><label for="fim">Data final</label><input id="fim" type="date" required disabled></div></div>
             <label class="confirmacao"><input id="apuracao" type="checkbox" required><span>Conferi a empresa e a apuração desse período está fechada.</span></label>
             <button id="executar" type="submit" disabled>Executar no servidor</button>
           </form>
@@ -40,12 +41,35 @@
         <section class="bloco acompanhamento"><div class="titulo-linha"><h2>Acompanhar execução</h2><button id="baixar" class="secundario" hidden>Baixar arquivo</button></div>
           <p id="tarefa-detalhe" class="discreto">Selecione uma execução no histórico.</p>
           <div id="resultado" class="resultado">Aguardando seleção</div>
+          <div class="controle"><button id="pausar" class="secundario" type="button" hidden>Pausar execução</button><span id="controle-aviso" class="discreto" role="status"></span></div>
+          <p id="motivo-tarefa" class="discreto" role="status"></p>
           <p id="retorno" class="discreto">Retorno à tela principal: ainda não observado.</p>
           <progress id="progresso" value="0" max="1" aria-label="Etapas confirmadas"></progress>
           <div class="tabela-scroll"><table><thead><tr><th>Etapa</th><th>Situação</th><th>Tempo</th></tr></thead><tbody id="estados"></tbody></table></div>
           <p class="discreto">Confira o arquivo final. Uma ação enviada só é confirmada quando o estado esperado é reconhecido.</p>
         </section>
       </div>
+      <section class="bloco configuracao"><details id="config-login"><summary>Acesso ao Domínio e recuperação do servidor</summary>
+        <p class="discreto">O login abre Onvio e Domínio Web no servidor. Informe o código recebido por e-mail quando este painel pedir. As senhas são usadas nesta tentativa e não são salvas.</p>
+        <p id="login-estado" class="resultado" role="status">Login não iniciado</p>
+        <form id="form-dominio">
+          <div class="datas"><div><label for="onvio-email">E-mail do Onvio</label><input id="onvio-email" type="email" autocomplete="off" required maxlength="254"></div><div><label for="onvio-senha">Senha do Onvio</label><input id="onvio-senha" type="password" autocomplete="off" required maxlength="256"></div></div>
+          <div class="datas"><div><label for="dominio-usuario">Usuário do Domínio</label><input id="dominio-usuario" autocomplete="off" required maxlength="100"></div><div><label for="dominio-senha">Senha do Domínio</label><input id="dominio-senha" type="password" autocomplete="off" required maxlength="256"></div></div>
+          <label class="confirmacao"><input id="confirmar-reinicio" type="checkbox"><span>Para reiniciar: interromper a rotina atual e fechar as janelas do Domínio e o navegador aberto pelo RPA. A rotina interrompida não será repetida.</span></label>
+          <div class="controle"><button id="entrar-dominio" type="submit" disabled>Entrar no Domínio</button><button id="reiniciar-ciclo" type="button" class="secundario" disabled>Reiniciar ciclo</button><button id="cancelar-login" type="button" class="secundario" hidden>Cancelar login</button></div>
+        </form>
+        <form id="form-codigo" hidden><label for="codigo">Código recebido por e-mail</label><input id="codigo" autocomplete="one-time-code" required minlength="4" maxlength="16"><p id="codigo-prazo" class="discreto"></p><button type="submit">Enviar código ao servidor</button></form>
+        <div class="calibracao"><label class="confirmacao"><input id="confirmar-calibracao" type="checkbox"><span>Conferi a tela principal azul, sem menus ou relatórios. O RPA pode maximizar o Domínio e medir a referência.</span></label><button id="calibrar-servidor" type="button" class="secundario" disabled>Calibrar tela principal</button></div>
+        <button id="capturar-servidor" type="button" class="secundario" disabled>Ver tela do Domínio no servidor</button><p class="discreto">A captura é entregue somente a esta interface autenticada e expira no servidor após 30 segundos.</p><img id="captura-servidor" class="captura" alt="Captura da janela do Domínio no servidor" hidden><button id="ocultar-captura" type="button" class="secundario" hidden>Ocultar captura</button>
+        <p class="discreto">O servidor precisa manter uma sessão Windows aberta e desbloqueada. Se aparecer uma tela diferente da sequência configurada, o login para e informa a etapa.</p>
+      </details></section>
+      <section class="bloco configuracao"><details id="config-rotinas"><summary>Configurar novas rotinas</summary>
+        <p class="discreto">Monte um roteiro com os textos que aparecem nas telas do Domínio. O rascunho será salvo no mesmo catálogo do gravador, para revisão e teste supervisionado. Ele ainda não entra nas execuções remotas.</p>
+        <form id="form-rotina"><label for="rotina-nome">Nome da rotina</label><input id="rotina-nome" required maxlength="100" placeholder="Ex.: relatório mensal">
+          <div id="rotina-passos"></div><button id="adicionar-passo" type="button" class="secundario">Adicionar passo</button><button id="salvar-rotina" type="submit">Salvar rascunho no servidor</button>
+        </form><p id="rotina-aviso" class="discreto" role="status"></p>
+        <div class="tabela-scroll"><table><thead><tr><th>Rotina configurada</th><th>Situação</th><th>Passos</th></tr></thead><tbody id="rotinas-configuradas"></tbody></table></div>
+      </details></section>
       <section class="bloco historico"><h2>Histórico no servidor</h2><div class="tabela-scroll"><table><thead><tr><th>Data</th><th>Rotina</th><th>Empresa</th><th>Resultado</th><th></th></tr></thead><tbody id="historico"></tbody></table></div><p id="vazio" class="discreto">As execuções aparecerão aqui.</p></section>
     </div>
   </main>

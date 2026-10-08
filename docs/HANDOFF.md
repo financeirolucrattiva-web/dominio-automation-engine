@@ -7,6 +7,41 @@ branch remoto `main`. Codex e Claude Code podem trabalhar juntos;
 confira alterações e versão remota antes de publicar, sem force push.
 O texto abaixo deste checkpoint mantém o histórico de setembro.
 
+Entrega atual (08/10): pausa cooperativa/retomada, calendário obrigatório
+por competência ou intervalo, SPED/Contribuições com datas explícitas
+preservadas no retry, login Onvio com código humano e Domínio Web/Fiscal,
+cancelamento, reinício do ciclo e calibração/captura pela interface.
+Senhas/OTP só em memória, sem banco/log/API pública. Login e manutenção
+usam o mesmo worker/trava fiscal. Captura é exceção deliberada ao contrato
+antigo sem imagens: janela Domínio reconhecida, cliente autenticado da
+rede, sem disco/IA e TTL de 30 segundos. Perfil de navegador próprio local.
+
+Mapa local guarda regiões de menus confirmadas, sempre relidas por OCR;
+polling visual substitui esperas fixas entre submenus conhecidos. Preserva
+caminhos, clique em L, campos, geração e conferências. Tempo real falta.
+Configuração web salva rascunhos no formato do gravador; hover por texto
+acrescentado sem alterar hover antigo x/y. Rascunhos não foram promovidos
+nem expostos para execução remota.
+
+O usuário reabriu prioridade de lote após esses controles: empresas por
+regime (ex. Simples Nacional) × rotinas aprovadas. Agendamento por empresa,
+dia/horário é futuro. Próximas etapas em ROADMAP-RPA.md; não confundir lote
+local existente com lote remoto ainda não habilitado. Servidor dedicado
+sem Domínio informado; PC atual é servidor de teste. Usuário disse que a
+execução remota funcionou depois de ajustar chave e pré-condição, sem
+log/documento detalhado para validar conteúdo.
+
+290 testes de lógica/API passaram; Chromium conferiu fiscal/login simulados:
+calendário bissexto, pausa/retomada, OTP, limpeza de senhas, captura,
+calibração, rascunho, cancelamento/reinício, logout/offline e 3 larguras.
+Wheels Playwright/greenlet verificadas para Windows x64/Python 3.14.
+Falta rodada Windows completa dos novos controles/login e campos medidos.
+Entrar pode pedir autorização nativa para abrir GO-Global; não inventar
+essa tela. Pedir captura/estado da etapa real se bloquear. Primeiro teste:
+atualizar servidor, reiniciar executor Windows e Ctrl+F5 no cliente;
+SPED individual com calendário, pausa/retomada e retorno. Depois login
+completo com código no painel e conferência da tela azul.
+
 Pedido mais recente: somente organizar arquivos em pastas, mantendo
 as funcionalidades. Os três instaladores principais e `Atualizar.bat`
 ficam na raiz; os outros 17 BAT foram movidos para `atalhos/servidor/`,
