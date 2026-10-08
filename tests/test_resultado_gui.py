@@ -230,6 +230,42 @@ class TestResultadoGui(unittest.TestCase):
         self.janela.tabela_historico.insert.assert_not_called()
         self.assertNotIn("dados privados", self.janela._log.call_args.args[0])
 
+    def test_revisao_da_gravacao_aguarda_finalizacao_da_thread(self):
+        self.janela.em_execucao = True
+        revisar = self.janela._revisar_gravacao = Mock()
+        self.janela.fila_estados.put(("revisar_gravacao", ["passo"], "Rotina", Path("capturas")))
+        self.janela._processar_eventos()
+        revisar.assert_not_called()
+        self.janela.em_execucao = False
+        self.janela._processar_eventos()
+        revisar.assert_called_once_with(["passo"], "Rotina", Path("capturas"))
+        self.janela._processar_eventos()
+        self.assertEqual(revisar.call_count, 1)
+
+    def test_aprovacao_ocorre_apos_janela_voltar_e_resultado_ser_preservado(self):
+        self.janela.em_execucao = True
+        self.janela._carregar_historico = Mock()
+        ordem = []
+        self.janela.root.deiconify.side_effect = lambda: ordem.append("restaurar")
+        self.janela._perguntar_aprovacao = Mock(side_effect=lambda *_: ordem.append("aprovar"))
+        self.janela._fim_execucao = lambda *args: self.gui.JanelaPrincipal._fim_execucao(self.janela, *args)
+        self.janela.fila_estados.put(("aprovar_gravacao", {"nome": "Rotina"}, False))
+        self.janela.fila_estados.put(("finalizar_atividade", False, False))
+        self.janela._processar_eventos()
+        self.assertEqual(ordem, ["restaurar", "aprovar"])
+        self.janela._perguntar_aprovacao.assert_called_once_with({"nome": "Rotina"}, False)
+        self.assertFalse(self.janela.em_execucao)
+
+    def test_execucao_de_rascunho_solicita_aprovacao_pela_fila_sem_chamar_tk(self):
+        self.gui.rotina_gravada.STATUS_APROVADA = "aprovada"
+        self.gui.rotina_gravada.carregar_passos = Mock(return_value=["passo"])
+        self.gui.rotina_gravada.executar_passos = Mock(return_value=False)
+        self.janela._rodar_em_thread = Mock(side_effect=lambda alvo, **kwargs: alvo())
+        info = {"status": "rascunho", "nome_exibicao": "Rotina", "parametros": [], "caminho": "rotina.json"}
+        self.janela.acao_rotina_gravada(info)
+        self.assertEqual(self.janela.fila_estados.get_nowait(), ("aprovar_gravacao", info, False))
+        self.janela.root.after.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

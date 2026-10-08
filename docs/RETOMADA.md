@@ -1,4 +1,30 @@
-# Retomada do projeto — 07/10/2026
+# Retomada do projeto — 08/10/2026
+
+## Site e servidor dedicado
+
+O pedido atual prioriza fechar o app individual; lote fica adiado.
+A interface web/PWA foi preparada no mesmo projeto, com conexão por
+chave, envio de tarefas, etapas e histórico persistido no servidor.
+O usuário informou que o servidor está pronto, mas o Domínio ainda não.
+Não houve implantação nem execução fiscal nessa máquina.
+
+Para testar o site: `Atualizar.bat` → `Instalar Servidor.bat` →
+`Testar Interface Servidor.bat`. Consulte
+[SERVIDOR-E-INTERFACE.md](SERVIDOR-E-INTERFACE.md) para abrir a interface,
+conectar, instalar no PC e configurar execução/HTTPS no servidor.
+O teste simulado não acessa o Domínio nem gera documento fiscal.
+
+**244 testes locais/simulados passaram.** Chromium conferiu login,
+envio e conclusão da nova tarefa simulada, etapas, histórico, logout,
+offline e visual em 1440/900/390 pixels. A GUI local foi renderizada
+com backend fiscal bloqueado; o ciclo Tk com worker simulado também
+foi conferido. Isso não valida operação fiscal real no Windows.
+
+As alterações de gravação/digitação/hover e aprovação trazidas pelo
+Claude foram integradas. A GUI mantém a gravação/revisão local;
+rotinas gravadas não são executadas automaticamente pelo site.
+
+## Execução e recuperação
 
 O trabalho atual é o incremento **2: consolidar execução e recuperação**
 do [roadmap RPA](ROADMAP-RPA.md). O documento `00-analise-e-plano-fase0.md`
@@ -6,7 +32,7 @@ do [roadmap RPA](ROADMAP-RPA.md). O documento `00-analise-e-plano-fase0.md`
 continua na fase de descoberta. O plano original tem dez fases (0–9);
 o roadmap RPA organiza o trabalho atual em seis incrementos.
 
-Validação desta entrega: **196 testes locais/simulados passaram**,
+Validação da entrega anterior: **196 testes locais/simulados passaram**,
 compilação dos arquivos Python alterados e checagem de diff passaram.
 Os testes não operaram a sessão real do Domínio. Separadamente, PP-OCRv5
 foi carregado e executado em CPU/Linux sobre imagem sintética, com caixas
@@ -81,10 +107,9 @@ para aceitar uma captura sem entender a divergência.
 Depois do SPED, revalide EFD Contribuições individualmente na empresa
 correta e em competência já fechada; esse gerador também seleciona o
 mês anterior. Confira etapas, documento e retorno. Saídas/Entradas
-continuam com a pendência PDF explícita. Só depois das verificações
-individuais teste lote supervisionado, verificando documento/empresa
-no resumo. Ao iniciar lote calibrado, volte ao Domínio por Alt+Tab se
-solicitado.
+continuam com a pendência PDF explícita. Lote não é requisito para o
+próximo teste nem prioridade atual. Se retomado depois, precisa de
+validação supervisionada separada por documento/empresa.
 
 ## Avaliar OCR do Hugging Face
 
@@ -155,9 +180,10 @@ concluída, sem confirmar precisão nem a seleção de intérprete por si só.
 ## O que falta para concluir o incremento atual
 
 Retorno automático usando a referência calibrada validado no Windows;
-revalidação das etapas SPED/Contribuições; lote supervisionado com falha
-isolada sem contaminar o próximo documento/empresa; resultado/conteúdo
-final conferido.
+revalidação individual das etapas SPED/Contribuições e conteúdo final
+conferido. Para o servidor dedicado, configurar o Domínio, calibrar
+na própria sessão e validar esse mesmo ciclo pela interface conectada.
+Lote fica adiado por prioridade expressa do usuário.
 Conferência de período e nome dos PDFs permanece pausada e é uma pendência
 explícita. O catálogo é preparação do incremento 3, sem executor de agentes.
 
@@ -166,11 +192,14 @@ explícita. O catálogo é preparação do incremento 3, sem executor de agentes
 O visual desta entrega foi renderizado em tela virtual Linux, em
 1120×780 e 900×640, com backend fiscal bloqueado e eventos simulados.
 Falta conferir a aparência e as execuções na instalação Windows.
-Não há dependência nova nem modelo adicional para essa interface.
+Para a GUI local não há modelo adicional. O site usa as dependências
+opcionais de `requirements-servidor.txt`, instaladas pelo novo atalho.
 
 A sequência até o RPA completo permanece no [roadmap](ROADMAP-RPA.md):
-consolidar execução/retorno e lote; finalizar o catálogo executável;
+consolidar execução/retorno individual; validar o catálogo executável;
 evoluir demonstrações para propostas com campos/estados e revisão;
 dar tarefas aos agentes usando capacidades validadas e uma fila por
 sessão; medir as execuções e ampliar autonomia gradualmente. O painel
 torna o andamento visível, mas não declara essas etapas concluídas.
+A interface conectada foi preparada antes da autonomia dos agentes;
+seu visual e API não substituem a validação das rotinas no servidor.

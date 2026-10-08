@@ -1,11 +1,42 @@
 # Domínio Automation Engine — handoff
 
-## Estado para retomada em 07/10/2026
+## Estado para retomada em 08/10/2026
 
 Repositório atual: `financeirolucrattiva-web/dominio-automation-engine`,
 branch remoto `main`. Codex e Claude Code podem trabalhar juntos;
 confira alterações e versão remota antes de publicar, sem force push.
 O texto abaixo deste checkpoint mantém o histórico de setembro.
+
+Pedido atual: terminar o site no projeto existente. Lote deixou de ser
+prioridade; manter execução individual e resultados verificáveis.
+Interface web instalável/PWA em `web/`, API em `app/api_servidor.py`,
+persistência/worker em `app/servidor.py` e adaptador das rotinas existentes
+em `app/executor_servidor.py`. Entrada: `scripts/servidor.py`; consulta
+por padrão, `--simular` sem desktop, `--executar` exige Windows.
+
+244 testes passaram; Chromium exercitou a interface real com eventos
+simulados, inclusive envio, estados, histórico, logout e offline.
+Prévia: `docs/preview-interface-conectada.png`, somente dados simulados.
+Leia [SERVIDOR-E-INTERFACE.md](SERVIDOR-E-INTERFACE.md) para instalação,
+HTTPS/PWA e limitações. O servidor do usuário está disponível, mas ainda
+sem Domínio; não houve implantação/execução fiscal nele.
+
+Chave, banco de tarefas, logs, referência e dados fiscais continuam
+locais/gitignored. Uma execução por sessão; trava compartilhada com GUI
+na mesma instalação. Repetição do identificador não duplica tarefa;
+reinício não repete ações inacabadas. Conclusão remota exige retorno
+reconhecido além do resultado positivo. API publica eventos estruturados,
+sem OCR livre/capturas/caminhos privados. Sem lote nem rotinas gravadas
+no catálogo remoto; chave única do escritório, sem contas individuais.
+
+Integração com Claude: preservar `ee64533`, `b209d71` e `257e90b`
+(digitação/hover/fingerprint, revisão/aprovação de rotina e vocabulário
+confirmado). Revisão e aprovação agora passam pela fila Tk após finalizar
+o worker, para evitar chamadas `root.after` a partir da thread fiscal.
+GUI preserva resultado desconhecido em vez de OK, grava histórico
+atomicamente e impede arquivos/ferramentas de roubar foco durante ações.
+
+### Evidências e preparação anteriores
 
 Leia [RETOMADA.md](RETOMADA.md) para os atalhos e testes Windows,
 [ROADMAP-RPA.md](ROADMAP-RPA.md) para os seis incrementos e as seções

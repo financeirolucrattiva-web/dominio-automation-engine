@@ -7,6 +7,20 @@ uma rotina ligada a SPED. Projeto irmão do
 organiza documento fiscal que **chega** ao escritório); este aqui **opera
 o próprio Domínio**, risco maior, repositório separado de propósito.
 
+## Site conectado ao servidor
+
+O projeto agora inclui uma interface web para enviar tarefas individuais
+ao executor dedicado, acompanhar etapas e consultar histórico. Pode ser
+instalada no PC como aplicativo pelo Chrome/Edge. A GUI local continua
+disponível para manutenção, calibração e gravação de rotinas.
+
+Para testar: `Atualizar.bat` → `Instalar Servidor.bat` →
+`Testar Interface Servidor.bat`. O teste é simulado e não opera o Domínio.
+Consulte [instalação, conexão e execução real](docs/SERVIDOR-E-INTERFACE.md).
+O servidor informado ainda precisa do Domínio configurado.
+
+![Site com tarefa simulada](docs/preview-interface-conectada.png)
+
 ## Estado atual: consolidar execução e recuperação — incremento 2 do RPA
 
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
@@ -293,22 +307,22 @@ Os três somem sozinhos sem chave configurada, sem afetar o resto.
 
 ### Criar e promover uma automação nova
 
-1. Grave o caminho: botão "Criar automação nova" na interface (ou
-   `python scripts\gravar.py`) — clique normal nos passos, F12 pra
-   parar. Gera um rascunho em `capturas/gravacao_.../rascunho.py`.
-2. Revise o rascunho contra os prints da mesma pasta: confira cada
-   texto adivinhado, complete hover/digitação à mão (o gravador só
-   grava clique, seção 0.39), e troque busca de texto curto/tela densa
-   ("OK", "Fechar") pelo padrão de `_fechar_tela_geracao()` em vez de
-   `achar_ou_parar()` na tela inteira (seção 0.46 do documento).
-3. Teste contra o Domínio de verdade até rodar limpo.
-4. Cole a função final em `app/dominio.py` (mesmo padrão de
-   `gerar_sped_fiscal()`) e acrescente uma linha em
-   `AUTOMACOES_EXTRAS`, no mesmo arquivo:
-   `("Nome que aparece no menu", nome_da_funcao),`.
-5. Suba pro GitHub — `Atualizar.bat` leva a opção nova pro menu de
-   texto e pra interface gráfica de todo mundo sozinho, sem editar
-   `scripts/app.py` nem `scripts/gui.py` (seção 0.48 do documento).
+1. Na GUI local, use "Gravar clique (nova rotina)". Clique e digite
+   normalmente; F9 marca hover, F12 encerra. Revise somente rotinas de
+   geração/leitura em competência fechada.
+2. Ao terminar, revise textos adivinhados pelo OCR e passos contra os
+   prints locais. Marque campos digitados como parâmetros quando necessário.
+3. Salve o rascunho: ele aparece em "Rotinas gravadas", com parâmetros
+   solicitados antes da execução individual supervisionada.
+4. Confira o resultado real. Aprovação exige sua confirmação; terminar
+   sem exceção não comprova documento correto. Lote fica adiado.
+
+As definições ficam em `data/rotinas_gravadas/`, locais e gitignored.
+Não são publicadas pelo Git nem entram automaticamente no site.
+O rascunho Python/JSON e os prints em `capturas/gravacao_.../` continuam
+disponíveis para diagnóstico. Para transformar uma rotina em capacidade
+do código distribuído, use os padrões existentes e registre sua função
+em `AUTOMACOES_EXTRAS` após revisão/teste; não cole uma gravação sem conferir.
 
 - `app/tela.py` — captura de tela, recorte e leitura de texto (OCR),
   com os ajustes já validados (recorte por região, pré-processamento
@@ -346,12 +360,10 @@ Os três somem sozinhos sem chave configurada, sem afetar o resto.
   Rotinas/Histórico); é o que `Abrir Interface Gráfica.bat` roda
   (seção 0.33, reescrita visualmente na seção 0.57 — ainda em teste
   contra o Domínio real).
-- `scripts/gravar.py` — grava clique manual no Domínio e gera o
-  rascunho de uma automação nova (seção 0.35; pipeline completo
-  validado de ponta a ponta na seção 0.47) — gera rascunho pra
-  revisar, não automação pronta; hover não é gravado, só clique
-  (seção 0.39), precisa completar à mão. Também disponível
-  como botão na interface gráfica ("Criar automação nova").
+- `scripts/gravar.py` — grava cliques, digitação, teclas e hover marcado
+  (F9), com fingerprint para espera; gera rascunhos para revisão. A GUI
+  salva e aprova definições locais de rotina, sem comprovar conteúdo
+  fiscal automaticamente (seções 0.81–0.83).
 - `Instalar.bat` — prepara um computador novo (Python/Tesseract já
   instalados, só falta a dependência Python do projeto) — seção 0.41,
   pensado pra instalar num computador de outro operador.

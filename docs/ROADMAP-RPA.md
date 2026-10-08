@@ -55,12 +55,13 @@ Nenhum teste simulado substitui a validação ao vivo.
 
 Resolver falhas confirmadas pelos logs sem inventar novas posições na
 tela. Acrescentar limites de espera, interrupção entre ações e estratégias
-de recuperação para cenários observados. Confirmar o retorno à tela
-esperada antes de iniciar outra empresa. Levar os estados às demais
-rotinas e executar lotes com resultado separado por empresa/documento.
+de recuperação para cenários observados. Confirmar retorno à tela
+esperada antes de iniciar outra tarefa. Levar estados às demais rotinas.
+Por prioridade do usuário, fechar o app individual; lote fica adiado.
 
-Critério de conclusão: uma falha não contamina a próxima empresa; a
-execução registra o que foi concluído, recusado ou ficou pendente.
+Critério de conclusão atual: execução individual com resultado/conteúdo
+e retorno conferidos; falha e recuperação registradas sem falso sucesso.
+Quando lote voltar ao escopo, validar isolamento por empresa/documento.
 
 Implementados para teste: referência local de retorno, verificação em
 duas capturas com foco/cabeçalho, etapas SPED/Contribuições e proteção das
@@ -81,8 +82,10 @@ Critério de conclusão: uma rotina validada pode ser solicitada por uma
 entrada estruturada e produzir um resultado igualmente estruturado.
 
 Preparação disponível: `app/capacidades.py` e `Listar Funcoes.bat`
-descrevem as quatro rotinas e suas limitações. São metadados; não existe
-executor de agentes habilitado por essa lista, nem conclusão desta etapa.
+descrevem as quatro rotinas e suas limitações. A API agora aceita pedidos
+estruturados para essas funções, com parâmetros e pré-condições restritos.
+Seu adaptador reutiliza os geradores existentes; ainda precisa de
+validação fiscal Windows. Não há executor de agentes gerais.
 
 ## 4. Aprender novas rotinas por demonstração e evidência
 
@@ -134,6 +137,14 @@ intervenções humanas em ciclos reais. Usar essas medidas para ampliar
 escopo gradualmente e construir o painel/fila de tarefas previstos no
 roadmap original. A execução local permanece responsável pelo acesso à
 sessão Windows; o ambiente de nuvem não controla esse desktop hoje.
+
+Entrega antecipada da interface em 08/10/2026: site/PWA conectado à API,
+tarefas individuais persistidas e worker exclusivo. Modos consulta e
+simulação funcionam sem Domínio. Operação real depende da sessão Windows,
+Domínio configurado, calibração e testes de conteúdo/retorno. O servidor
+do usuário ainda não tem o Domínio configurado. Consulte
+[SERVIDOR-E-INTERFACE.md](SERVIDOR-E-INTERFACE.md). Contas individuais e
+agentes gerais continuam pendentes; o site não conclui todo o roadmap.
 
 Geração/leitura continuam sendo o escopo atual. Transmissão, retificação,
 exclusão e operação sobre competência em aberto não entram neste plano

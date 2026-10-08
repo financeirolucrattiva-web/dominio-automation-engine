@@ -1,6 +1,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-let chave = "", estadoServidor = null, catalogo = [], tarefaAtual = null, pedidoPendente = null, enviando = false, versaoSessao = 0, atualizando = false;
+let chave = "", estadoServidor = null, catalogo = [], tarefaAtual = null, pedidoPendente = null, enviando = false, versaoSessao = 0, atualizando = false, leituraAtual = 0, conectando = false;
 const nomesStatus = {pendente:"Aguardando executor", executando:"Em execução", concluida:"Concluída pela rotina", falha:"Falhou", recusada:"Pré-condição recusada", nao_confirmada:"Resultado não confirmado", interrompida:"Interrompida"};
 const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preencher período", identificar_formulario:"Identificar formulário", gerar_documento:"Gerar documento", encerrar:"Encerrar e conferir retorno", validar_dados:"Validar dados", identificar_empresa:"Identificar empresa", abrir_livros:"Abrir Livros Fiscais", gerar_previa:"Gerar prévia", exportar_pdf:"Exportar PDF", conferir_pdf:"Conferir PDF", recuperar_interface:"Recuperar interface", fim:"Resultado da rotina"};
 const estados = {inicio:"Em andamento", confirmado:"Confirmado", acao_executada:"Ação enviada", resultado_nao_verificado:"Não verificado", inconclusivo:"Inconclusivo", falha:"Falhou", concluido:"Concluído pela rotina"};
@@ -10,20 +10,30 @@ const motivos = {calibracao_indisponivel:"Calibre a tela principal no servidor."
 
 function aviso(texto) { $("aviso").textContent = texto; }
 function conectado(online) { $("conexao").textContent = online ? "Servidor conectado" : "Desconectado"; $("conexao").classList.toggle("online", online); }
+function selecionarTarefa(identificador) {
+  if (tarefaAtual===identificador) return;
+  tarefaAtual=identificador; leituraAtual++;
+  $("resultado").textContent=identificador ? "Consultando execução…" : "Aguardando seleção";
+  $("resultado").className="resultado"; $("tarefa-detalhe").textContent="Selecione uma execução no histórico.";
+  $("tarefa-detalhe").dataset.tarefaId=identificador || "";
+  $("retorno").textContent="Retorno à tela principal: ainda não observado.";
+  $("estados").replaceChildren(); $("baixar").hidden=true; $("progresso").value=0;
+}
 async function api(caminho, opcoes = {}) {
-  const credencial=chave, controlador=new AbortController(), limite=setTimeout(()=>controlador.abort(),10000);
+  const credencial=chave, versao=versaoSessao, controlador=new AbortController(), limite=setTimeout(()=>controlador.abort(),10000);
   try {
     const resposta = await fetch(`/api/${caminho}`, {...opcoes, headers:{"Authorization":`Bearer ${credencial}`, "Content-Type":"application/json", ...opcoes.headers}, cache:"no-store", signal:controlador.signal});
-    if (!resposta.ok) {const dados = await resposta.json().catch(()=>({})); if (resposta.status===401 && chave===credencial) desconectar(); throw new Error(dados.detail || "Não foi possível obter o resultado do servidor.");}
+    if (!resposta.ok) {const dados = await resposta.json().catch(()=>({})); if (resposta.status===401 && chave===credencial && versao===versaoSessao) {desconectar(); aviso("Acesso não autorizado. Confira a chave do servidor.");} throw new Error(dados.detail || "Não foi possível obter o resultado do servidor.");}
     return await resposta.json();
   } catch (erro) {if (erro.name==="AbortError") throw new Error("O servidor não respondeu no prazo. Confira o histórico antes de repetir."); throw erro;}
   finally {clearTimeout(limite);}
 }
 function desconectar() {
-  versaoSessao++; chave=""; estadoServidor=null; tarefaAtual=null; pedidoPendente=null; catalogo=[];
+  versaoSessao++; chave=""; estadoServidor=null; selecionarTarefa(null); pedidoPendente=null; catalogo=[];
   $("conteudo").hidden=true; $("sair").hidden=true; $("login").hidden=false; conectado(false);
   $("form-tarefa").reset(); $("capacidade").replaceChildren(); $("estados").replaceChildren(); $("historico").replaceChildren(); $("chave").value="";
   $("resultado").textContent="Aguardando seleção"; $("tarefa-detalhe").textContent="Selecione uma execução no histórico."; $("baixar").hidden=true; $("progresso").value=0;
+  $("modo").textContent="—"; $("sessao").textContent="—"; $("ultimo").textContent="Nenhuma execução";
 }
 function atualizarCampos() {
   const item = catalogo.find((c)=>c.id===$("capacidade").value);
@@ -44,16 +54,16 @@ function exibirHistorico(tarefas) {
     celula(linha, tarefa.pedido.empresa_codigo);
     celula(linha, nomesStatus[tarefa.status] || "Não confirmado").className=tarefa.status;
     const botao=document.createElement("button"); botao.textContent="Ver"; botao.className="secundario";
-    botao.addEventListener("click",()=>{tarefaAtual=tarefa.id; acompanhar().catch(erro=>aviso(erro.message));}); celula(linha,"").append(botao);
+    botao.addEventListener("click",()=>{selecionarTarefa(tarefa.id); acompanhar().catch(erro=>aviso(erro.message));}); celula(linha,"").append(botao);
     $("historico").append(linha);
   }
   $("ultimo").textContent=tarefas.length ? nomesStatus[tarefas[0].status] || "Não confirmado" : "Nenhuma execução";
 }
 async function acompanhar() {
   if (!tarefaAtual) return;
-  const identificador=tarefaAtual, versao=versaoSessao;
+  const identificador=tarefaAtual, versao=versaoSessao, leitura=++leituraAtual;
   const tarefa=await api(`tarefas/${identificador}`);
-  if (versao!==versaoSessao || identificador!==tarefaAtual) return;
+  if (versao!==versaoSessao || identificador!==tarefaAtual || leitura!==leituraAtual) return;
   const linhas=new Map(); let execucao=null, tentativa=null;
   for (const ev of tarefa.eventos) {
     if (ev.execution_id!==execucao || ev.attempt!==tentativa) {linhas.clear(); execucao=ev.execution_id; tentativa=ev.attempt;}
@@ -89,21 +99,24 @@ async function atualizar() {
     if (estado.modo==="simulacao") aviso("Modo simulado: este teste não opera o Domínio nem gera documentos fiscais.");
     else if (!estado.execucao_habilitada) aviso("O servidor está em consulta. O responsável precisa habilitar o executor para receber comandos.");
     const localizada=pedidoPendente && tarefas.find(t=>t.pedido.request_id===pedidoPendente.request_id);
-    if (localizada) {tarefaAtual=localizada.id; pedidoPendente=null;}
-    if (!tarefaAtual && tarefas.length) tarefaAtual=tarefas[0].id;
+    if (localizada) {selecionarTarefa(localizada.id); pedidoPendente=null;}
+    if (!tarefaAtual && tarefas.length) selecionarTarefa(tarefas[0].id);
     exibirHistorico(tarefas);
     atualizarBotao(); await acompanhar();
   } catch (erro) {if (versao===versaoSessao) {estadoServidor=null; conectado(false); atualizarBotao(); aviso(`Conexão ou resultado indisponível. ${erro.message}`);}}
   finally {atualizando=false;}
 }
 $("form-login").addEventListener("submit",async(e)=>{
-  e.preventDefault(); chave=$("chave").value.trim();
-  versaoSessao++;
-  try {estadoServidor=await api("estado"); catalogo=await api("capacidades"); $("capacidade").replaceChildren();
+  e.preventDefault(); if (conectando) return;
+  conectando=true; chave=$("chave").value.trim(); const versao=++versaoSessao;
+  try {const estado=await api("estado"); if (versao!==versaoSessao) return;
+    const funcoes=await api("capacidades"); if (versao!==versaoSessao) return;
+    estadoServidor=estado; catalogo=funcoes; $("capacidade").replaceChildren();
     for (const item of catalogo) {const opcao=document.createElement("option"); opcao.value=item.id; opcao.textContent=item.nome; $("capacidade").append(opcao);}
     $("chave").value=""; $("login").hidden=true; $("conteudo").hidden=false; $("sair").hidden=false;
     for (const nome of ["inicio","fim"]) $(nome).value=estadoServidor.periodo_anterior[nome]; atualizarCampos(); aviso(""); await atualizar();
-  } catch (erro) {chave=""; aviso(erro.message);}
+  } catch (erro) {if (versao===versaoSessao) {chave=""; aviso(erro.message);}}
+  finally {conectando=false;}
 });
 $("capacidade").addEventListener("change",atualizarCampos); $("sair").addEventListener("click",()=>{desconectar(); aviso("");});
 for (const nome of ["capacidade","empresa","inicio","fim"]) $(nome).addEventListener("input",()=>{$("apuracao").checked=false;});
@@ -111,17 +124,21 @@ $("form-tarefa").addEventListener("submit",async(e)=>{
   e.preventDefault(); if (enviando || !estadoServidor || !estadoServidor.execucao_habilitada || estadoServidor.ocupado) return;
   const dados={capacidade:$("capacidade").value,empresa_codigo:$("empresa").value.trim(),inicio:$("inicio").value,fim:$("fim").value,apuracao_confirmada:$("apuracao").checked};
   if (!pedidoPendente || JSON.stringify(dados)!==JSON.stringify(pedidoPendente.dados)) pedidoPendente={dados,request_id:crypto.randomUUID()};
-  enviando=true; atualizarBotao();
-  try {const tarefa=await api("tarefas",{method:"POST",body:JSON.stringify({...dados,request_id:pedidoPendente.request_id})}); tarefaAtual=tarefa.id; pedidoPendente=null; aviso(""); await atualizar();}
-  catch (erro) {aviso(`${erro.message} Confira o histórico antes de repetir; uma nova tentativa com os mesmos campos reutiliza o identificador.`);}
+  enviando=true; atualizarBotao(); const versao=versaoSessao;
+  try {const tarefa=await api("tarefas",{method:"POST",body:JSON.stringify({...dados,request_id:pedidoPendente.request_id})});
+    if (versao!==versaoSessao) return;
+    selecionarTarefa(tarefa.id); pedidoPendente=null; aviso(""); await acompanhar(); await atualizar();}
+  catch (erro) {if (versao===versaoSessao) aviso(`${erro.message} Confira o histórico antes de repetir; uma nova tentativa com os mesmos campos reutiliza o identificador.`);}
   finally {enviando=false; atualizarBotao();}
 });
 $("baixar").addEventListener("click",async()=>{
-  try {const resposta=await fetch(`/api/tarefas/${tarefaAtual}/arquivo`,{headers:{"Authorization":`Bearer ${chave}`},cache:"no-store"}); if (!resposta.ok) throw new Error("Arquivo indisponível.");
+  const versao=versaoSessao, identificador=tarefaAtual;
+  try {const resposta=await fetch(`/api/tarefas/${identificador}/arquivo`,{headers:{"Authorization":`Bearer ${chave}`},cache:"no-store"}); if (!resposta.ok) throw new Error("Arquivo indisponível.");
     const disposicao=resposta.headers.get("Content-Disposition") || "", unicode=disposicao.match(/filename\*=utf-8''([^;]+)/i), normal=disposicao.match(/filename="([^"]+)"/i);
     const nome=unicode ? decodeURIComponent(unicode[1]) : normal ? normal[1] : `documento_${tarefaAtual}.pdf`;
-    const url=URL.createObjectURL(await resposta.blob()), link=document.createElement("a"); link.href=url; link.download=nome; link.click(); URL.revokeObjectURL(url);
-  } catch (erro) {aviso(erro.message);}
+    const arquivo=await resposta.blob(); if (versao!==versaoSessao || identificador!==tarefaAtual) return;
+    const url=URL.createObjectURL(arquivo), link=document.createElement("a"); link.href=url; link.download=nome; link.click(); URL.revokeObjectURL(url);
+  } catch (erro) {if (versao===versaoSessao) aviso(erro.message);}
 });
 let instalacao=null;
 window.addEventListener("beforeinstallprompt",(e)=>{e.preventDefault(); instalacao=e; $("instalar").hidden=false;});

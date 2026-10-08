@@ -283,6 +283,7 @@ class JanelaPrincipal:
         self.painel = painel.EstadoPainel()
         self.ferramenta_local = None
         self.em_execucao = False
+        self._acoes_apos_execucao = []
         self.botoes = []
         # "set" = rodando, "clear" = pausado — checado por
         # dominio.executar_lote() entre uma empresa e outra (seção
@@ -421,6 +422,11 @@ class JanelaPrincipal:
                     conclusao = item[1:]
                 elif isinstance(item, tuple) and len(item) == 3 and item[0] == "confirmar_lote":
                     self._mostrar_confirmacao_lote(item[1], item[2])
+                elif isinstance(item, tuple) and ((len(item) == 4 and item[0] == "revisar_gravacao")
+                                                  or (len(item) == 3 and item[0] == "aprovar_gravacao")):
+                    if not hasattr(self, "_acoes_apos_execucao"):
+                        self._acoes_apos_execucao = []
+                    self._acoes_apos_execucao.append(item)
                 else:
                     mudou = self.painel.receber(item) or mudou
         except queue.Empty:
@@ -429,6 +435,14 @@ class JanelaPrincipal:
             self._atualizar_painel()
         if conclusao is not None:
             self._fim_execucao(*conclusao)
+        if not self.em_execucao:
+            pendentes = getattr(self, "_acoes_apos_execucao", [])
+            self._acoes_apos_execucao = []
+            for item in pendentes:
+                if item[0] == "revisar_gravacao":
+                    self._revisar_gravacao(*item[1:])
+                elif item[0] == "aprovar_gravacao":
+                    self._perguntar_aprovacao(*item[1:])
 
     def _montar_aba_capacidades(self, pai):
         tb.Label(pai, text="Funções conhecidas do motor", font=(FONTE_INTERFACE, 17, "bold")).pack(anchor="w")
@@ -1028,13 +1042,13 @@ class JanelaPrincipal:
             gravador = Gravador()
             gravador.gravar()
             gravador.gerar_rascunho(nome_sugerido.strip())
-            self.root.after(0, self._revisar_gravacao, gravador.passos, nome_sugerido.strip(), gravador.pasta)
+            self.fila_estados.put(("revisar_gravacao", gravador.passos, nome_sugerido.strip(), gravador.pasta))
 
         self._rodar_em_thread(rodar)
 
     def _revisar_gravacao(self, passos, nome_sugerido, pasta_gravacao):
-        """Mostrado depois que F12 encerra a gravação (agendado via
-        `root.after`, roda na thread do Tk) — deixa nomear a rotina,
+        """Mostrado pela fila depois que F12 encerra a gravação e a
+        janela volta à thread do Tk — deixa nomear a rotina,
         corrigir palpite de clique e marcar parâmetros antes de salvar.
         Nada é salvo se a pessoa cancelar o diálogo."""
         if not passos:
@@ -1056,9 +1070,9 @@ class JanelaPrincipal:
         # Descarta referência a botões já destruídos antes de reconstruir
         # a seção — evita acumular widget morto em self.botoes a cada
         # rotina nova gravada/salva/excluída.
-        self.botoes = [b for b in self.botoes if b.winfo_exists()]
         for widget in self._secao_rotinas_gravadas.winfo_children():
             widget.destroy()
+        self.botoes = [b for b in self.botoes if b.winfo_exists()]
         rotinas = rotina_gravada.listar_rotinas_gravadas()
         if not rotinas:
             tb.Label(
@@ -1130,7 +1144,7 @@ class JanelaPrincipal:
             passos = rotina_gravada.carregar_passos(info["caminho"])
             resultado = rotina_gravada.executar_passos(passos, parametros=parametros)
             if era_rascunho:
-                self.root.after(0, self._perguntar_aprovacao, info, resultado)
+                self.fila_estados.put(("aprovar_gravacao", info, resultado))
             return resultado
 
         self._rodar_em_thread(rodar, nome_rotina=info["nome_exibicao"])
@@ -1188,16 +1202,9 @@ class JanelaPrincipal:
             "Não = roda contra a planilha de exemplo (sem risco), pra testar o lote em si.",
         )
 
-        def confirmar(selecionadas):
-            lista = "\n".join(f'  {e["codigo"]} - {e["apelido"]}' for e in selecionadas)
-            return messagebox.askyesno(
-                "Confirmar lote",
-                f'Rodar "{info["nome_exibicao"]}" (aprovada) em {len(selecionadas)} empresa(s)?\n\n{lista}',
-            )
-
         def rodar():
             dominio.executar_lote(
-                usar_real=usar_real, regime=regime, confirmar=confirmar,
+                usar_real=usar_real, regime=regime, confirmar=self._confirmar_lote,
                 pausa=self.evento_pausa, documentos_personalizados=documentos_personalizados,
             )
 

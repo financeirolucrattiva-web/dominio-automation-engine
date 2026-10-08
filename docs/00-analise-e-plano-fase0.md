@@ -3695,6 +3695,68 @@ problema diferente (reconhecer imagem, não validar texto).
 
 ---
 
+### 0.84 Interface web instalável e executor da sessão dedicada (08/10/2026)
+
+**Pedido:** terminar o site no projeto existente, com usuário no navegador
+ou app instalado no PC e Domínio numa sessão dedicada do servidor.
+Lote deixou de ser prioridade. O servidor foi informado como disponível,
+mas ainda sem Domínio configurado; não houve implantação real nele.
+
+**Implementado:** `web/` contém interface responsiva/PWA, conexão por
+chave, tarefas individuais, etapas/retorno e histórico. `app/api_servidor.py`
+serve interface/API autenticada; `app/servidor.py` persiste tarefas e
+eventos em SQLite e mantém um worker exclusivo. `app/executor_servidor.py`
+reutiliza os quatro geradores existentes, sem reescrever navegação SPED.
+Entrada `scripts/servidor.py`: consulta por padrão, simulação sem desktop
+e execução real explicitamente habilitada em Windows.
+
+O adaptador confere referência calibrada, tela principal/foco e código
+da empresa já selecionada. Valida competência passada/apuração declarada;
+SPED/Contribuições continuam usando mês anterior. Não troca empresa
+automaticamente nem aceita código, caminhos ou ações livres do cliente.
+Uma tarefa por vez; trava compartilhada com GUI/ferramentas na mesma
+instalação. Identificador repetido não duplica tarefa. Reinício marca
+ações inacabadas como interrompidas, sem repetir automaticamente.
+Conclusão exige resultado positivo e retorno reconhecido; desconhecido,
+falha e pré-condição recusada têm estados próprios.
+
+Chave/banco/arquivos permanecem locais. API publica eventos estruturados,
+sem OCR livre, captura ou caminho privado. Download autenticado exige
+arquivo registrado dentro de `saida/`; SPED/Contribuições hoje devolvem
+booleano, sem caminho para download. PWA armazena só interface estática,
+nunca chave, tarefas ou documentos. Endereço externo exige HTTPS.
+Há chave única do escritório; contas/permissões individuais continuam
+pendentes. Gravações locais não entram no catálogo remoto automaticamente.
+
+**Robustez da GUI:** histórico atomicamente gravado, leitura estrita
+preserva arquivo corrompido, resultado sem confirmação não aparece como
+OK; término libera interface mesmo após falha de histórico. Fechamento
+ou abertura de arquivo durante ação é bloqueado para preservar execução
+e foco. Foram integradas as mudanças Claude `ee64533`, `b209d71` e
+`257e90b` (seções 0.81–0.83), preservando gravação/revisão/aprovação.
+As novas chamadas `root.after` do worker foram substituídas pela fila
+da GUI; revisão/aprovação só abrem depois de restaurar a janela.
+
+**Validação:** 244 testes locais/simulados passaram, incluindo regressão
+SPED, entradas de API, idempotência, concorrência, reinício sem repetição,
+retorno/resultados, proteção de arquivo e ciclo GUI. Chromium exercitou
+chave inválida, login, nova tarefa simulada identificada pelo próprio id,
+etapas, conclusão, histórico, logout, modo offline e visual em
+1440/900/390 pixels. Selecionar nova tarefa limpa o resultado anterior;
+respostas atrasadas não reabrem a sessão desconectada. GUI foi renderizada
+em Tk real com backend fiscal bloqueado; worker/retomada com eventos
+simulados foram conferidos. Sintaxe/diff e dependências verificados.
+Prévia `docs/preview-interface-conectada.png` usa somente dados simulados.
+
+**Limites:** testes não operam Domínio/GO-Global nem validam instalação
+Windows. Servidor real ainda precisa de Domínio, calibração própria,
+endereço/HTTPS e teste individual de documento/estados/retorno. A falha
+de período/nome PDF permanece pendente e pausada. Não foram instalados
+novos modelos nem habilitados agentes gerais. Guia de instalação e
+retomada em `docs/SERVIDOR-E-INTERFACE.md` e `docs/RETOMADA.md`.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

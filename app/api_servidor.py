@@ -87,7 +87,10 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida"):
     @app.get("/api/capacidades", dependencies=[Depends(autorizar)])
     def catalogo():
         return [{"id": item.id, "nome": item.nome, "objetivo": item.objetivo,
-                 "periodo": item.politica_periodo, "pendencias": item.pendencias} for item in capacidades.listar_capacidades()]
+                 "periodo": ("Usa o mês anterior à data do servidor. Confira se a apuração está fechada."
+                             if item.id in ("sped_fiscal", "efd_contribuicoes") else
+                             "Usa o período informado nos campos. Confira se a apuração está fechada."),
+                 "pendencias": item.pendencias} for item in capacidades.listar_capacidades()]
 
     @app.get("/api/tarefas", dependencies=[Depends(autorizar)])
     def listar():
