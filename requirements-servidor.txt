@@ -1,0 +1,4 @@
+# Opcional: interface conectada, sem dependências/modelos de OCR adicionais.
+fastapi==0.142.3
+uvicorn==0.54.0
+starlette==1.7.0

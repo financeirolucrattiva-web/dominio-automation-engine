@@ -9,7 +9,9 @@ arquivo com dado de cliente no caminho.
 
 import datetime
 import json
+import os
 from pathlib import Path
+import tempfile
 
 PASTA_DADOS = Path(__file__).resolve().parent.parent / "data"
 ARQUIVO = PASTA_DADOS / "historico_execucoes.json"
@@ -20,28 +22,57 @@ MAXIMO_REGISTROS = 200
 
 
 def registrar(rotina, sucesso, arquivo_gerado=None, detalhe=""):
-    """Acrescenta um registro novo no histórico e devolve ele."""
+    """Grava de forma atômica; None significa resultado não confirmado."""
+    if sucesso is not None and type(sucesso) is not bool:
+        raise ValueError("Resultado precisa ser True, False ou None.")
     PASTA_DADOS.mkdir(parents=True, exist_ok=True)
-    lista = carregar()
+    # Não substitui um histórico ilegível por uma lista vazia.
+    lista = carregar(estrito=True)
     item = {
         "quando": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         "rotina": rotina,
-        "sucesso": bool(sucesso),
+        "sucesso": sucesso,
         "arquivo_gerado": str(arquivo_gerado) if arquivo_gerado else None,
         "detalhe": detalhe,
     }
     lista.append(item)
     lista = lista[-MAXIMO_REGISTROS:]
-    ARQUIVO.write_text(json.dumps(lista, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporario = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=ARQUIVO.parent,
+                                         prefix=".historico_", suffix=".tmp", delete=False) as arquivo:
+            temporario = Path(arquivo.name)
+            arquivo.write(json.dumps(lista, ensure_ascii=False, indent=2))
+            arquivo.flush()
+            os.fsync(arquivo.fileno())
+        os.replace(temporario, ARQUIVO)
+    finally:
+        if temporario is not None:
+            temporario.unlink(missing_ok=True)
     return item
 
 
-def carregar():
+def carregar(estrito=False):
     """Devolve a lista de execuções, mais recente por último. Lista
-    vazia se o arquivo não existir ainda ou estiver corrompido."""
+    vazia se o arquivo não existir ainda ou estiver corrompido.
+    No modo estrito informa o erro, sem expor o conteúdo do arquivo."""
     try:
-        return json.loads(ARQUIVO.read_text(encoding="utf-8"))
+        lista = json.loads(ARQUIVO.read_text(encoding="utf-8"))
+        if not isinstance(lista, list) or any(not _registro_valido(item) for item in lista):
+            raise ValueError("Formato de histórico inválido.")
+        return lista
     except FileNotFoundError:
         return []
     except (OSError, ValueError):
+        if estrito:
+            raise ValueError("Não foi possível ler o histórico local; arquivo preservado.") from None
         return []
+
+
+def _registro_valido(item):
+    return (isinstance(item, dict)
+            and isinstance(item.get("quando"), str)
+            and isinstance(item.get("rotina"), str)
+            and "sucesso" in item
+            and (item["sucesso"] is None or type(item["sucesso"]) is bool)
+            and (item.get("arquivo_gerado") is None or isinstance(item["arquivo_gerado"], str)))

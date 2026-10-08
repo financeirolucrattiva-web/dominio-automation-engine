@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#153255">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+  <title>Domínio · Automação Fiscal</title>
+</head>
+<body>
+  <aside><div class="marca"><img src="/static/icone.svg" alt="" width="38" height="38"><div>DOMÍNIO<small>Automação Fiscal</small></div></div>
+    <div class="menu-atual">Execuções individuais</div><p>Comandos e acompanhamento do seu servidor dedicado.</p>
+    <button id="instalar" class="secundario" hidden>Instalar no computador</button>
+    <button id="sair" class="secundario" hidden>Desconectar</button>
+    <div class="rodape">Lucrattiva<br>Controle de rotinas fiscais</div>
+  </aside>
+  <main>
+    <header><div><span class="sobretitulo">PAINEL DE OPERAÇÃO</span><h1>Suas rotinas, em um só lugar</h1></div><span id="conexao" class="indicador">Desconectado</span></header>
+    <p id="aviso" role="status" aria-live="polite"></p>
+    <section id="login" class="bloco login">
+      <h2>Conectar ao servidor</h2><p>Use a chave de acesso fornecida pelo responsável pelo servidor.</p>
+      <form id="form-login"><label for="chave">Chave de acesso</label><input id="chave" type="password" autocomplete="off" required minlength="32"><button type="submit">Conectar</button></form>
+      <p class="discreto">A chave permanece nesta sessão do aplicativo.</p>
+    </section>
+    <div id="conteudo" hidden>
+      <div class="resumo"><div class="bloco"><span>SERVIDOR</span><strong id="modo">—</strong></div><div class="bloco"><span>SESSÃO</span><strong id="sessao">—</strong></div><div class="bloco"><span>ÚLTIMO RESULTADO</span><strong id="ultimo">Nenhuma execução</strong></div></div>
+      <div class="colunas">
+        <section class="bloco"><h2>Nova execução</h2><p class="discreto">A empresa precisa estar selecionada no Domínio do servidor.</p>
+          <form id="form-tarefa">
+            <label for="capacidade">Rotina</label><select id="capacidade" required></select>
+            <p id="descricao" class="discreto"></p>
+            <label for="empresa">Código da empresa</label><input id="empresa" inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12" required placeholder="Código no Domínio">
+            <div class="datas"><div><label for="inicio">Data inicial</label><input id="inicio" type="date" required></div><div><label for="fim">Data final</label><input id="fim" type="date" required></div></div>
+            <label class="confirmacao"><input id="apuracao" type="checkbox" required><span>Conferi a empresa e a apuração desse período está fechada.</span></label>
+            <button id="executar" type="submit" disabled>Executar no servidor</button>
+          </form>
+        </section>
+        <section class="bloco acompanhamento"><div class="titulo-linha"><h2>Acompanhar execução</h2><button id="baixar" class="secundario" hidden>Baixar arquivo</button></div>
+          <p id="tarefa-detalhe" class="discreto">Selecione uma execução no histórico.</p>
+          <div id="resultado" class="resultado">Aguardando seleção</div>
+          <p id="retorno" class="discreto">Retorno à tela principal: ainda não observado.</p>
+          <progress id="progresso" value="0" max="1" aria-label="Etapas confirmadas"></progress>
+          <div class="tabela-scroll"><table><thead><tr><th>Etapa</th><th>Situação</th><th>Tempo</th></tr></thead><tbody id="estados"></tbody></table></div>
+          <p class="discreto">Confira o arquivo final. Uma ação enviada só é confirmada quando o estado esperado é reconhecido.</p>
+        </section>
+      </div>
+      <section class="bloco historico"><h2>Histórico no servidor</h2><div class="tabela-scroll"><table><thead><tr><th>Data</th><th>Rotina</th><th>Empresa</th><th>Resultado</th><th></th></tr></thead><tbody id="historico"></tbody></table></div><p id="vazio" class="discreto">As execuções aparecerão aqui.</p></section>
+    </div>
+  </main>
+</body>
+</html>

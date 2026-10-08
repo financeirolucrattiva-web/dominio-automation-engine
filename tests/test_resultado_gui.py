@@ -10,7 +10,7 @@ import threading
 import types
 import unittest
 from unittest.mock import Mock, patch
-from app import capacidades, painel
+from app import capacidades, painel, trava_execucao
 
 
 class TestResultadoGui(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestResultadoGui(unittest.TestCase):
             modulos[f"app.{nome}"] = modulo
         app.historico.registrar = Mock()
         app.estados.observar_eventos = lambda callback: contextlib.nullcontext()
-        for nome, modulo in (("capacidades", capacidades), ("painel", painel)):
+        for nome, modulo in (("capacidades", capacidades), ("painel", painel), ("trava_execucao", trava_execucao)):
             setattr(app, nome, modulo)
             modulos[f"app.{nome}"] = modulo
         app.interacao.focar_dominio = Mock()
@@ -38,6 +38,9 @@ class TestResultadoGui(unittest.TestCase):
         self.gui = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, modulos), patch.object(sys, "path", list(sys.path)):
             spec.loader.exec_module(self.gui)
+        contexto_trava = patch.object(self.gui, "TravaExecucao")
+        contexto_trava.start()
+        self.addCleanup(contexto_trava.stop)
         self.janela = self.gui.JanelaPrincipal.__new__(self.gui.JanelaPrincipal)
         self.janela.em_execucao = False
         self.janela._confirmar_empresa_selecionada = Mock(return_value=True)
@@ -87,13 +90,13 @@ class TestResultadoGui(unittest.TestCase):
         self.gui.historico.registrar.assert_called_once_with("SPED Fiscal", False, arquivo_gerado=None)
         self.assertIn("Erro inesperado", "".join(self.janela.fila.queue))
 
-    def test_cancelamento_nao_chama_backend_e_normalizacao_none_preservada(self):
+    def test_cancelamento_nao_chama_backend_e_none_nao_confirma_sucesso(self):
         self.janela._confirmar_empresa_selecionada.return_value = False
         gerador = self.executar(False)
         gerador.assert_not_called()
         self.gui.interacao.focar_dominio.assert_not_called()
         self.gui.historico.registrar.assert_not_called()
-        self.assertEqual(self.gui._normalizar_resultado(None, False), (True, None))
+        self.assertEqual(self.gui._normalizar_resultado(None, False), (None, None))
 
     def test_confirmacao_de_lote_minimiza_gui_antes_de_liberar_worker(self):
         eventos = []
@@ -171,6 +174,61 @@ class TestResultadoGui(unittest.TestCase):
         self.executar(False)
         self.assertEqual(self.janela.fila_estados.get_nowait(), ("finalizar_atividade", False, False))
         self.assertIn("Não foi possível gravar o histórico", "".join(self.janela.fila.queue))
+
+    def test_atividade_sem_resultado_nao_registra_ok(self):
+        self.executar(None)
+        self.gui.historico.registrar.assert_called_once_with("SPED Fiscal", None, arquivo_gerado=None)
+        self.assertEqual(self.janela.fila_estados.get_nowait(), ("finalizar_atividade", False, None))
+
+    def test_resultado_malformado_nao_e_convertido_em_sucesso(self):
+        for resultado in (("sim", "qualquer.pdf"), (1, None), {}, "OK", 1):
+            with self.subTest(resultado=resultado):
+                self.assertEqual(self.gui._normalizar_resultado(resultado, False), (None, None))
+
+    def test_historico_corrompido_nao_perde_finalizacao(self):
+        self.gui.historico.registrar.side_effect = ValueError("formato inválido")
+        self.executar(False)
+        self.assertEqual(self.janela.fila_estados.get_nowait(), ("finalizar_atividade", False, False))
+
+    def test_fechar_durante_execucao_preserva_worker(self):
+        self.janela.em_execucao = True
+        with patch.object(self.gui.messagebox, "showwarning") as aviso:
+            self.janela._solicitar_fechar()
+        aviso.assert_called_once()
+        self.janela.root.destroy.assert_not_called()
+
+    def test_fechar_sem_atividade_destroi_janela(self):
+        self.janela._solicitar_fechar()
+        self.janela.root.destroy.assert_called_once_with()
+
+    def test_arquivo_nao_toma_foco_durante_execucao(self):
+        self.janela.em_execucao = True
+        with patch.object(self.gui, "_abrir_no_explorador") as abrir, patch.object(self.gui.messagebox, "showwarning"):
+            self.janela._abrir_caminho(Path("simulado.pdf"))
+        abrir.assert_not_called()
+
+    def test_excecao_apos_eventos_nao_deixa_painel_com_sucesso(self):
+        self.janela._carregar_historico = Mock()
+        self.janela.painel.receber({"execution_id": "a" * 32, "routine_id": "sped_fiscal", "attempt": 1,
+                                     "step": "fim", "status": "concluido", "elapsed_seconds": 1.5, "evidence": None})
+        self.gui.JanelaPrincipal._fim_execucao(self.janela, True, False)
+        self.assertEqual(self.janela.painel.resultado, "Falhou; consulte o log")
+
+    def test_thread_nao_iniciada_libera_interface_sem_operar_dominio(self):
+        gerador = Mock()
+        with patch.object(self.gui.threading, "Thread", side_effect=RuntimeError("sem thread")):
+            self.janela._rodar_em_thread(gerador, nome_rotina="Teste")
+        gerador.assert_not_called()
+        self.janela._fim_execucao.assert_called_once_with(True, False)
+
+    def test_historico_invalido_nao_impede_carregamento_da_gui(self):
+        self.gui.historico.carregar = Mock(side_effect=ValueError("dados privados"))
+        self.janela.tabela_historico = Mock()
+        self.janela.tabela_historico.get_children.return_value = []
+        self.janela._log = Mock()
+        self.janela._carregar_historico()
+        self.janela.tabela_historico.insert.assert_not_called()
+        self.assertNotIn("dados privados", self.janela._log.call_args.args[0])
 
 
 if __name__ == "__main__":

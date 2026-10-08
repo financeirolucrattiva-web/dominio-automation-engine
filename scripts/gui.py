@@ -54,6 +54,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import capacidades, dominio, empresas, estados, historico, ia, interacao, painel, registro_elementos, rotina_gravada, verificacao
+from app.trava_execucao import TravaExecucao
 from gravar import Gravador
 
 PASTA_SAIDA_PADRAO = Path(__file__).resolve().parent.parent / "saida"
@@ -254,7 +255,10 @@ def _abrir_no_explorador(caminho):
     if not caminho.exists():
         messagebox.showwarning("Não encontrado", f"Não existe mais em disco:\n{caminho}")
         return
-    os.startfile(caminho)  # nosec — caminho sempre vem do histórico local, nunca de input externo
+    try:
+        os.startfile(caminho)  # nosec — caminho vem do histórico local
+    except OSError:
+        messagebox.showerror("Não foi possível abrir", "Confira se há um aplicativo associado e permissão para abrir esse arquivo ou pasta.")
 
 
 class JanelaPrincipal:
@@ -290,7 +294,24 @@ class JanelaPrincipal:
         self._montar_layout()
         self._carregar_historico()
         self._atualizar_painel()
+        self.root.protocol("WM_DELETE_WINDOW", self._solicitar_fechar)
         self.root.after(100, self._drenar_fila)
+
+    def _sessao_ocupada(self):
+        ferramenta = getattr(self, "ferramenta_local", None)
+        return self.em_execucao or (ferramenta is not None and ferramenta.poll() is None)
+
+    def _solicitar_fechar(self):
+        if self._sessao_ocupada():
+            messagebox.showwarning("Ação em andamento", "Aguarde a rotina ou ferramenta terminar antes de fechar a interface.")
+            return
+        self.root.destroy()
+
+    def _abrir_caminho(self, caminho):
+        if self._sessao_ocupada():
+            messagebox.showwarning("Ação em andamento", "Aguarde terminar antes de abrir um arquivo ou pasta, para manter o foco do Domínio.")
+            return
+        _abrir_no_explorador(caminho)
 
     def _montar_layout(self):
         cabecalho = tb.Frame(self.root, bootstyle="primary")
@@ -449,7 +470,7 @@ class JanelaPrincipal:
     def _montar_aba_projeto(self, pai):
         tb.Label(pai, text="Caminho até o RPA com agentes", font=(FONTE_INTERFACE, 17, "bold")).pack(anchor="w")
         tb.Label(pai, text="Etapa atual: consolidar execução e recuperação. "
-                 "Os testes no Windows confirmam a conclusão de cada incremento.",
+                 "Prioridade nas rotinas individuais e no app; lote adiado.",
                  wraplength=980, bootstyle="secondary").pack(fill=X, pady=(6, 14))
         tabela = tb.Treeview(pai, columns=("n", "fase", "status", "proximo"), show="headings", height=6)
         for coluna, titulo, largura in (("n", "", 35), ("fase", "Incremento", 230),
@@ -463,7 +484,7 @@ class JanelaPrincipal:
         preparacao.pack(fill=X)
         self._botao(preparacao, "Calibrar tela principal do Domínio", lambda: self._abrir_ferramenta("calibrar"), "primary-outline")
         self._botao(preparacao, "Comparar OCR na tela atual", lambda: self._abrir_ferramenta("ocr"), "secondary-outline")
-        self._botao(preparacao, "Abrir instruções dos próximos testes", lambda: _abrir_no_explorador(ROOT / "docs" / "RETOMADA.md"), "secondary-outline")
+        self._botao(preparacao, "Abrir instruções dos próximos testes", lambda: self._abrir_caminho(ROOT / "docs" / "RETOMADA.md"), "secondary-outline")
         tb.Label(pai, text="Paddle CPU foi avaliado em uma captura Windows e levou cerca de 25 vezes mais tempo "
                  "que Tesseract. O OCR principal continua Tesseract; agentes operadores gerais estão planejados.",
                  wraplength=980, bootstyle="secondary").pack(fill=X, pady=(14, 0))
@@ -482,12 +503,20 @@ class JanelaPrincipal:
             comando = [str(python_ocr), str(ROOT / "scripts" / "abrir_ferramenta.py"), "ocr"]
         else:
             return
+        trava = TravaExecucao(ROOT / "data" / "sessao_executor.lock")
+        try:
+            trava.adquirir()
+        except OSError:
+            messagebox.showwarning("Sessão ocupada", "Encerre o executor do servidor antes de calibrar ou comparar OCR nesta sessão.")
+            return
         try:
             self.ferramenta_local = subprocess.Popen(comando, cwd=str(ROOT),
                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
         except OSError:
+            trava.liberar()
             messagebox.showerror("Ferramenta não iniciada", "Não consegui abrir a ferramenta local. Use seu atalho na pasta do projeto.")
             return
+        self.trava_ferramenta = trava
         for botao in self.botoes:
             botao.configure(state="disabled")
         self._marcar_status("Ferramenta aberta em outro Prompt; aguarde o resultado.", "info")
@@ -500,6 +529,8 @@ class JanelaPrincipal:
             self.root.after(500, self._conferir_ferramenta)
             return
         self.ferramenta_local = None
+        self.trava_ferramenta.liberar()
+        self.trava_ferramenta = None
         for botao in self.botoes:
             botao.configure(state="normal")
         self.root.deiconify()
@@ -535,13 +566,6 @@ class JanelaPrincipal:
     # --- Aba "Rotinas" ---
 
     def _montar_aba_rotinas(self, pai):
-        secao_lote = tb.Labelframe(pai, text="Rodar em lote (várias empresas)", padding=10, bootstyle="primary")
-        secao_lote.pack(fill=X, pady=(0, 10))
-        if self.modo != "operador":
-            self._botao(secao_lote, "Empresas de EXEMPLO (sem risco)", self.acao_lote_exemplo, estilo="secondary")
-        rotulo_lote_real = "Rodar SPED" if self.modo == "operador" else "Empresas REAIS"
-        self._botao(secao_lote, rotulo_lote_real, self.acao_lote_real, estilo="primary")
-
         secao_empresa = tb.Labelframe(pai, text="Empresa já selecionada no Domínio", padding=10, bootstyle="info")
         secao_empresa.pack(fill=X, pady=(0, 10))
         self._botao(secao_empresa, "Trocar só a empresa", self.acao_trocar_empresa, estilo="secondary")
@@ -567,6 +591,13 @@ class JanelaPrincipal:
         )
         self._secao_rotinas_gravadas.pack(fill=X, pady=(0, 10))
         self._recarregar_rotinas_gravadas()
+
+        secao_lote = tb.Labelframe(pai, text="Lote — prioridade adiada", padding=10, bootstyle="secondary")
+        secao_lote.pack(fill=X, pady=(0, 10))
+        if self.modo != "operador":
+            self._botao(secao_lote, "Empresas de EXEMPLO", self.acao_lote_exemplo, estilo="secondary")
+        rotulo_lote_real = "Rodar SPED em lote" if self.modo == "operador" else "Empresas REAIS em lote"
+        self._botao(secao_lote, rotulo_lote_real, self.acao_lote_real, estilo="secondary")
 
         if self.modo != "operador":
             secao_gravar = tb.Labelframe(pai, text="Criar automação nova", padding=10, bootstyle="secondary")
@@ -629,7 +660,7 @@ class JanelaPrincipal:
         tb.Button(barra, text="Atualizar", command=self._carregar_historico, bootstyle="secondary-outline").pack(side=LEFT)
         tb.Button(
             barra, text="Abrir pasta de saída",
-            command=lambda: _abrir_no_explorador(PASTA_SAIDA_PADRAO if PASTA_SAIDA_PADRAO.exists() else Path(".")),
+            command=lambda: self._abrir_caminho(PASTA_SAIDA_PADRAO if PASTA_SAIDA_PADRAO.exists() else ROOT),
             bootstyle="secondary-outline",
         ).pack(side=LEFT, padx=(6, 0))
         tb.Button(
@@ -641,23 +672,36 @@ class JanelaPrincipal:
         self.tabela_historico = tb.Treeview(pai, columns=colunas, show="headings", height=16, bootstyle="primary")
         for coluna, titulo, largura in (
             ("quando", "Quando", 140), ("rotina", "Rotina", 220),
-            ("resultado", "Resultado", 90), ("arquivo", "Arquivo gerado", 380),
+            ("resultado", "Resultado", 140), ("arquivo", "Arquivo gerado", 380),
         ):
             self.tabela_historico.heading(coluna, text=titulo)
             self.tabela_historico.column(coluna, width=largura, anchor="w")
-        self.tabela_historico.pack(fill=BOTH, expand=True)
+        area_tabela = tb.Frame(pai)
+        area_tabela.pack(fill=BOTH, expand=True)
+        # O Treeview fica no mesmo pai, organizado antes da barra.
+        rolagem = tb.Scrollbar(area_tabela, orient="vertical", command=self.tabela_historico.yview)
+        self.tabela_historico.configure(yscrollcommand=rolagem.set)
+        rolagem.pack(side=RIGHT, fill=Y)
+        self.tabela_historico.pack(in_=area_tabela, side=LEFT, fill=BOTH, expand=True)
         self.tabela_historico.tag_configure("falhou", foreground="#c0392b")
         self.tabela_historico.tag_configure("sucesso", foreground="#2e9e4f")
+        self.tabela_historico.tag_configure("nao_confirmado", foreground="#986800")
 
     def _carregar_historico(self):
         for linha in self.tabela_historico.get_children():
             self.tabela_historico.delete(linha)
-        for item in reversed(historico.carregar()):
-            tag = "sucesso" if item.get("sucesso") else "falhou"
+        try:
+            itens = historico.carregar(estrito=True)
+        except (OSError, ValueError):
+            self._log("Não foi possível ler o histórico local; o arquivo foi preservado.\n")
+            return
+        for item in reversed(itens):
+            sucesso = item.get("sucesso")
+            tag = "sucesso" if sucesso is True else "falhou" if sucesso is False else "nao_confirmado"
             self.tabela_historico.insert("", "end", values=(
                 item.get("quando", ""),
                 item.get("rotina", ""),
-                "OK" if item.get("sucesso") else "Falhou",
+                "OK" if sucesso is True else "Falhou" if sucesso is False else "Não confirmado",
                 item.get("arquivo_gerado") or "—",
             ), tags=(tag,))
 
@@ -671,7 +715,7 @@ class JanelaPrincipal:
         if not caminho_arquivo or caminho_arquivo == "—":
             messagebox.showinfo("Sem arquivo", "Essa execução não tem arquivo gerado associado.")
             return
-        _abrir_no_explorador(caminho_arquivo)
+        self._abrir_caminho(caminho_arquivo)
 
     def _botao(self, pai, texto, comando, estilo="secondary"):
         botao = tb.Button(pai, text=texto, command=comando, bootstyle=estilo)
@@ -712,19 +756,30 @@ class JanelaPrincipal:
         sucesso/falha, porque uma rodada de lote tem vários resultados
         misturados, não um só.
         """
-        ferramenta = getattr(self, "ferramenta_local", None)
-        if self.em_execucao or (ferramenta is not None and ferramenta.poll() is None):
+        if self._sessao_ocupada():
             messagebox.showwarning("Aguarde", "Já tem uma ação rodando — espera terminar.")
+            return
+        trava = TravaExecucao(ROOT / "data" / "sessao_executor.lock")
+        try:
+            trava.adquirir()
+        except OSError:
+            messagebox.showwarning("Sessão ocupada", "O executor do servidor ou outro console já está usando esta sessão. Aguarde terminar ou encerre o executor antes de operar localmente.")
             return
 
         def trabalho():
             saida_original = sys.stdout
             caminho_log = Path(__file__).resolve().parent.parent / "data" / "ultimo_log.txt"
+            arquivo_log = None
             try:
                 caminho_log.parent.mkdir(parents=True, exist_ok=True)
                 arquivo_log = caminho_log.open("a", encoding="utf-8")
                 arquivo_log.write(f"\n{'=' * 60}\n[{nome_rotina or alvo.__name__}]\n")
             except OSError:
+                if arquivo_log is not None:
+                    try:
+                        arquivo_log.close()
+                    except OSError:
+                        pass
                 arquivo_log = None
             sys.stdout = EscritorFila(self.fila, arquivo_log)
             deu_erro = False
@@ -737,18 +792,24 @@ class JanelaPrincipal:
                 self.fila.put(f"\nErro inesperado: {e}\n")
             finally:
                 sys.stdout = saida_original
-                if arquivo_log is not None:
-                    arquivo_log.close()
-                if nome_rotina is not None:
-                    sucesso, arquivo = _normalizar_resultado(resultado, deu_erro)
+                confirmado = _normalizar_resultado(resultado, deu_erro)[0]
+                try:
+                    if arquivo_log is not None:
+                        try:
+                            arquivo_log.close()
+                        except OSError:
+                            self.fila.put("Não foi possível concluir a gravação do log local.\n")
+                    if nome_rotina is not None:
+                        sucesso, arquivo = _normalizar_resultado(resultado, deu_erro)
+                        try:
+                            historico.registrar(nome_rotina, sucesso, arquivo_gerado=arquivo)
+                        except (OSError, ValueError, TypeError):
+                            self.fila.put("Não foi possível gravar o histórico local; confira o resultado no painel e no log.\n")
+                finally:
                     try:
-                        historico.registrar(nome_rotina, sucesso, arquivo_gerado=arquivo)
-                    except OSError:
-                        self.fila.put("Não foi possível gravar o histórico local; confira o resultado no painel e no log.\n")
-                confirmado = (False if deu_erro else _normalizar_resultado(resultado, False)[0]
-                              if isinstance(resultado, bool) or (isinstance(resultado, tuple) and len(resultado) == 2)
-                              else None)
-                self.fila_estados.put(("finalizar_atividade", deu_erro, confirmado))
+                        trava.liberar()
+                    finally:
+                        self.fila_estados.put(("finalizar_atividade", deu_erro, confirmado))
 
         self.evento_pausa.set()
         self.em_execucao = True
@@ -772,7 +833,12 @@ class JanelaPrincipal:
         # ela pode ficar por cima e roubar o clique de foco (mesmo
         # risco da seção 0.28/0.37). Volta sozinha em _fim_execucao().
         self.root.iconify()
-        threading.Thread(target=trabalho, daemon=True).start()
+        try:
+            threading.Thread(target=trabalho, daemon=True).start()
+        except RuntimeError:
+            trava.liberar()
+            self.fila.put("Não foi possível iniciar a execução; nenhuma ação foi enviada ao Domínio.\n")
+            self._fim_execucao(True, False)
 
     def _alternar_pausa(self):
         """Pausa/continua o lote atual — só tem efeito entre uma
@@ -797,7 +863,7 @@ class JanelaPrincipal:
         self.evento_pausa.set()
         if deu_erro or sucesso is False:
             self._marcar_status("Falha — consulte a aba Log.", "danger")
-            if self.painel.execution_id is None:
+            if deu_erro or self.painel.resultado not in ("Falhou", "Falha na etapa; confira o log"):
                 self.painel.resultado = "Falhou; consulte o log"
         elif sucesso is True:
             self._marcar_status("Concluído pela rotina; confira resultado e retorno no painel.", "info")
@@ -925,11 +991,16 @@ class JanelaPrincipal:
             f"IA hoje: {situacao}.\n\n"
             "Pegue uma chave em https://console.anthropic.com/settings/keys\n"
             "Cole a chave aqui (ou deixe em branco pra não mexer):",
+            show="*",
         )
         if not chave:
             return
-        ia.PASTA_DADOS.mkdir(parents=True, exist_ok=True)
-        ia.ARQUIVO_CHAVE.write_text(chave.strip(), encoding="utf-8")
+        try:
+            ia.PASTA_DADOS.mkdir(parents=True, exist_ok=True)
+            ia.ARQUIVO_CHAVE.write_text(chave.strip(), encoding="utf-8")
+        except OSError:
+            messagebox.showerror("Não foi possível salvar", "Confira a permissão de escrita na pasta data e tente novamente.")
+            return
         messagebox.showinfo("Salvo", f"Chave salva em {ia.ARQUIVO_CHAVE} (local, nunca sobe pro GitHub).")
 
     def acao_gravar(self):
@@ -1141,14 +1212,12 @@ def _normalizar_resultado(resultado, deu_erro):
     formato que `historico.registrar()` entende."""
     if deu_erro:
         return False, None
-    if isinstance(resultado, tuple) and len(resultado) == 2:
-        return resultado
+    if isinstance(resultado, tuple) and len(resultado) == 2 and type(resultado[0]) is bool:
+        return resultado[0], resultado[1]
     if isinstance(resultado, bool):
         return resultado, None
-    # None ou qualquer outra coisa — sem informação de sucesso própria
-    # (ex.: executar_lote(), que trata falha por empresa internamente
-    # e só imprime o resumo) — considera concluído sem erro de topo.
-    return True, None
+    # Uma atividade encerrada sem resultado próprio não comprova sucesso.
+    return None, None
 
 
 def main():
