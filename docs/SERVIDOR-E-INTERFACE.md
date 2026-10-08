@@ -6,6 +6,71 @@ na sessão Windows do servidor; não precisa do Domínio no PC do usuário.
 O site foi testado em navegador com executor simulado. O servidor
 informado ainda precisa do Domínio configurado e de validação real.
 
+Para o teste em dois PCs na mesma rede, o PC atual com Domínio pode
+assumir temporariamente a execução. A conexão entre os PCs e os
+instaladores Windows ainda precisam da rodada real do operador.
+
+## Dois instaladores, dois papéis
+
+| Computador | Instalador | Componentes |
+| --- | --- | --- |
+| PC com Domínio (servidor) | `Instalar Servidor.bat` | API, executor e configuração HTTPS; usa Python/OCR já preparados |
+| Outro PC (interface) | `Instalar Interface.bat` | Atalho em janela própria pelo Edge/Chrome, endereço e confiança HTTPS local |
+
+O PC da interface usa o navegador instalado. Não precisa de Python,
+Git, Tesseract, Paddle ou Domínio. A interface pede a chave do servidor
+ao abrir; ela continua somente na sessão da página.
+
+### Teste na mesma rede/Wi-Fi
+
+No PC com Domínio:
+
+1. Feche o servidor de teste anterior com Ctrl+C e rode `Atualizar.bat`.
+2. Rode `Instalar Servidor.bat` e escolha **2 — interface em outro PC**.
+   Confira o IPv4 detectado. Se houver mais de um, informe o da rede
+   compartilhada pelos dois PCs; `ipconfig` mostra o endereço.
+3. O instalador imprime o endereço e gera a pasta
+   `data/rede_local/interface_cliente`. Copie **essa pasta inteira**
+   para o outro PC. Ela contém o instalador, endereço e certificado
+   público; não contém chave privada nem chave de acesso.
+4. Clique com o botão direito em `Liberar Acesso Rede.bat` e escolha
+   **Executar como administrador**. A regra libera somente a porta,
+   IP e Python configurados, para a sub-rede local, em perfil privado
+   ou de domínio. Confira que esse Wi-Fi está como rede privada no Windows.
+5. Abra `Testar Interface na Rede.bat` e mantenha o Prompt aberto.
+
+No outro PC:
+
+1. Na pasta copiada, rode `Instalar Interface.bat`. O endereço já vem
+   preenchido. O instalador confia na autoridade HTTPS pública gerada
+   pelo servidor, para o usuário Windows atual; confira a origem do pacote.
+2. Abra **Dominio - Interface**, criado na área de trabalho.
+3. Entre com a chave de `data/servidor_chave.txt` do PC servidor.
+4. Envie uma tarefa simulada para conferir conexão, etapas e histórico.
+
+Após a conexão funcionar, encerre a simulação no servidor e abra
+`Executar Dominio na Rede.bat`, com Domínio calibrado/visível e empresa
+correta. Execute individualmente, com apuração fechada, e confira o
+documento/retorno. O cliente usa o mesmo endereço e chave.
+
+Para mudar o endereço da interface, repita o instalador ou use
+`scripts/instalar_interface.ps1 -Endereco https://ENDERECO:PORTA`.
+Quando o endereço usa certificado HTTPS já confiável, o instalador
+da raiz também aceita o endereço manual, sem pacote de autoridade local.
+
+Se o IP do servidor mudar, rode `Configurar Acesso Rede.bat`, repita a
+regra de acesso e leve o pacote atualizado ao cliente. A autoridade
+local é reutilizada, mantendo a confiança; não apague suas chaves para
+renovar endereço. O certificado do servidor vale até um ano e a
+autoridade até dois; arquivos inválidos/vencidos interrompem configuração.
+Confiança pode ser removida em `certmgr.msc`, Autoridades de Certificação
+Raiz Confiáveis, certificado `Dominio Automation Engine - Rede local`.
+
+O pacote é um instalador leve da interface em janela do navegador;
+a instalação PWA pelo menu do Chrome/Edge também continua disponível.
+Não copia o motor fiscal. IP, arquivos locais e regra de firewall não
+são configurados na nuvem nem no PC do usuário pelo Codex.
+
 ![Interface com execução simulada](preview-interface-conectada.png)
 
 ```mermaid
@@ -24,8 +89,8 @@ flowchart LR
 Na máquina que vai hospedar a interface:
 
 1. Rode `Atualizar.bat` na pasta atual do projeto.
-2. Rode `Instalar Servidor.bat`. Instala somente as dependências da API;
-   não instala OCR, modelos, Domínio ou outro projeto.
+2. Rode `Instalar Servidor.bat` e escolha **1 — somente neste PC**.
+   Instala componentes de API/HTTPS; não instala OCR, modelos ou Domínio.
 3. Rode `Testar Interface Servidor.bat` e mantenha o Prompt aberto.
 4. Nesse computador, abra `http://127.0.0.1:8765` no navegador.
    Esse endereço é da instalação local, não do ambiente Codex.
@@ -132,7 +197,12 @@ navegador. Contas individuais, permissões por usuário, publicação no
 servidor real e agentes operadores gerais ainda não foram implementados.
 Essa entrega prepara interface/executor sem concluir todas as etapas do RPA.
 
-244 testes locais/simulados passaram, além de navegação real em Chromium
+244 testes da entrega inicial passaram, além de navegação real em Chromium
 com execução simulada e visual em 1440/900/390 pixels; ciclo Tk real com
 backend fiscal simulado. Instalação e execução fiscal Windows desta
 versão ainda precisam de validação na máquina dedicada.
+
+A configuração da rede acrescenta testes de certificado/cadeia/SAN,
+TLS real com hostname correto/divergente, reutilização da autoridade,
+pacote cliente público, corrupção e escrita atômica. A liberação do
+firewall, importação da confiança e atalho precisam de validação Windows.

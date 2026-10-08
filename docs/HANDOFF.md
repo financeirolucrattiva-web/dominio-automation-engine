@@ -34,6 +34,22 @@ Integração com Claude: preservar `ee64533`, `b209d71` e `257e90b`
 confirmado). Revisão e aprovação agora passam pela fila Tk após finalizar
 o worker, para evitar chamadas `root.after` a partir da thread fiscal.
 
+Entrega seguinte: dois instaladores na mesma rede. `Instalar Servidor.bat`
+instala componentes e pergunta acesso local/rede; `app/rede_local.py`
+gera HTTPS por IPv4 privado e pacote público `data/rede_local/interface_cliente`.
+`Instalar Interface.bat` nesse pacote cria atalho Edge/Chrome em janela
+própria, sem Python/OCR/Domínio no cliente; endereço salvo, chave informada
+na página. Confiança HTTPS é instalada no usuário Windows do cliente.
+`Liberar Acesso Rede.bat` é manual, como administrador, restrito à
+porta/IP/Python e sub-rede local nos perfis Private/Domain.
+`Testar Interface na Rede.bat` simula; `Executar Dominio na Rede.bat`
+usa o executor existente. Configuração/CA/chaves permanecem gitignored;
+autoridade reaproveitada ao mudar IP. 253 testes passaram, incluindo TLS
+real e recusa de hostname divergente. Sintaxe PowerShell conferida;
+efeitos Windows (atalho, confiança/firewall) ainda sem rodada real.
+O usuário agora propõe o PC atual com Domínio como servidor temporário;
+o servidor dedicado definitivo continua sem Domínio informado.
+
 **Divisão de área combinada entre as sessões (08/10/2026, pedido da
 usuária, revisão cruzada feita dos dois lados)**: Claude cuida de
 percepção (`app/tela.py`, `app/visao.py`), gravador

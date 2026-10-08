@@ -28,11 +28,25 @@ def main(argv=None):
     modos = parser.add_mutually_exclusive_group()
     modos.add_argument("--simular", action="store_true", help="Testa conexão/estados com eventos sintéticos; não opera o Domínio.")
     modos.add_argument("--executar", action="store_true", help="Habilita as rotinas conhecidas na sessão Windows dedicada.")
+    parser.add_argument("--rede-local", action="store_true", help="Usa o endereço/HTTPS preparados pelo instalador do servidor.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--porta", type=int, default=8765)
+    parser.add_argument("--porta", type=int)
     parser.add_argument("--certificado", type=Path, help="Certificado HTTPS em PEM.")
     parser.add_argument("--chave-tls", type=Path, help="Chave HTTPS em PEM.")
     args = parser.parse_args(argv)
+    if args.rede_local:
+        if args.host != "127.0.0.1" or args.porta is not None or args.certificado or args.chave_tls:
+            parser.error("Use --rede-local com a configuração salva, sem host/porta/certificados manuais.")
+        try:
+            from app.rede_local import carregar_rede
+            config = carregar_rede()
+            args.host, args.porta = config["ip"], config["porta"]
+            args.certificado, args.chave_tls = config["certificado"], config["chave_tls"]
+        except (OSError, ValueError, KeyError, TypeError):
+            print("Configure a rede com Instalar Servidor.bat ou Configurar Acesso Rede.bat antes de iniciar.")
+            return 1
+    if args.porta is None:
+        args.porta = 8765
     if not 1 <= args.porta <= 65535:
         parser.error("Porta inválida.")
     if bool(args.certificado) != bool(args.chave_tls):
@@ -61,7 +75,9 @@ def main(argv=None):
     try:
         servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo)
         app = criar_app(servico, obter_chave())
-        print(f"Modo do servidor: {modo}. Acesso local na porta {args.porta}.")
+        print(f"Modo do servidor: {modo}. Porta {args.porta}.")
+        if args.rede_local:
+            print(f"Endereço da interface: https://{args.host}:{args.porta}")
         print("Chave de acesso local: data/servidor_chave.txt (não cole em chats nem publique).")
         print("Uma execução por sessão. Ctrl+C aguarda a rotina atual terminar.")
         if args.simular:

@@ -19,6 +19,13 @@ Para testar: `Atualizar.bat` → `Instalar Servidor.bat` →
 Consulte [instalação, conexão e execução real](docs/SERVIDOR-E-INTERFACE.md).
 O servidor informado ainda precisa do Domínio configurado.
 
+Para dois PCs na mesma rede, existem dois instaladores: **Servidor**
+no PC com Domínio e **Interface** no outro. O instalador do servidor
+prepara HTTPS e gera `data/rede_local/interface_cliente`, uma pasta
+pequena para copiar ao outro PC. O cliente cria um atalho em janela
+própria pelo Edge/Chrome, sem instalar Python/OCR/Domínio. Siga o
+[passo a passo da rede local](docs/SERVIDOR-E-INTERFACE.md).
+
 ![Site com tarefa simulada](docs/preview-interface-conectada.png)
 
 ## Estado atual: consolidar execução e recuperação — incremento 2 do RPA

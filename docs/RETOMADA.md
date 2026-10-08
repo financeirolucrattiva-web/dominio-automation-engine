@@ -14,7 +14,21 @@ Para testar o site: `Atualizar.bat` → `Instalar Servidor.bat` →
 conectar, instalar no PC e configurar execução/HTTPS no servidor.
 O teste simulado não acessa o Domínio nem gera documento fiscal.
 
-**244 testes locais/simulados passaram.** Chromium conferiu login,
+Dois instaladores disponíveis para a mesma rede: `Instalar Servidor.bat`
+no PC com Domínio e `Instalar Interface.bat` no outro PC, usando o pacote
+gerado em `data/rede_local/interface_cliente`. Cliente recebe endereço
+e certificado público, cria atalho em janela Edge/Chrome e entra com a
+chave do servidor. Python/OCR/Domínio ficam no servidor.
+O instalador do servidor pergunta acesso local ou rede; para o teste
+anterior no próprio PC, escolha 1. Para outro PC na rede, escolha 2.
+Siga o guia para a regra de firewall e `Testar Interface na Rede.bat`.
+O PC atual com Domínio pode ser servidor temporário. HTTPS/certificados
+passaram em testes locais; atalho, confiança e firewall exigem teste Windows.
+
+Na entrega dos instaladores, **253 testes locais/simulados passaram**, incluindo
+cadeia de certificados, TLS real, pacote público e preservação de confiança.
+
+Na entrega inicial (244 testes), Chromium conferiu login,
 envio e conclusão da nova tarefa simulada, etapas, histórico, logout,
 offline e visual em 1440/900/390 pixels. A GUI local foi renderizada
 com backend fiscal bloqueado; o ciclo Tk com worker simulado também

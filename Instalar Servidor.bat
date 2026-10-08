@@ -5,7 +5,9 @@ if errorlevel 1 goto falhou
 python -c "import json; from pathlib import Path; p=Path('data'); p.mkdir(exist_ok=True); (p/'servidor_instalado.json').write_text(json.dumps({'versao': 1}), encoding='utf-8')"
 if errorlevel 1 goto falhou
 echo.
-echo Interface conectada instalada. Teste com Testar Interface Servidor.bat.
+echo Componentes do servidor instalados. Configure o acesso abaixo.
+python scripts\configurar_servidor.py
+if errorlevel 1 goto falhou
 pause
 exit /b 0
 :falhou
