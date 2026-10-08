@@ -16,6 +16,16 @@ scripts e opções; diretório de trabalho, chamada entre BAT e caminhos
 nas instruções foram ajustados. Não unificar modos nem cortar dependências
 por conta desta organização. Preservar o pacote público de cliente.
 
+No teste Windows de conexão entre PCs, a interface abriu após mudar a
+rede do servidor de Pública para Privada (perfil aceito pela regra).
+Em seguida o servidor não iniciou, e o usuário informou ter alterado
+a chave. `scripts/servidor.py` agora identifica chave curta/não ASCII
+antes de criar executor/banco, explica mínimo de 32 caracteres e preserva
+o segredo sem o imprimir. Outras falhas OSError/ValueError ao iniciar
+passam a registrar a causa no log local. 254 testes passaram.
+O log enviado registra WinError 10054 no callback asyncio de desconexão;
+não comprova a causa da recusa de inicialização. A retomada real ainda falta.
+
 Pedido atual: terminar o site no projeto existente. Lote deixou de ser
 prioridade; manter execução individual e resultados verificáveis.
 Interface web instalável/PWA em `web/`, API em `app/api_servidor.py`,

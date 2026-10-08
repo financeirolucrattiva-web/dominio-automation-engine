@@ -140,6 +140,30 @@ class TestValidacaoRede(unittest.TestCase):
         self.assertEqual(rodar.call_args.kwargs["ssl_certfile"], "cert.pem")
         self.assertEqual(rodar.call_args.kwargs["ssl_keyfile"], "key.pem")
 
+    @unittest.skipUnless(all(importlib.util.find_spec(nome) for nome in ("uvicorn", "fastapi")), "Componentes opcionais da API")
+    def test_cli_chave_invalida_impede_inicio_sem_expor_ou_substituir_segredo(self):
+        from app.api_servidor import obter_chave
+        from io import StringIO
+        arquivo = Path(__file__).resolve().parents[1] / "scripts" / "servidor.py"
+        spec = importlib.util.spec_from_file_location("cli_chave", arquivo)
+        modulo = importlib.util.module_from_spec(spec)
+        with patch.object(sys, "path", list(sys.path)):
+            spec.loader.exec_module(modulo)
+        with tempfile.TemporaryDirectory() as temp:
+            caminho = Path(temp) / "chave.txt"
+            for segredo in (b"senha_trocada_curta", "chave_com_acento_á".encode("utf-8")):
+                with self.subTest(segredo_tipo="ASCII" if segredo.isascii() else "UTF-8"):
+                    caminho.write_bytes(segredo)
+                    saida = StringIO()
+                    with patch.object(modulo, "ROOT", Path(temp)), patch.object(modulo.logging, "basicConfig"), patch("app.api_servidor.obter_chave", side_effect=lambda: obter_chave(caminho)), patch("app.api_servidor.criar_app") as criar, patch("uvicorn.run") as rodar, contextlib.redirect_stdout(saida):
+                        self.assertEqual(modulo.main(["--simular"]), 1)
+                    criar.assert_not_called()
+                    rodar.assert_not_called()
+                    self.assertEqual(caminho.read_bytes(), segredo)
+                    self.assertIn("pelo menos 32 caracteres", saida.getvalue())
+                    self.assertNotIn(segredo.decode("utf-8"), saida.getvalue())
+                    self.assertFalse((Path(temp) / "data" / "servidor_simulado.sqlite3").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

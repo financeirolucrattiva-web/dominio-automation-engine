@@ -65,6 +65,16 @@ def main(argv=None):
     (ROOT / "data").mkdir(exist_ok=True)
     logging.basicConfig(filename=ROOT / "data" / "servidor.log", encoding="utf-8", level=logging.WARNING,
                         format="%(asctime)s %(levelname)s %(message)s")
+    try:
+        chave = obter_chave()
+    except (UnicodeError, ValueError):
+        print("Chave de acesso inválida em data/servidor_chave.txt.")
+        print("Use pelo menos 32 caracteres, sem acentos, em uma única linha. Salve e abra o servidor novamente.")
+        print("O arquivo foi preservado. Informe essa mesma chave na interface; não a publique.")
+        return 1
+    except OSError:
+        print("Não foi possível acessar data/servidor_chave.txt. Confira as permissões da pasta data e do arquivo.")
+        return 1
     executor, modo = None, "consulta"
     if args.simular:
         executor, modo = simular, "simulacao"
@@ -74,7 +84,7 @@ def main(argv=None):
     nome_banco = "servidor_simulado.sqlite3" if args.simular else "servidor.sqlite3"
     try:
         servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo)
-        app = criar_app(servico, obter_chave())
+        app = criar_app(servico, chave)
         print(f"Modo do servidor: {modo}. Porta {args.porta}.")
         if args.rede_local:
             print(f"Endereço da interface: https://{args.host}:{args.porta}")
@@ -86,6 +96,7 @@ def main(argv=None):
                     ssl_certfile=str(args.certificado) if args.certificado else None,
                     ssl_keyfile=str(args.chave_tls) if args.chave_tls else None)
     except (OSError, ValueError):
+        logging.getLogger(__name__).exception("Falha ao iniciar servidor.")
         print("Servidor não iniciado; confira dependências, porta, certificados e arquivos locais. Veja data/servidor.log.")
         return 1
     return 0

@@ -21,6 +21,11 @@ O PC da interface usa o navegador instalado. Não precisa de Python,
 Git, Tesseract, Paddle ou Domínio. A interface pede a chave do servidor
 ao abrir; ela continua somente na sessão da página.
 
+Se alterar `data/servidor_chave.txt`, mantenha pelo menos **32 caracteres**,
+sem acentos, em uma única linha. Salve, reinicie o servidor e informe a
+nova chave no cliente. Uma chave curta ou com acentos impede o início;
+o servidor explica o requisito e preserva o arquivo, sem mostrar seu conteúdo.
+
 ### Teste na mesma rede/Wi-Fi
 
 No PC com Domínio:

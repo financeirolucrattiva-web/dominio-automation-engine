@@ -3894,6 +3894,32 @@ Windows; a nuvem não executou a sessão real do Domínio.
 
 ---
 
+### 0.88 Diagnóstico de chave inválida ao iniciar o servidor (08/10/2026)
+
+**Achado:** a interface no segundo PC abriu após mudar o perfil da
+rede do servidor de Pública para Privada. Ao tentar iniciar o modo
+real, apareceu a mensagem genérica de servidor não iniciado. O usuário
+informou ter alterado a chave, sem fornecer o conteúdo.
+
+`obter_chave()` já exige ao menos 32 caracteres e lê ASCII, mas a
+entrada tratava essa recusa como falha genérica de dependências/porta.
+A validação agora ocorre antes de criar executor/banco e informa o
+requisito diretamente. Erro de acesso ao arquivo tem orientação própria.
+A chave não é impressa nem substituída; autenticação e tamanho mínimo
+foram preservados. O guia documenta alteração e reinício.
+
+O teste cobre senha curta e conteúdo não ASCII: início recusado sem
+API/servidor/banco, arquivo preservado e saída sem o segredo. 254 testes
+passaram. Outras falhas OSError/ValueError ao iniciar passam a registrar
+a causa no log local; recusas de chave são tratadas antes, sem traceback
+de decodificação que poderia conter o segredo.
+
+O log enviado registra WinError 10054 em callback asyncio de desconexão,
+sem identificar definitivamente a causa da recusa de inicialização.
+O novo diagnóstico ainda precisa ser visto no Windows.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
