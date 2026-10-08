@@ -58,8 +58,8 @@ tela. Acrescentar limites de espera, interrupção entre ações e estratégias
 de recuperação para cenários observados. Confirmar retorno à tela
 esperada antes de iniciar outra tarefa. Levar estados às demais rotinas.
 Prioridade atualizada em 08/10/2026: concluir controles/login da interface
-e depois configurar lotes de rotinas por empresas e regime. O lote remoto
-ainda não está habilitado.
+e depois configurar lotes de rotinas por empresas e regime. Lote remoto
+foi implementado para teste supervisionado; ainda falta a rodada Windows.
 
 Critério de conclusão atual: execução individual com resultado/conteúdo
 e retorno conferidos; falha e recuperação registradas sem falso sucesso.
@@ -205,30 +205,38 @@ local e sem ações; substituição do OCR depende de ganho nas mesmas
 telas e regressão SPED. VL/layout entram apenas com dificuldade concreta
 que os justifique. Isso não cria uma fase paralela nem habilita agentes.
 
-## Próxima entrega: lotes por regime e rotinas
+## Lotes por empresa e regime — implementados para teste
 
-Pedido de 08/10/2026: escolher, por exemplo, Simples Nacional e um
-conjunto de rotinas, configurar os roteiros na interface e executar as
-combinações aprovadas. Reusar `app/empresas.py` e o formato local
-`codigo;apelido;regime;tipo;sped`, sem confundir arquivo de exemplo com
-cadastro real. O regime filtra empresas; ele não determina sozinho
-quais obrigações cada empresa deve gerar.
+O pedido de 08/10 foi esclarecido: cada empresa tem um seletor de regime;
+o usuário define as rotinas e sua ordem em cada regime. O lote executa
+todas as rotinas da primeira empresa, troca para a próxima selecionada e
+executa a sequência do regime dela. Não deduz obrigações pelo nome do regime.
 
-Sequência de implementação/teste:
+O painel cadastra/edita empresas e regimes, filtra/seleciona empresas,
+exige competência ou datas e mostra o plano antes do envio. Pode combinar
+regimes no mesmo lote, com até 100 empresas; a ordem das empresas é a do
+cadastro. São executáveis as quatro rotinas integradas; roteiros novos
+continuam rascunhos até revisão e validação do resultado. Não importa nem
+substitui o CSV do lote local e nunca carrega empresas de exemplo no painel.
+Cadastros, plano e tarefas ficam no SQLite já usado pelo servidor.
 
-1. Cadastro/importação de empresas pela interface, com filtro por regime.
-2. Seleção das empresas e rotinas aprovadas, calendário obrigatório e
-   revisão das combinações antes do envio. Rascunhos precisam de teste
-   supervisionado e validação do resultado antes de entrar no lote.
-3. Troca de empresa pelo caminho F8 já existente, confirmando modo de
-   busca por Código e relendo o código no cabeçalho. Hoje o executor
-   remoto exige que a empresa já esteja selecionada; não presumir que
-   o lote remoto já existe porque há um lote local na GUI.
-4. Fila persistida no servidor, uma combinação por vez. Só avançar com
-   resultado e retorno confirmados; pausa/cancelamento preservam os
-   resultados anteriores. Reinício não repete uma geração inacabada.
-5. Rodada Windows com duas empresas reais autorizadas e rotinas já
-   validadas; revisar os documentos e os estados antes de ampliar.
+A fila mantém um único worker. O plano confirmado fica congelado:
+alterações posteriores no cadastro valem só para novos lotes. Se o cadastro
+mudar entre revisão e envio, exige nova revisão. Pausa/retomada usa o
+controle atual; interromper lote bloqueia as próximas tarefas e interrompe
+a atual num ponto seguro. Falha ou retorno não confirmado interrompe o
+restante, preservando resultados anteriores. Reinício não repete ações.
+
+No adapter de lote, a troca usa `dominio.trocar_empresa()` existente (F8),
+com tela principal/foco confirmados antes e depois e código relido no
+cabeçalho antes de gerar. A execução individual continua exigindo empresa
+já selecionada. A busca F8 existente pressupõe modo Código: conferir no
+primeiro teste Windows; não foi criada navegação por coordenadas supostas.
+
+Próximo teste: duas empresas autorizadas, competência apurada e rotinas
+conhecidas; conferir troca/ordem, documentos, pausa e retorno antes de
+ampliar. Cadastro/fila e navegador foram testados com fiscal simulado;
+isso ainda não valida as transições reais no Windows.
 
 ## Agendamento futuro por empresa
 

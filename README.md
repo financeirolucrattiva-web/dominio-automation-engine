@@ -29,7 +29,7 @@ exige reinstalar aplicativos ou apagar `data/`.
 ## Site conectado ao servidor
 
 O projeto agora inclui uma interface web para enviar tarefas individuais
-ao executor dedicado, acompanhar etapas e consultar histórico. Pode ser
+ou lotes por empresa ao executor dedicado, acompanhar etapas e consultar histórico. Pode ser
 instalada no PC como aplicativo pelo Chrome/Edge. A GUI local continua
 disponível para manutenção, calibração e gravação de rotinas.
 
@@ -49,9 +49,12 @@ A interface agora oferece Pausar/Continuar na tarefa ativa, calendário
 obrigatório (competência ou datas), login Onvio com código humano,
 cancelamento/reinício, captura temporária e calibração da tela do servidor.
 Configurar novas rotinas salva rascunhos compatíveis com o gravador para
-revisão e teste; ainda não executa rascunhos remotamente. Lotes por regime
-e agendamento por empresa são as próximas entregas do
-[roadmap](docs/ROADMAP-RPA.md). Os novos controles/login precisam da
+revisão e teste; ainda não executa rascunhos remotamente. Cadastre regimes
+com as rotinas integradas na ordem escolhida e atribua um regime a cada
+empresa. O lote faz todas as rotinas da empresa antes de trocar para a
+próxima, com calendário, revisão, pausa e interrupção. Falha ou retorno
+não confirmado interrompe o restante. Agendamento é futuro no
+[roadmap](docs/ROADMAP-RPA.md). Lote, novos controles e login precisam da
 rodada Windows; testes da nuvem usam execução e autenticação simuladas.
 
 ![Site com tarefa simulada](docs/preview-interface-conectada.png)

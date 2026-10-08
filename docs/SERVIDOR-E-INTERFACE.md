@@ -216,8 +216,8 @@ hover por texto, teclas de formulário e parâmetros de empresa/período no
 mesmo `data/rotinas_gravadas/` do gravador. Não aceita código Python,
 caminhos enviados pelo cliente nem senhas literais. Nasce rascunho;
 revisão, teste supervisionado e aprovação seguem o fluxo local existente.
-Esse catálogo ainda não executa rascunhos remotamente. Lote remoto por
-regime e agendamento são as próximas entregas descritas no roadmap.
+Esse catálogo ainda não executa rascunhos remotamente. O lote remoto usa
+as quatro rotinas integradas; agendamento continua futuro no roadmap.
 
 **Menus:** `data/mapa_menus.json` aprende regiões de alvos dos caminhos
 já conhecidos, depois de localizar por OCR. A leitura seguinte começa
@@ -240,6 +240,56 @@ eventual confirmação de abertura do cliente remoto pelo navegador e
 velocidade de menus ainda precisam da primeira rodada Windows.
 Servidor dedicado continua precisando de sessão gráfica desbloqueada,
 mesmo quando o usuário só vê a interface em outro PC.
+
+## Lotes: configurar regimes, empresas e sequência
+
+Atualize o servidor com `Atualizar.bat`, reinicie
+`atalhos/servidor/Executar Dominio na Rede.bat` e use Ctrl+F5 na interface.
+Não há instalação adicional no cliente.
+
+1. Abra **Empresas, regimes e rotinas do lote**. Crie um regime (por
+   exemplo, Simples Nacional), adicione as rotinas integradas e organize
+   com Subir/Descer. Salve. Para editar, selecione o regime já cadastrado.
+2. Cadastre cada empresa com código do Domínio, nome e regime. Para
+   editar, use Editar na linha; o seletor de regime também salva a mudança.
+   O nome do regime não define obrigações automaticamente: você escolhe
+   as rotinas. Regime sem rotinas precisa ser configurado antes do lote.
+3. Abra **Executar lote por empresas**, filtre se desejar e marque as
+   empresas. Pode combinar regimes. A ordem das empresas é a do cadastro;
+   cada empresa executa sua sequência inteira antes de passar à seguinte.
+4. Informe competência no calendário, ou datas para Livros. SPED e
+   Contribuições exigem um mês completo passado. Use **Revisar sequência
+   do lote**, confira empresas/rotinas/período e confirme a apuração de
+   todas as empresas selecionadas antes de **Executar lote no servidor**.
+5. Acompanhe cada item, use Ver etapas, Pausar/Continuar ou Interromper
+   lote. Falha, pré-condição recusada ou retorno não confirmado interrompe
+   os itens seguintes. Resultados anteriores continuam no histórico.
+
+O adapter pode trocar a empresa pelo F8 existente, mas precisa reconhecer
+tela principal/foco e código correto antes de gerar. No primeiro teste,
+confira que a busca F8 do Domínio está em Código, como no fluxo local.
+Código divergente interrompe o lote. A execução individual continua
+exigindo empresa já selecionada; não muda esse comportamento.
+
+O servidor salva um retrato do plano revisado. Alterações no regime ou
+empresa não modificam um lote em andamento. Alterar o cadastro entre
+revisão e envio exige nova revisão. O mesmo identificador não duplica
+itens. Reiniciar não retoma lotes inacabados automaticamente. Interromper
+lote aguarda um ponto seguro da ação atual; não fecha aplicativos sozinho.
+
+Os cadastros ficam no banco do servidor (`data/servidor.sqlite3` real;
+`data/servidor_simulado.sqlite3` em simulação). São bancos separados;
+cadastros de teste não migram automaticamente para execução real. Não
+copie o banco fiscal ou segredos para o cliente. O CSV do lote local e
+seus exemplos ficam preservados; não são importados pelo painel.
+
+Teste primeiro duas empresas e rotinas já conhecidas em competência
+apurada. Os testes automatizados e de navegador validaram cadastro,
+ordem, fila, controles e interrupção com fiscal simulado; a troca real,
+documentos e retorno ainda precisam da rodada Windows. A conferência
+de período dos PDFs continua pendente e não foi relaxada nesta entrega.
+
+![Painel de lote com empresas e execução simuladas](preview-lotes.png)
 
 ## Endereço e aplicativo no PC do usuário
 

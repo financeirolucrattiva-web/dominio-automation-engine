@@ -1,6 +1,6 @@
 """Adaptador das rotinas existentes para uma sessão Windows dedicada.
 
-Sem navegação nova, troca automática de empresa ou árvore UI Automation.
+Lote usa a troca F8 existente e relê empresa/tela principal antes de gerar.
 Só o processo no servidor importa os módulos que operam o desktop.
 """
 
@@ -18,6 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ExecutorDominio:
     def __call__(self, pedido, receber_evento):
+        return self._executar(pedido, receber_evento)
+
+    def executar_em_lote(self, pedido, receber_evento):
+        # Só o worker pode escolher este caminho; a tarefa HTTP não aceita
+        # flags para desligar a conferência da empresa individual.
+        return self._executar(pedido, receber_evento, trocar_empresa=True)
+
+    def _executar(self, pedido, receber_evento, trocar_empresa=False):
         if sys.platform != "win32":
             raise PrecondicaoRecusada("executor_requer_windows")
         validar_pedido(pedido)
@@ -36,7 +44,7 @@ class ExecutorDominio:
             raise PrecondicaoRecusada("tela_principal_nao_confirmada")
         empresa = tela.ler_empresa_selecionada(tela.capturar_tela())
         if (empresa is None or not str(empresa[1]).isdigit()
-                or int(empresa[1]) != int(pedido["empresa_codigo"])
+                or (not trocar_empresa and int(empresa[1]) != int(pedido["empresa_codigo"]))
                 or not interacao.janela_dominio_em_foco(janela)):
             raise PrecondicaoRecusada("empresa_nao_confirmada")
         validar_pedido(pedido)  # inclusive se o calendário mudou durante as leituras
@@ -67,6 +75,17 @@ class ExecutorDominio:
                 return False
             return verificar
         with verificar_retomada(preparar_retomada), estados.observar_eventos(receber_evento):
+            if trocar_empresa and int(empresa[1]) != int(pedido["empresa_codigo"]):
+                if not dominio.trocar_empresa(pedido["empresa_codigo"], prefixo=prefixo):
+                    raise PrecondicaoRecusada("empresa_nao_confirmada")
+                if (not interacao.janela_dominio_em_foco(janela) or
+                        dominio._verificar_retorno_tela_principal(contexto) != "tela_principal_reconhecida"):
+                    raise PrecondicaoRecusada("tela_principal_nao_confirmada")
+                atual = tela.ler_empresa_selecionada(tela.capturar_tela())
+                if (atual is None or not str(atual[1]).isdigit() or int(atual[1]) != int(pedido["empresa_codigo"])
+                        or not interacao.janela_dominio_em_foco(janela)):
+                    raise PrecondicaoRecusada("empresa_nao_confirmada")
+            validar_pedido(pedido)
             datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
             if pedido["capacidade"].startswith("registro_"):
                 return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],

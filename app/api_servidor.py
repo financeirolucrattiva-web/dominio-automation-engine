@@ -70,6 +70,33 @@ class PedidoRotina(BaseModel):
     passos: list[PassoRotina] = Field(min_length=1, max_length=80)
 
 
+class PedidoRegime(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: StrictStr | None = None
+    nome: StrictStr = Field(min_length=1, max_length=100)
+    rotinas: list[StrictStr] = Field(max_length=4)
+
+
+class PedidoEmpresa(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    codigo: StrictStr = Field(pattern=r"^[0-9]{1,12}$")
+    nome: StrictStr = Field(min_length=1, max_length=100)
+    regime_id: StrictStr = Field(pattern=r"^[0-9a-f]{32}$")
+
+
+class SelecaoLote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    empresas: list[StrictStr] = Field(min_length=1, max_length=100)
+    inicio: StrictStr
+    fim: StrictStr
+
+
+class PedidoLote(SelecaoLote):
+    request_id: StrictStr
+    apuracao_confirmada: StrictBool
+    plano_hash: StrictStr = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 def obter_chave(caminho=ROOT / "data" / "servidor_chave.txt"):
     caminho = Path(caminho)
     caminho.parent.mkdir(parents=True, exist_ok=True)
@@ -202,6 +229,60 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     @app.get("/api/tarefas", dependencies=[Depends(autorizar)])
     def listar():
         return servico.repositorio.listar()
+
+    @app.get("/api/cadastros", dependencies=[Depends(autorizar)])
+    def cadastros():
+        return servico.repositorio.configuracao.listar()
+
+    @app.post("/api/regimes", dependencies=[Depends(autorizar)])
+    def regime_salvar(pedido: PedidoRegime):
+        try:
+            return servico.repositorio.configuracao.salvar_regime(pedido.id, pedido.nome, pedido.rotinas)
+        except ValueError:
+            raise HTTPException(422, "Confira nome, regime existente e rotinas sem repetição.") from None
+
+    @app.post("/api/empresas", dependencies=[Depends(autorizar)])
+    def empresa_salvar(pedido: PedidoEmpresa):
+        try:
+            return servico.repositorio.configuracao.salvar_empresa(pedido.codigo, pedido.nome, pedido.regime_id)
+        except ValueError:
+            raise HTTPException(422, "Confira código, nome e regime cadastrado da empresa.") from None
+
+    @app.post("/api/lotes/planejar", dependencies=[Depends(autorizar)])
+    def lote_planejar(pedido: SelecaoLote):
+        try:
+            return servico.repositorio.configuracao.planejar(pedido.model_dump())
+        except ValueError:
+            raise HTTPException(422, "Confira empresas cadastradas, regimes com rotinas e período passado. SPED exige um mês completo.") from None
+
+    @app.get("/api/lotes", dependencies=[Depends(autorizar)])
+    def lotes_listar():
+        return servico.repositorio.listar_lotes()
+
+    @app.post("/api/lotes", status_code=202, dependencies=[Depends(autorizar)])
+    def lote_iniciar(pedido: PedidoLote):
+        try:
+            return servico.solicitar_lote(pedido.model_dump())
+        except SessaoOcupada:
+            raise HTTPException(409, "A sessão está ocupada ou esse identificador pertence a outro lote.") from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, "Lote requer um executor disponível.") from None
+        except ValueError:
+            raise HTTPException(422, "Revise o plano novamente e confirme a apuração de todas as empresas. O cadastro ou período pode ter mudado.") from None
+
+    @app.post("/api/lotes/{identificador}/cancelar", dependencies=[Depends(autorizar)])
+    def lote_cancelar(identificador: str):
+        try:
+            return servico.cancelar_lote(identificador)
+        except SessaoOcupada:
+            raise HTTPException(409, "Este lote não está ativo; confira o histórico.") from None
+
+    @app.get("/api/lotes/{identificador}", dependencies=[Depends(autorizar)])
+    def lote_obter(identificador: str):
+        lote = servico.repositorio.obter_lote(identificador)
+        if lote is None:
+            raise HTTPException(404, "Lote não encontrado.")
+        return lote
 
     @app.get("/api/rotinas", dependencies=[Depends(autorizar)])
     def rotinas_listar():

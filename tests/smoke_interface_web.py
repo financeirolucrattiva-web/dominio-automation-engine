@@ -49,6 +49,10 @@ def fiscal(dados, receber):
     return True
 
 
+# O navegador exercita o mesmo contrato do adapter de lote, sem desktop.
+fiscal.executar_em_lote = fiscal
+
+
 executavel = os.environ.get('DOMINIO_BROWSER_BIN') or shutil.which('chromium') or shutil.which('chromium-browser')
 if not executavel:
     raise SystemExit('Chromium não encontrado. Configure DOMINIO_BROWSER_BIN com o executável instalado; teste não executado.')
@@ -100,6 +104,72 @@ with tempfile.TemporaryDirectory() as pasta:
             assert repo.obter(tarefa['id'])['status']=='executando'
             page.locator('#pausar').click()
             expect(page.locator('#resultado')).to_have_text('Concluída pela rotina',timeout=12000)
+            page.locator('#config-empresas summary').click()
+            page.locator('#regime-nome').fill('Simples sintético')
+            page.locator('#regime-rotina').select_option('efd_contribuicoes')
+            page.locator('#regime-adicionar').click()
+            page.locator('#regime-rotina').select_option('sped_fiscal')
+            page.locator('#regime-adicionar').click()
+            page.locator('#salvar-regime').click()
+            expect(page.locator('#empresa-regime option')).to_have_count(2)
+            regime=repo.configuracao.listar()['regimes'][0]['id']
+            for codigo,nome in [('9001','Empresa A sintética'),('9002','Empresa B sintética')]:
+                page.locator('#empresa-codigo').fill(codigo); page.locator('#empresa-nome').fill(nome)
+                page.locator('#empresa-regime').select_option(regime)
+                with page.expect_response(lambda r:r.url.endswith('/api/empresas') and r.request.method=='POST'):
+                    page.locator('#salvar-empresa').click()
+                expect(page.locator('#empresa-codigo')).to_have_value('')
+            page.locator('#config-lotes summary').click()
+            expect(page.locator('#lote-empresas tr')).to_have_count(2)
+            page.locator('#lote-selecionar').click()
+            page.locator('#lote-planejar').click()
+            expect(page.locator('#lote-aviso')).to_contain_text('informe a competência')
+            page.locator('#lote-competencia').fill('2024-02')
+            page.locator('#lote-planejar').click()
+            expect(page.locator('#lote-plano tr')).to_have_count(4)
+            assert [row.locator('td').nth(1).inner_text().split(' · ')[0] for row in page.locator('#lote-plano tr').all()]==['9001','9001','9002','9002']
+            assert page.locator('#lote-plano tr').first.locator('td').nth(2).inner_text()=='EFD Contribuições'
+            page.locator('#lote-apuracao').check()
+            with page.expect_response(lambda r:r.url.endswith('/api/lotes') and r.request.method=='POST') as resposta:
+                page.locator('#lote-executar').click()
+            lote=resposta.value.json()
+            assert lote['plano']['fim']=='2024-02-29'
+            expect(page.locator('#lote-competencia')).to_have_value('')
+            expect(page.locator('#lote-pausar')).to_be_visible(timeout=4000)
+            page.locator('#lote-pausar').click()
+            expect(page.locator('#lote-pausar')).to_have_text('Continuar execução',timeout=5000)
+            page.locator('#lote-pausar').click()
+            expect(page.locator('#lote-resultado')).to_contain_text('4/4 rotinas concluídas',timeout=25000)
+            assert repo.obter_lote(lote['id'])['status']=='concluida'
+            if os.environ.get('DOMINIO_SMOKE_PREVIEW'):
+                page.locator('#config-empresas').evaluate('(el)=>el.open=false')
+                aviso_anterior=page.locator('#aviso').inner_text()
+                page.locator('#aviso').evaluate('(el)=>el.textContent="Prévia de desenvolvimento: empresas, execução fiscal e login simulados. Esta tela não comprova uma execução no Domínio real."')
+                page.screenshot(path=os.environ['DOMINIO_SMOKE_PREVIEW'],full_page=True)
+                page.locator('#aviso').evaluate('(el,texto)=>el.textContent=texto',aviso_anterior)
+                page.locator('#config-empresas').evaluate('(el)=>el.open=true')
+            # Cada linha tem um seletor de regime. Editar revoga a revisão.
+            page.locator('#regime-nome').fill('Livros sintéticos')
+            page.locator('#regime-sequencia button').filter(has_text='Remover').first.click()
+            page.locator('#regime-sequencia button').filter(has_text='Remover').first.click()
+            page.locator('#regime-rotina').select_option('registro_entradas'); page.locator('#regime-adicionar').click()
+            page.locator('#salvar-regime').click()
+            expect(page.locator('#empresa-regime option')).to_have_count(3)
+            outro=repo.configuracao.listar()['regimes'][1]['id']
+            page.locator('#lote-empresas tr').nth(1).locator('select').select_option(outro)
+            expect(page.locator('#cadastro-aviso')).to_contain_text('Cadastro salvo')
+            # Espera a gravação antes da próxima revisão.
+            for _ in range(50):
+                if repo.configuracao.listar()['empresas'][1]['regime_id']==outro: break
+                time.sleep(.05)
+            assert repo.configuracao.listar()['empresas'][1]['regime_id']==outro
+            page.locator('#lote-competencia').fill('2024-02'); page.locator('#lote-planejar').click()
+            expect(page.locator('#lote-plano tr')).to_have_count(3)
+            page.locator('#lote-apuracao').check(); page.locator('#lote-executar').click()
+            expect(page.locator('#lote-cancelar')).to_be_visible(timeout=4000)
+            page.locator('#lote-cancelar').click()
+            expect(page.locator('#lote-resultado')).to_contain_text('Interrompida',timeout=6000)
+            expect(page.locator('#lote-cancelar')).to_be_hidden()
             page.locator('#capacidade').select_option('registro_saidas')
             expect(page.locator('#campo-datas')).to_be_visible()
             expect(page.locator('#competencia')).to_be_disabled()
@@ -145,7 +215,7 @@ with tempfile.TemporaryDirectory() as pasta:
             expect(page.locator('#login')).to_be_visible()
             assert not erros,erros
             browser.close()
-        print('Chromium passou: calendário obrigatório/bissexto, pausa/retomada, código único, senhas limpas, calibração/captura simuladas, rascunho, reinício/cancelamento, responsividade, logout e offline.')
+        print('Chromium passou: regimes/empresas/sequência por empresa, calendário obrigatório/bissexto, lote e pausa/retomada/interrupção, código único, senhas limpas, calibração/captura simuladas, rascunho, reinício/cancelamento, responsividade, logout e offline.')
     finally:
         server.should_exit=True; thread.join(15)
         assert not thread.is_alive(), 'Servidor precisa encerrar sem travamento'

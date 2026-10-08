@@ -1,4 +1,4 @@
-"""Tarefas individuais persistidas; independente de HTTP e do desktop."""
+"""Tarefas e lotes persistidos; independente de HTTP e do desktop."""
 
 import datetime as dt
 from contextlib import contextmanager
@@ -14,6 +14,7 @@ from app import capacidades, painel
 from app.trava_execucao import TravaExecucao
 from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
 from app.autenticacao import SessaoLogin, LoginRecusado
+from app.configuracao_lotes import ConfiguracaoLotes
 
 
 class SessaoOcupada(ValueError):
@@ -79,7 +80,17 @@ class RepositorioTarefas:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, tarefa_id TEXT NOT NULL,
                     evento TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS lotes (
+                    id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
+                    pedido TEXT NOT NULL, plano TEXT NOT NULL, status TEXT NOT NULL,
+                    motivo TEXT, criado TEXT NOT NULL, atualizado TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS itens_lote (
+                    lote_id TEXT NOT NULL, posicao INTEGER NOT NULL,
+                    tarefa_id TEXT UNIQUE NOT NULL, PRIMARY KEY(lote_id, posicao)
+                );
             """)
+        self.configuracao = ConfiguracaoLotes(self)
 
     @contextmanager
     def conectar(self):
@@ -126,28 +137,113 @@ class RepositorioTarefas:
         with self.conectar() as banco:
             return [self._publica(item) for item in banco.execute("SELECT * FROM tarefas ORDER BY rowid DESC LIMIT 100")]
 
+    def tem_pendentes(self):
+        with self.conectar() as banco:
+            return banco.execute("SELECT 1 FROM tarefas WHERE status IN ('pendente','executando') LIMIT 1").fetchone() is not None
+
     def retomar(self):
         # Nunca repete uma ação fiscal automaticamente após reiniciar.
         with self.conectar() as banco:
             banco.execute("UPDATE tarefas SET status='interrompida', resultado=NULL, motivo='servidor_reiniciado', atualizado=? WHERE status IN ('pendente','executando')", (_agora(),))
+            banco.execute("UPDATE lotes SET status='interrompida', motivo='servidor_reiniciado', atualizado=? WHERE status IN ('pendente','executando')", (_agora(),))
 
     def proxima(self):
         with self.conectar() as banco:
             banco.execute("BEGIN IMMEDIATE")
-            item = banco.execute("SELECT * FROM tarefas WHERE status='pendente' ORDER BY rowid LIMIT 1").fetchone()
+            item = banco.execute("SELECT t.*, i.lote_id FROM tarefas t LEFT JOIN itens_lote i ON i.tarefa_id=t.id WHERE t.status='pendente' ORDER BY t.rowid LIMIT 1").fetchone()
             if item:
                 banco.execute("UPDATE tarefas SET status='executando', atualizado=? WHERE id=?", (_agora(), item["id"]))
+                if item["lote_id"]:
+                    banco.execute("UPDATE lotes SET status='executando', atualizado=? WHERE id=?", (_agora(), item["lote_id"]))
                 return dict(item)
         return None
 
     def interromper_pendentes(self):
         with self.conectar() as banco:
             banco.execute("UPDATE tarefas SET status='interrompida', resultado=NULL, motivo='reinicio_solicitado', atualizado=? WHERE status='pendente'", (_agora(),))
+            banco.execute("UPDATE lotes SET status='interrompida', motivo='reinicio_solicitado', atualizado=? WHERE status IN ('pendente','executando')", (_agora(),))
 
     def concluir(self, identificador, status, resultado=None, arquivo=None, motivo=None):
         with self.conectar() as banco:
+            banco.execute("BEGIN IMMEDIATE")
             banco.execute("UPDATE tarefas SET status=?, resultado=?, arquivo=?, motivo=?, atualizado=? WHERE id=?",
                           (status, resultado, str(arquivo) if arquivo else None, motivo, _agora(), identificador))
+            item = banco.execute("SELECT lote_id FROM itens_lote WHERE tarefa_id=?", (identificador,)).fetchone()
+            if item:
+                lote = banco.execute("SELECT status FROM lotes WHERE id=?", (item["lote_id"],)).fetchone()
+                if status != "concluida":
+                    banco.execute("UPDATE tarefas SET status='interrompida', motivo='lote_interrompido', atualizado=? WHERE status='pendente' AND id IN (SELECT tarefa_id FROM itens_lote WHERE lote_id=?)", (_agora(), item["lote_id"]))
+                    banco.execute("UPDATE lotes SET status='interrompida', motivo=COALESCE(motivo, 'rotina_nao_concluida'), atualizado=? WHERE id=?", (_agora(), item["lote_id"]))
+                elif lote["status"] != "interrompida":
+                    pendente = banco.execute("SELECT 1 FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? AND t.status IN ('pendente','executando')", (item["lote_id"],)).fetchone()
+                    banco.execute("UPDATE lotes SET status=?, atualizado=? WHERE id=?", ("executando" if pendente else "concluida", _agora(), item["lote_id"]))
+
+    def criar_lote(self, pedido, modo):
+        campos = {"request_id", "empresas", "inicio", "fim", "apuracao_confirmada", "plano_hash"}
+        if not isinstance(pedido, dict) or set(pedido) != campos or pedido["apuracao_confirmada"] is not True:
+            raise ValueError("Confira empresas, período e apuração de todas as empresas do lote.")
+        try:
+            if str(uuid.UUID(pedido["request_id"])) != pedido["request_id"] or not re.fullmatch(r"[0-9a-f]{64}", pedido["plano_hash"]):
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            raise ValueError("Revise o plano antes de iniciar o lote.") from None
+        dados = json.dumps(pedido, sort_keys=True)
+        with self.conectar() as banco:
+            banco.execute("BEGIN IMMEDIATE")
+            anterior = banco.execute("SELECT * FROM lotes WHERE request_id=?", (pedido["request_id"],)).fetchone()
+            if anterior:
+                if anterior["pedido"] != dados:
+                    raise SessaoOcupada("Identificador já usado por outro lote.")
+                return self._lote_publico(banco, anterior), False
+            if banco.execute("SELECT 1 FROM tarefas WHERE status IN ('pendente','executando')").fetchone():
+                raise SessaoOcupada("Já existe uma execução na sessão.")
+            plano = self.configuracao.planejar({k: pedido[k] for k in ("empresas", "inicio", "fim")}, banco)
+            if plano["hash"] != pedido["plano_hash"]:
+                raise ValueError("O cadastro ou período mudou. Revise o plano novamente.")
+            identificador, agora = uuid.uuid4().hex, _agora()
+            banco.execute("INSERT INTO lotes VALUES (?,?,?,?,?,?,?,?)", (identificador, pedido["request_id"], dados, json.dumps(plano), "pendente", None, agora, agora))
+            posicao = 0
+            for empresa in plano["empresas"]:
+                for rotina in empresa["rotinas"]:
+                    tarefa_id = uuid.uuid4().hex
+                    tarefa = {"request_id": str(uuid.uuid5(uuid.UUID(pedido["request_id"]), str(posicao))),
+                              "empresa_codigo": empresa["codigo"], "capacidade": rotina,
+                              "inicio": pedido["inicio"], "fim": pedido["fim"], "apuracao_confirmada": True}
+                    banco.execute("INSERT INTO tarefas VALUES (?,?,?,?,?,?,?,?,?,?)", (tarefa_id, tarefa["request_id"], json.dumps(tarefa, sort_keys=True), "pendente", modo, None, None, None, agora, agora))
+                    banco.execute("INSERT INTO itens_lote VALUES (?,?,?)", (identificador, posicao, tarefa_id))
+                    posicao += 1
+            lote = banco.execute("SELECT * FROM lotes WHERE id=?", (identificador,)).fetchone()
+            return self._lote_publico(banco, lote), True
+
+    def _lote_publico(self, banco, lote, detalhar=True):
+        plano = json.loads(lote["plano"])
+        publico = {"id": lote["id"], "request_id": lote["request_id"], "plano": plano,
+                "status": lote["status"], "motivo": lote["motivo"], "criado": lote["criado"],
+                "atualizado": lote["atualizado"]}
+        if detalhar:
+            publico["tarefas"] = [self._publica(t) for t in banco.execute("SELECT t.* FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? ORDER BY i.posicao", (lote["id"],))]
+        else:
+            publico["plano"] = {k: plano[k] for k in ("inicio", "fim", "quantidade_rotinas")}
+        return publico
+
+    def listar_lotes(self):
+        with self.conectar() as banco:
+            return [self._lote_publico(banco, l, detalhar=False) for l in banco.execute("SELECT * FROM lotes ORDER BY rowid DESC LIMIT 20")]
+
+    def obter_lote(self, identificador):
+        with self.conectar() as banco:
+            lote = banco.execute("SELECT * FROM lotes WHERE id=?", (identificador,)).fetchone()
+            return self._lote_publico(banco, lote) if lote else None
+
+    def cancelar_lote(self, identificador):
+        with self.conectar() as banco:
+            banco.execute("BEGIN IMMEDIATE")
+            lote = banco.execute("SELECT * FROM lotes WHERE id=?", (identificador,)).fetchone()
+            if lote is None or lote["status"] not in ("pendente", "executando"):
+                raise SessaoOcupada("Este lote não está ativo.")
+            banco.execute("UPDATE lotes SET status='interrompida', motivo='lote_cancelado', atualizado=? WHERE id=?", (_agora(), identificador))
+            banco.execute("UPDATE tarefas SET status='interrompida', motivo='lote_cancelado', atualizado=? WHERE status='pendente' AND id IN (SELECT tarefa_id FROM itens_lote WHERE lote_id=?)", (_agora(), identificador))
+            return [i["tarefa_id"] for i in banco.execute("SELECT tarefa_id FROM itens_lote WHERE lote_id=?", (identificador,))]
 
     def registrar_evento(self, identificador, evento):
         modelo = painel.EstadoPainel()
@@ -218,8 +314,8 @@ class ServicoExecucao:
             return self._ocupado()
 
     def _ocupado(self):
-        return (self._operacao is not None or self._operacao_ativa or
-                any(t["status"] in ("pendente", "executando") for t in self.repositorio.listar()))
+        return (self._operacao is not None or self._operacao_ativa or self._controle is not None or
+                self.repositorio.tem_pendentes())
 
     def estado_login(self):
         return {**self.sessao_login.publico(), "disponivel": self.login is not None and self.disponivel}
@@ -281,6 +377,24 @@ class ServicoExecucao:
             if nova:
                 self._acordar.set()
         return tarefa
+
+    def solicitar_lote(self, pedido):
+        if not self.disponivel or (self.modo == "windows" and not callable(getattr(self.executor, "executar_em_lote", None))):
+            raise PrecondicaoRecusada("executor_indisponivel")
+        with self._controle_lock:
+            if self._operacao is not None or self._operacao_ativa:
+                raise SessaoOcupada("Login ou recuperação em andamento.")
+            lote, novo = self.repositorio.criar_lote(pedido, self.modo)
+            if novo:
+                self._acordar.set()
+            return lote
+
+    def cancelar_lote(self, identificador):
+        with self._controle_lock:
+            tarefas = self.repositorio.cancelar_lote(identificador)
+            if self._controle is not None and self._tarefa_atual in tarefas:
+                self._controle.interromper("lote_cancelado")
+        return {"cancelamento_solicitado": True}
 
     def _trabalhar(self):
         try:
@@ -347,7 +461,8 @@ class ServicoExecucao:
             try:
                 pedido = validar_pedido(json.loads(tarefa["pedido"]))
                 with controlar_execucao(controle):
-                    resultado = self.executor(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
+                    executar = getattr(self.executor, "executar_em_lote", self.executor) if tarefa.get("lote_id") else self.executor
+                    resultado = executar(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
                 controle.verificar_interrupcao()
                 arquivo = None
                 if isinstance(resultado, tuple) and len(resultado) == 2 and type(resultado[0]) is bool:
@@ -363,7 +478,7 @@ class ServicoExecucao:
                 self.repositorio.concluir(identificador, status, resultado, arquivo,
                                          None if status != "nao_confirmada" else "resultado_ou_retorno_nao_confirmado")
             except ExecucaoInterrompida as erro:
-                motivo = str(erro) if str(erro) in ("retomada_nao_confirmada", "servidor_encerrado_durante_pausa", "reinicio_solicitado") else "retomada_nao_confirmada"
+                motivo = str(erro) if str(erro) in ("retomada_nao_confirmada", "servidor_encerrado_durante_pausa", "reinicio_solicitado", "lote_cancelado") else "retomada_nao_confirmada"
                 self.repositorio.concluir(identificador, "interrompida", None, motivo=motivo)
             except PrecondicaoRecusada as erro:
                 motivos = {"executor_requer_windows", "calibracao_indisponivel", "dominio_fora_de_foco",
@@ -377,3 +492,5 @@ class ServicoExecucao:
             finally:
                 with self._controle_lock:
                     self._controle, self._tarefa_atual = None, None
+                if not self._parar.is_set() and self.repositorio.tem_pendentes():
+                    self._acordar.set()

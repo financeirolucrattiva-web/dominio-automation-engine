@@ -30,7 +30,7 @@ ETAPAS_GERACAO = (
 )
 PROJETO = (
     ("1", "Estados das rotinas", "Implementado; execução observada", "Revalidar as quatro rotinas na versão atual."),
-    ("2", "Execução e recuperação", "Prioridade: execução individual", "Fechar falhas, resultado e retorno; lote adiado."),
+    ("2", "Execução e recuperação", "Individual e lote para teste", "Conferir resultado e retorno; lote por empresa/regime ainda precisa da rodada Windows."),
     ("3", "Catálogo de capacidades", "Catálogo preparado", "Validar execução estruturada e seus resultados."),
     ("4", "Aprender por demonstração", "Gravação e revisão disponíveis", "Validar campos, teclas, hover e estados nas rotinas gravadas."),
     ("5", "Agentes operadores", "Planejado", "Usar capacidades validadas com uma fila por sessão."),

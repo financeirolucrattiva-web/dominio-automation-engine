@@ -31,6 +31,7 @@ async function api(caminho, opcoes = {}) {
 }
 function desconectar() {
   versaoSessao++; chave=""; estadoServidor=null; selecionarTarefa(null); pedidoPendente=null; catalogo=[];
+  painelLotes.limpar();
   $("conteudo").hidden=true; $("sair").hidden=true; $("login").hidden=false; conectado(false);
   $("form-tarefa").reset(); $("capacidade").replaceChildren(); $("estados").replaceChildren(); $("historico").replaceChildren(); $("chave").value="";
   $("resultado").textContent="Aguardando seleção"; $("tarefa-detalhe").textContent="Selecione uma execução no histórico."; $("baixar").hidden=true; $("progresso").value=0;
@@ -64,7 +65,7 @@ function atualizarControle() {
   $("pausar").textContent=controle?.estado==="pausada" ? "Continuar execução" : controle?.estado==="pausa_solicitada" ? "Pausa solicitada…" : "Pausar execução";
   $("controle-aviso").textContent=!ativo ? "" : controle.estado==="pausada" ? "Execução pausada. Mantenha a tela do servidor para continuar." : controle.estado==="pausa_solicitada" ? "Aguardando a ação atual terminar para pausar." : "";
 }
-function atualizarBotao() {$("executar").disabled = enviando || !estadoServidor || !estadoServidor.execucao_habilitada || estadoServidor.ocupado; atualizarControle(); atualizarLogin();}
+function atualizarBotao() {$("executar").disabled = enviando || !estadoServidor || !estadoServidor.execucao_habilitada || estadoServidor.ocupado; atualizarControle(); atualizarLogin(); painelLotes.controles();}
 
 const fasesLogin={nao_iniciado:"Login não iniciado",na_fila:"Aguardando a ação atual terminar",preparando_navegador:"Preparando o navegador no servidor",abrir_onvio:"Abrindo Onvio",credenciais_onvio:"Entrando no Onvio",selecionar_email:"Selecionando verificação por e-mail",aguardando_codigo:"Aguardando seu código de verificação",verificando_codigo:"Verificando o código",abrir_dominioweb:"Abrindo Domínio Web",abrir_escrita_fiscal:"Abrindo Escrita Fiscal",credenciais_dominio:"Entrando no Domínio",conferir_tela_principal:"Conferindo a tela principal",tela_principal_confirmada:"Tela principal do Domínio confirmada",calibrando_tela:"Medindo a tela principal",calibracao_confirmada:"Referência da tela principal salva",fechando_ciclo:"Fechando o ciclo anterior",cancelado:"Login cancelado",falha:"Login ou calibração não confirmado"};
 const motivosLogin={navegador_indisponivel:"Instale Edge ou Chrome no servidor.",destino_nao_permitido:"A página mudou para um endereço que não está configurado.",tela_login_nao_reconhecida:"A tela esperada não foi reconhecida. Confira a etapa indicada e a sessão do servidor.",campos_login_nao_confirmados:"Os campos do login Fiscal não foram reconhecidos com segurança.",janela_login_nao_confirmada:"Não reconheci uma janela do cliente Domínio em foco.",calibracao_nao_confirmada:"Deixe a tela principal azul, maximizada e sem menus, e use Calibrar tela principal.",fechamento_nao_confirmado:"Uma janela não confirmou o fechamento. O RPA não iniciou outro ciclo.",codigo_expirado:"O código não foi informado no prazo. Inicie uma nova tentativa.",login_nao_confirmado:"O acesso não foi confirmado. A rotina fiscal não será iniciada automaticamente.",login_cancelado:"A tentativa foi cancelada."};
@@ -192,7 +193,7 @@ async function atualizar() {
   if (!chave || atualizando) return;
   atualizando=true; const versao=versaoSessao;
   try {
-    const [estado, tarefas, rotinas]=await Promise.all([api("estado"),api("tarefas"),api("rotinas")]);
+    const [estado, tarefas, rotinas, cadastros, lotes]=await Promise.all([api("estado"),api("tarefas"),api("rotinas"),api("cadastros"),api("lotes")]);
     if (versao!==versaoSessao) return;
     if (estadoServidor && JSON.stringify(estado.periodo_anterior)!==JSON.stringify(estadoServidor.periodo_anterior)) $("apuracao").checked=false;
     estadoServidor=estado; conectado(true); atualizarCampos();
@@ -205,6 +206,8 @@ async function atualizar() {
     if (!tarefaAtual && tarefas.length) selecionarTarefa(tarefas[0].id);
     exibirHistorico(tarefas);
     exibirRotinas(rotinas);
+    await painelLotes.atualizar(cadastros,lotes);
+    if (versao!==versaoSessao) return;
     atualizarBotao(); await acompanhar(); await exibirCaptura();
   } catch (erro) {if (versao===versaoSessao) {estadoServidor=null; conectado(false); atualizarBotao(); aviso(`Conexão ou resultado indisponível. ${erro.message}`);}}
   finally {atualizando=false;}

@@ -3987,6 +3987,65 @@ não estão habilitados nesta entrega.
 
 ---
 
+### 0.90 Cadastro web e lote ordenado por empresa/regime (08/10/2026)
+
+**Pedido:** o usuário esclareceu que configura as rotinas de cada regime;
+cada empresa tem um seletor de regime. Rodar todas as rotinas da empresa
+atual, trocar para a próxima selecionada e usar as rotinas do regime dela.
+Agendamento de dia/horário permanece futuro. Não inventar obrigações pelo
+regime nem reescrever geradores fiscais que já funcionam.
+
+**Implementação:** cadastro autenticado de empresas/regimes no mesmo
+SQLite do servidor. Rotinas integradas em ordem escolhida pelo usuário;
+seletor de regime por empresa. Preserva CSV/lote local e não importa
+exemplos automaticamente. Calendário obrigatório por competência ou
+intervalo; SPED exige mês completo passado, Livros aceitam datas passadas.
+Revisão mostra a sequência e exige apuração de todas as empresas. Hash
+do plano detecta cadastro/período alterado entre revisão e envio.
+
+Lote cria snapshot e tarefas atomicamente, em ordem empresa → todas as
+rotinas → próxima empresa. Um worker/trava, compartilhado com individual,
+login e manutenção. Identificador repetido não duplica, inclusive após
+edição de cadastro ou reinício. Editar regime não altera lote iniciado.
+Conclusão exige booleano positivo, fim e retorno visual reconhecido.
+Falha/recusa/resultado não confirmado interrompe próximos itens e guarda
+os anteriores. Pausa/retomada e interrupção no painel; cancelar acorda
+uma execução pausada e interrompe num checkpoint. Reinício marca itens
+inacabados interrompidos, sem repetir. Ocupação consulta todo o banco,
+sem depender das últimas 100 linhas do histórico.
+
+O adapter de lote reutiliza `trocar_empresa()` (F8) existente e confere
+tela principal/foco antes/depois e código no cabeçalho antes de gerar.
+Empresa já correta não é trocada. Individual preserva recusa de empresa
+divergente. Geradores recebem as mesmas datas explícitas. Nenhum novo
+menu ou offset foi suposto. A busca F8 pressupõe Código como no fluxo
+local: ainda conferir no primeiro teste Windows. Rascunhos de novas
+rotinas não foram promovidos nem expostos para execução remota.
+
+**Validação:** 313 testes passaram; cadastro/ordem por regime, mês
+bissexto, intervalo de Livros, fila concorrente/idempotente, plano
+desatualizado, snapshot, interrupção após falha, resultados preservados,
+cancelamento durante pausa, ocupação com mais de 100 itens e conferência
+de código no adapter. Chromium com API/SQLite/worker reais e fiscal/login
+simulados conferiu os cadastros, seletor por linha, sequência empresa por
+empresa, revisão/calendário, lote e pausa/retomada/interrupção, além dos
+controles anteriores, três larguras, logout/offline. A revisão corrigiu
+seletor que ficava habilitado durante gravação de outro cadastro. A entrada
+CLI de simulação também foi exercitada com configuração temporária:
+HTTP/site/JavaScript, cadastro vazio inicial, plano, quatro tarefas em
+ordem, reenvio sem duplicação e encerramento código 0. Compilação, pip
+check, JavaScript e diff conferidos. Nenhum teste operou o Domínio real.
+
+**Próxima rodada:** atualizar/reiniciar servidor e Ctrl+F5 no cliente;
+cadastrar em modo real duas empresas autorizadas e regimes com rotinas
+conhecidas; escolher competência apurada e conferir documentos, códigos,
+ordem, retorno e controles. Bancos de simulação e real são separados.
+Conferência de período/nome PDF permanece pausada, sem relaxar critérios.
+Agendamento, importação CSV web e execução remota de rascunhos não foram
+implementados neste incremento.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

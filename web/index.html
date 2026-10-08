@@ -7,11 +7,12 @@
   <link rel="icon" href="/static/icone.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/app.js" defer></script>
+  <script src="/static/lotes.js" defer></script>
   <title>Domínio · Automação Fiscal</title>
 </head>
 <body>
   <aside><div class="marca"><img src="/static/icone.svg" alt="" width="38" height="38"><div>DOMÍNIO<small>Automação Fiscal</small></div></div>
-    <div class="menu-atual">Execuções individuais</div><p>Comandos e acompanhamento do seu servidor dedicado.</p>
+    <div class="menu-atual">Execuções e empresas</div><p>Comandos e acompanhamento do seu servidor dedicado.</p>
     <button id="instalar" class="secundario" hidden>Instalar no computador</button>
     <button id="sair" class="secundario" hidden>Desconectar</button>
     <div class="rodape">Lucrattiva<br>Controle de rotinas fiscais</div>
@@ -26,6 +27,44 @@
     </section>
     <div id="conteudo" hidden>
       <div class="resumo"><div class="bloco"><span>SERVIDOR</span><strong id="modo">—</strong></div><div class="bloco"><span>SESSÃO</span><strong id="sessao">—</strong></div><div class="bloco"><span>ÚLTIMO RESULTADO</span><strong id="ultimo">Nenhuma execução</strong></div></div>
+      <section class="bloco configuracao"><details id="config-empresas"><summary>Empresas, regimes e rotinas do lote</summary>
+        <p class="discreto">Você define as rotinas e sua ordem em cada regime. Cada empresa executa todas as rotinas do seu regime antes de passar à próxima. Alterações valem para novos lotes.</p>
+        <div class="colunas cadastros">
+          <form id="form-regime"><h2>Regimes e rotinas</h2><label for="regime-editar">Regime</label><select id="regime-editar"><option value="">Criar regime</option></select>
+            <label for="regime-nome">Nome do regime</label><input id="regime-nome" required maxlength="100" placeholder="Ex.: Simples Nacional">
+            <label for="regime-rotina">Rotina para adicionar</label><select id="regime-rotina"></select><button id="regime-adicionar" type="button" class="secundario">Adicionar à sequência</button>
+            <ol id="regime-sequencia" class="sequencia"></ol><button id="salvar-regime" type="submit">Salvar regime</button>
+            <p class="discreto">Por enquanto, escolha entre as quatro rotinas integradas. Novos roteiros continuam disponíveis como rascunhos para revisão.</p>
+          </form>
+          <form id="form-empresa"><h2>Cadastrar ou editar empresa</h2><label for="empresa-codigo">Código no Domínio</label><input id="empresa-codigo" required inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12">
+            <label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" required maxlength="100">
+            <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select><button id="salvar-empresa" type="submit">Salvar empresa</button>
+            <p class="discreto">O código identifica a empresa no Domínio. O nome facilita a seleção no painel.</p>
+          </form>
+        </div>
+        <p id="cadastro-aviso" role="status" class="discreto"></p>
+      </details></section>
+      <section class="bloco configuracao"><details id="config-lotes"><summary>Executar lote por empresas</summary>
+        <form id="form-lote">
+          <label for="lote-filtro">Filtrar empresas por regime</label><select id="lote-filtro"><option value="">Todos os regimes</option></select>
+          <div class="controle"><button id="lote-selecionar" type="button" class="secundario">Selecionar empresas visíveis</button><button id="lote-limpar" type="button" class="secundario">Limpar seleção</button></div>
+          <div class="tabela-scroll"><table><thead><tr><th>Selecionar</th><th>Empresa</th><th>Regime</th><th></th></tr></thead><tbody id="lote-empresas"></tbody></table></div>
+          <p id="lote-vazio" class="discreto">Cadastre regimes e empresas no painel acima.</p>
+          <label for="lote-tipo-periodo">Período para todas as rotinas do lote</label><select id="lote-tipo-periodo"><option value="competencia">Competência (mês e ano)</option><option value="datas">Intervalo de datas (Livros Fiscais)</option></select>
+          <div id="lote-campo-competencia"><label for="lote-competencia">Competência</label><input id="lote-competencia" type="month" required></div>
+          <div id="lote-campo-datas" class="datas" hidden><div><label for="lote-inicio">Data inicial</label><input id="lote-inicio" type="date" required disabled></div><div><label for="lote-fim">Data final</label><input id="lote-fim" type="date" required disabled></div></div>
+          <button id="lote-planejar" type="button" class="secundario">Revisar sequência do lote</button>
+          <div id="lote-revisao" hidden><p id="lote-plano-resumo" class="resultado"></p><div class="tabela-scroll"><table><thead><tr><th>Ordem</th><th>Empresa</th><th>Rotina</th></tr></thead><tbody id="lote-plano"></tbody></table></div>
+            <label class="confirmacao"><input id="lote-apuracao" type="checkbox" required disabled><span>Conferi a sequência e a apuração desse período está fechada em todas as empresas selecionadas. O lote poderá trocar a empresa pelo código.</span></label>
+            <button id="lote-executar" type="submit" disabled>Executar lote no servidor</button>
+          </div>
+        </form><p id="lote-aviso" role="status" class="discreto"></p>
+        <div class="calibracao"><label for="lote-historico">Acompanhar lote</label><select id="lote-historico"><option value="">Nenhum lote</option></select>
+          <p id="lote-resultado" class="resultado" role="status">Aguardando seleção</p><div class="controle"><button id="lote-pausar" class="secundario" type="button" hidden>Pausar execução</button><button id="lote-cancelar" class="secundario" type="button" hidden>Interromper lote</button></div>
+          <div class="tabela-scroll"><table><thead><tr><th>Empresa</th><th>Rotina</th><th>Resultado</th><th></th></tr></thead><tbody id="lote-tarefas"></tbody></table></div>
+          <p class="discreto">Falha ou retorno não confirmado interrompe as próximas rotinas. Reiniciar o servidor preserva o histórico e não repete o lote.</p>
+        </div>
+      </details></section>
       <div class="colunas">
         <section class="bloco"><h2>Nova execução</h2><p class="discreto">A empresa precisa estar selecionada no Domínio do servidor.</p>
           <form id="form-tarefa">

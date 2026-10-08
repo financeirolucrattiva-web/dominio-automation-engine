@@ -34,11 +34,11 @@ class TestApiServidor(unittest.TestCase):
         self.headers = {"Authorization": f"Bearer {self.chave}"}
 
     def test_autenticacao_exigida_em_todos_os_dados_e_comandos(self):
-        for rota in ("estado", "capacidades", "tarefas", "tarefas/x", "tarefas/x/arquivo"):
+        for rota in ("estado", "capacidades", "tarefas", "tarefas/x", "tarefas/x/arquivo", "cadastros", "lotes", "lotes/x"):
             with self.subTest(rota=rota):
                 self.assertEqual(self.client.get("/api/" + rota).status_code, 401)
         self.assertEqual(self.client.post("/api/tarefas", json=pedido()).status_code, 401)
-        for rota in ("login/iniciar", "login/reiniciar", "login/codigo", "login/cancelar", "sessao/calibrar", "sessao/capturar", "rotinas", "tarefas/x/pausar", "tarefas/x/continuar"):
+        for rota in ("login/iniciar", "login/reiniciar", "login/codigo", "login/cancelar", "sessao/calibrar", "sessao/capturar", "rotinas", "tarefas/x/pausar", "tarefas/x/continuar", "regimes", "empresas", "lotes/planejar", "lotes", "lotes/x/cancelar"):
             with self.subTest(rota=rota):
                 self.assertEqual(self.client.post("/api/" + rota, json={}).status_code, 401)
         for rota in ("sessao/captura", "rotinas"):

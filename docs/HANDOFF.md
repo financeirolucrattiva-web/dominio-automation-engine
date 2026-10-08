@@ -7,7 +7,30 @@ branch remoto `main`. Codex e Claude Code podem trabalhar juntos;
 confira alterações e versão remota antes de publicar, sem force push.
 O texto abaixo deste checkpoint mantém o histórico de setembro.
 
-Entrega atual (08/10): pausa cooperativa/retomada, calendário obrigatório
+Entrega mais recente: cadastro web de regimes com rotinas integradas
+ordenadas pelo usuário, empresas com seletor de regime e lote remoto
+empresa por empresa. Cada empresa faz todas as rotinas antes da próxima.
+Filtro/seleção, competência/datas obrigatórias, revisão do plano por hash,
+snapshot no SQLite, histórico por item, pausa/retomada e interrupção.
+Falha/retorno não confirmado interrompe o restante; reinício não repete.
+Alteração de cadastro vale para novos lotes. Rascunhos novos continuam
+fora da execução remota; agendamento permanece futuro. CSV local intacto,
+sem importar exemplo ou dados reais automaticamente para o painel.
+
+Adapter de lote reutiliza `dominio.trocar_empresa()` (F8) e exige tela
+principal/foco e código relido antes da geração. Individual não troca
+empresa. A busca F8 pressupõe Código como no caminho local: conferir na
+primeira rodada Windows. Sem menus/coordenadas novos. Bancos de simulação
+e real são separados. Atualizar servidor, reiniciar executor, Ctrl+F5 no
+cliente; configurar regimes/empresas em modo real antes do teste.
+
+313 testes passaram e Chromium verificou cadastro, ordem por empresa,
+calendário bissexto, lote, pausa/retomada/interrupção e demais controles
+anteriores com fiscal/login simulados. Novo teste Windows: duas empresas
+autorizadas, rotinas conhecidas e competência apurada; conferir códigos,
+documentos e retorno. Isso ainda não comprova lote real no Domínio.
+
+Entrega anterior (08/10): pausa cooperativa/retomada, calendário obrigatório
 por competência ou intervalo, SPED/Contribuições com datas explícitas
 preservadas no retry, login Onvio com código humano e Domínio Web/Fiscal,
 cancelamento, reinício do ciclo e calibração/captura pela interface.
@@ -25,8 +48,8 @@ nem expostos para execução remota.
 
 O usuário reabriu prioridade de lote após esses controles: empresas por
 regime (ex. Simples Nacional) × rotinas aprovadas. Agendamento por empresa,
-dia/horário é futuro. Próximas etapas em ROADMAP-RPA.md; não confundir lote
-local existente com lote remoto ainda não habilitado. Servidor dedicado
+dia/horário é futuro. Próximas etapas em ROADMAP-RPA.md; o lote remoto
+descrito no checkpoint acima é novo e precisa de teste Windows. Servidor dedicado
 sem Domínio informado; PC atual é servidor de teste. Usuário disse que a
 execução remota funcionou depois de ajustar chave e pré-condição, sem
 log/documento detalhado para validar conteúdo.

@@ -20,6 +20,7 @@ class TestExecutorServidor(unittest.TestCase):
         for nome in ("dominio", "estados", "interacao", "tela", "tela_principal"):
             self.desktop[nome] = types.ModuleType("app." + nome)
         dominio = self.desktop["dominio"]
+        dominio.trocar_empresa = Mock(return_value=True)
         dominio._verificar_retorno_tela_principal = Mock(return_value="tela_principal_reconhecida")
         dominio.competencia_anterior = Mock(return_value=tuple(__import__("datetime").date.fromisoformat(self.dados[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")))
         for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas"):
@@ -33,10 +34,11 @@ class TestExecutorServidor(unittest.TestCase):
         self.desktop["tela"].ler_empresa_selecionada = Mock(return_value=("EMPRESA SINTÉTICA", "52"))
         self.desktop["tela_principal"].carregar_referencia = Mock(return_value={"sintetica": True})
 
-    def executar(self):
+    def executar(self, lote=False):
         with patch.object(executor_servidor.sys, "platform", "win32"):
             with patch.multiple("app", create=True, **self.desktop):
-                return executor_servidor.ExecutorDominio()(self.dados, Mock())
+                executor = executor_servidor.ExecutorDominio()
+                return (executor.executar_em_lote if lote else executor)(self.dados, Mock())
 
     def test_preserva_rotina_sped_sem_reescrever_navegacao(self):
         self.assertTrue(self.executar())
@@ -58,6 +60,23 @@ class TestExecutorServidor(unittest.TestCase):
         self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")
         with self.assertRaises(PrecondicaoRecusada):
             self.executar()
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+        self.desktop["dominio"].trocar_empresa.assert_not_called()
+
+    def test_lote_reutiliza_f8_e_confere_codigo_antes_de_gerar(self):
+        self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "99"), ("SINTÉTICA", "52")]
+        self.assertTrue(self.executar(lote=True))
+        self.desktop["dominio"].trocar_empresa.assert_called_once()
+        self.assertEqual(self.desktop["dominio"].trocar_empresa.call_args.args, ("52",))
+
+    def test_lote_nao_troca_empresa_que_ja_esta_correta(self):
+        self.assertTrue(self.executar(lote=True))
+        self.desktop["dominio"].trocar_empresa.assert_not_called()
+
+    def test_troca_nao_confirmada_no_cabecalho_nao_gera(self):
+        self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")
+        with self.assertRaises(PrecondicaoRecusada):
+            self.executar(lote=True)
         self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
 
     def test_calibracao_ausente_nao_captura_ou_envia_acao(self):
