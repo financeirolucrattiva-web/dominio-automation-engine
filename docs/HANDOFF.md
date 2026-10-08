@@ -33,6 +33,22 @@ Integração com Claude: preservar `ee64533`, `b209d71` e `257e90b`
 (digitação/hover/fingerprint, revisão/aprovação de rotina e vocabulário
 confirmado). Revisão e aprovação agora passam pela fila Tk após finalizar
 o worker, para evitar chamadas `root.after` a partir da thread fiscal.
+
+**Divisão de área combinada entre as sessões (08/10/2026, pedido da
+usuária, revisão cruzada feita dos dois lados)**: Claude cuida de
+percepção (`app/tela.py`, `app/visao.py`), gravador
+(`scripts/gravar.py`), `app/rotina_gravada.py`,
+`app/registro_elementos.py` e a seção "Rotinas gravadas" da GUI. Codex
+cuida de `app/servidor.py`/`api_servidor.py`/`executor_servidor.py`,
+`web/`, `app/trava_execucao.py`, `app/tela_principal.py`,
+`app/painel.py`, `app/capacidades.py` e infraestrutura de instalação
+(PaddleOCR, bootstrap Python). `app/dominio.py` e `scripts/gui.py`
+continuam compartilhados, mexidos com cuidado pelos dois (como já vem
+acontecendo). Pra `docs/00-analise-e-plano-fase0.md` não repetir número
+de seção de novo (já aconteceu, seção 0.70/0.71 duplicada, renumerada
+pra 0.81/0.82): **antes de escrever uma seção nova, conferir a última
+seção numerada via `git fetch origin` fresco, nunca da memória da
+própria sessão.**
 GUI preserva resultado desconhecido em vez de OK, grava histórico
 atomicamente e impede arquivos/ferramentas de roubar foco durante ações.
 
