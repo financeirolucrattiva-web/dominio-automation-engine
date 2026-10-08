@@ -3757,6 +3757,65 @@ retomada em `docs/SERVIDOR-E-INTERFACE.md` e `docs/RETOMADA.md`.
 
 ---
 
+### 0.85 Rotina gravada aprende a clicar em ÍCONE (não só texto) — fecha a lacuna dos passos 8/9/10 da rotina de teste quebrada
+
+Depois da revisão cruzada com a sessão Codex (coordenação registrada no
+`HANDOFF.md`), continuei na minha área (percepção/gravador/rotinas
+gravadas) enquanto a outra sessão trabalhava em rede local/instaladores
+— sem conflito, confirmado por `git diff --stat` nos dois lados antes
+de começar.
+
+**Lacuna real, já identificada antes** (seção 0.82, revisão da rotina
+"TEste nova rotina ex"): passos 8, 9 e 10 daquela gravação eram cliques
+em ÍCONE da barra de ferramentas — sem texto nenhum pra adivinhar, o
+gravador só salvava `texto_adivinhado: ""`, e `rotina_gravada.
+executar_passos()` desistia desses passos (`"não dá pra reproduzir com
+segurança"`). O vocabulário de texto (seção 0.83) não ajuda aqui —
+problema diferente (reconhecer imagem, não validar texto).
+
+**Correção**: `scripts/gravar.py` — quando o texto adivinhado tem menos
+de 2 caracteres (sem confiança nenhuma), salva TAMBÉM um recorte
+pequeno ao redor do clique (mesma escala do ícone real já usado,
+`app/icones/salvar_pdf.png`, 30×25px) como `template_icone` no passo.
+`rotina_gravada.salvar_rotina_gravada()` ganhou `pasta_origem` — copia
+esse recorte da pasta efêmera da gravação (`capturas/gravacao_*/`, sem
+garantia de não ser limpa) pra uma pasta persistente dentro de
+`data/rotinas_gravadas/<nome>_icones/`, salva junto com a própria
+rotina. `rotina_gravada.executar_passos()` agora usa
+`tela.achar_icone_robusto()` (pixel + característica, seção 0.58/0.61 —
+mesma técnica já validada pro ícone de exportar PDF) quando o passo tem
+`template_icone` e nenhum texto, em vez de `dominio.achar_ou_parar()`.
+`excluir_rotina_gravada()` também limpa a pasta de ícones copiados.
+
+Tela de revisão (`RevisarGravacao`) mostra "🖼 sem texto — vai clicar
+por imagem" quando reconhece o ícone salvo, ou "⚠ sem texto nem ícone
+salvo — não vai reproduzir" no caso raro de nenhum dos dois existir —
+pra pessoa saber, antes de aprovar, que aquele passo específico
+depende de casamento de imagem, não de texto.
+
+**Validado por teste de lógica real** (não contra o Domínio — mesma
+limitação de sempre): gravador salva `template_icone` só quando o
+texto é fraco (confirmado que clique com texto bom NÃO gera recorte à
+toa); `salvar_rotina_gravada()` copia o ícone pra local persistente
+(confirmado que é cópia, não o arquivo original, e que o caminho
+salvo aponta pro lugar novo); `executar_passos()` chama
+`achar_icone_robusto()` (não `achar_ou_parar()`) quando só há ícone,
+clica exatamente na posição devolvida; falha com segurança (devolve
+`False`, sem tentar clicar às cegas) tanto quando o arquivo do
+template sumiu do disco quanto no caso antigo de nem texto nem ícone;
+excluir uma rotina limpa a pasta de ícones junto. Suíte completa (244
+testes, incluindo os do servidor da outra sessão) passando — 1 teste
+alheio (`test_duplicacao_de_requisicao_nao_reexecuta`) falhou uma vez
+por lentidão de máquina com as duas sessões rodando junto, confirmado
+instável (passa isolado), não é regressão.
+
+**Ainda não testado contra o Domínio real** — falta gravar uma rotina
+de verdade com clique em ícone (ex.: regravar a "TEste nova rotina ex"
+corrigida) e confirmar que `achar_icone_robusto()` acha o alvo certo
+numa sessão ao vivo, não só em imagem sintética.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

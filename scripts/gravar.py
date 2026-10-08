@@ -152,7 +152,7 @@ class Gravador:
         adivinhado = tela.texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60)
         print(f"  Texto adivinhado perto do clique: {adivinhado!r}" if adivinhado else "  Não consegui ler nenhum texto perto do clique.")
 
-        self.passos.append({
+        passo = {
             "tipo": "clicar",
             "indice": indice,
             "x": x,
@@ -160,7 +160,25 @@ class Gravador:
             "texto_adivinhado": adivinhado,
             "print_tela_cheia": nome_tela_cheia,
             "print_recorte": nome_recorte,
-        })
+        }
+
+        # Sem texto (ou texto curto demais pra confiar, ex. 1 letra
+        # perdida) — provável clique em ÍCONE (achado real, seção 0.85:
+        # a rotina "TEste nova rotina ex" tinha 3 passos assim, sem
+        # nenhum jeito de reproduzir). Salva um recorte pequeno, do
+        # tamanho típico de um ícone de barra de ferramentas (mesma
+        # escala do app/icones/salvar_pdf.png existente, 30×25px), pra
+        # usar como template de casamento de imagem
+        # (`tela.achar_icone_robusto()`) na hora de rodar — em vez de
+        # ficar sem nenhuma forma de reproduzir o clique.
+        if len(adivinhado or "") < 2:
+            recorte_icone, _, _ = tela.recortar_ao_redor(imagem, x, y, raio_x=16, raio_y=14)
+            nome_icone = f"passo_{indice:02d}_icone.png"
+            tela.salvar(recorte_icone, self.pasta / nome_icone)
+            passo["template_icone"] = nome_icone
+            print(f"  Sem texto confiável perto do clique — salvo recorte como possível ícone: {nome_icone}")
+
+        self.passos.append(passo)
 
     def _marcar_hover(self):
         """F9 — marca a posição ATUAL do mouse como um passo de hover

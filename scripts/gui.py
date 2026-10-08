@@ -214,6 +214,14 @@ class RevisarGravacao(simpledialog.Dialog):
                         ).pack(side=LEFT)
                     elif avaliacao["status"] == "novo":
                         tb.Label(linha, text="novo (nunca confirmado)", bootstyle="secondary").pack(side=LEFT, padx=(6, 0))
+                    elif avaliacao["status"] == "vazio" and passo.get("template_icone"):
+                        # Sem texto, mas tem recorte de ícone salvo (seção
+                        # 0.84) — vai clicar por casamento de imagem, não
+                        # por texto. Campo de texto fica vazio de propósito
+                        # (pode preencher à mão se descobrir um texto bom).
+                        tb.Label(linha, text="🖼 sem texto — vai clicar por imagem (ícone salvo)", bootstyle="info").pack(side=LEFT, padx=(6, 0))
+                    elif avaliacao["status"] == "vazio":
+                        tb.Label(linha, text="⚠ sem texto nem ícone salvo — não vai reproduzir", bootstyle="danger").pack(side=LEFT, padx=(6, 0))
                 else:  # digitar
                     tb.Label(
                         linha, text=f'Passo {passo["indice"]} (digitou {passo["texto"]!r}):',
@@ -1058,7 +1066,9 @@ class JanelaPrincipal:
         if dialogo.resultado is None:
             return
         nome_exibicao, passos_marcados, parametros = dialogo.resultado
-        caminho = rotina_gravada.salvar_rotina_gravada(nome_exibicao, passos_marcados, parametros)
+        caminho = rotina_gravada.salvar_rotina_gravada(
+            nome_exibicao, passos_marcados, parametros, pasta_origem=pasta_gravacao,
+        )
         self._recarregar_rotinas_gravadas()
         messagebox.showinfo(
             "Rotina salva",
