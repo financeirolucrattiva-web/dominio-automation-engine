@@ -10,7 +10,8 @@ try {
     if (-not $Endereco) { $Endereco = Read-Host 'Endereco HTTPS do servidor (ex.: https://192.168.1.50:8765)' }
     $uri = $null
     if (-not [Uri]::TryCreate($Endereco, [UriKind]::Absolute, [ref]$uri) -or
-        $uri.Scheme -ne 'https' -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or
+        $uri.Scheme -ne 'https' -or -not $uri.Host -or $uri.Port -lt 1 -or $uri.Port -gt 65535 -or
+        $uri.UserInfo -or $uri.Query -or $uri.Fragment -or
         $uri.AbsolutePath -ne '/') {
         throw 'Informe o endereco HTTPS do servidor, sem chave ou senha no endereco.'
     }

@@ -3816,6 +3816,57 @@ numa sessão ao vivo, não só em imagem sintética.
 
 ---
 
+### 0.86 Dois instaladores: servidor e interface cliente na rede local (08/10/2026)
+
+**Pedido:** testar usando o PC atual com Domínio como servidor e outro
+PC na mesma rede/Wi-Fi. O usuário pediu instalações separadas, com
+endereço do servidor e chave de acesso na interface. Preparação feita
+no mesmo repositório, sem novo produto e sem mudar navegação fiscal.
+
+`Instalar Servidor.bat` instala API/HTTPS e pergunta acesso local ou
+rede. `scripts/configurar_servidor.py` detecta IPv4 privado, pede
+conferência do endereço e usa `app/rede_local.py` para gerar autoridade
+local e certificado TLS com SAN do IP. Chaves/configuração ficam em
+`data/rede_local`, gitignored. A autoridade é reutilizada em nova
+configuração; corrupção/expiração interrompe em vez de trocar confiança
+automaticamente. Certificados usam revisões separadas; configuração
+publicada por escrita atômica. Foi acrescentada somente `cryptography`
+ao componente opcional do servidor; Pydantic fixado na versão testada.
+
+Pacote `data/rede_local/interface_cliente`: quatro arquivos públicos
+(instalador BAT, script PowerShell, certificado CER e endereço/hash).
+Não contém chave privada, chave de acesso, Python, OCR ou dados fiscais.
+`Instalar Interface.bat` usa Edge/Chrome já instalado, registra a
+confiança HTTPS local no usuário Windows e cria atalho em janela própria.
+Endereço salvo localmente; chave continua informada na página e somente
+em memória. A instalação PWA pelo navegador permanece disponível.
+
+`Liberar Acesso Rede.bat`, executado manualmente como administrador,
+cria a regra exclusiva deste app: IP/porta/Python configurados,
+sub-rede local e perfis Private/Domain. Não desabilita o firewall.
+`Testar Interface na Rede.bat` usa simulação; `Executar Dominio na Rede.bat`
+usa o executor existente. O parâmetro `--rede-local` lê configuração
+HTTPS preparada, preservando consulta/simulação/execução e atalhos locais.
+O outro PC precisa apenas de navegador; Domínio/OCR permanecem no servidor.
+
+**Validação:** 253 testes passaram após integrar o commit Claude
+`0d29e41` (ícones nas rotinas gravadas, seção 0.85). Testes novos
+conferem cadeia/assinatura/SAN/chave, TLS real com confiança e hostname
+divergente, pacote sem chaves, reutilização da autoridade, corrupção,
+caminhos restritos e escrita atômica. Sintaxe Python/PowerShell passou;
+entrada HTTP no instalador cliente foi recusada antes de modificar o PC.
+Resolução de wheels para Windows x64/Python 3.14 passou em dry-run.
+
+**Ainda não validado no Windows:** importação da confiança, atalho,
+regra de firewall, conexão entre os dois PCs e execução fiscal remota.
+O operador precisa atualizar, instalar/configurar o servidor e levar
+o pacote público ao cliente. O PC com Domínio deve permanecer visível,
+desbloqueado e sem interferência durante a rotina. Guia completo em
+`docs/SERVIDOR-E-INTERFACE.md`; lote/agentes gerais e falha de PDF não
+foram ampliados ou declarados concluídos nesta entrega.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
