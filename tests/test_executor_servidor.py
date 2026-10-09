@@ -25,6 +25,7 @@ class TestExecutorServidor(unittest.TestCase):
         dominio.trocar_empresa = Mock(return_value=True)
         dominio._verificar_retorno_tela_principal = Mock(return_value="tela_principal_reconhecida")
         dominio._confirmar_conteudo_dominio = Mock(return_value=True)
+        dominio.fechar_aba_ativa = Mock(return_value=True)
         dominio.competencia_anterior = Mock(return_value=tuple(__import__("datetime").date.fromisoformat(self.dados[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")))
         for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas", "gerar_resumo_acumulador"):
             setattr(dominio, nome, Mock(return_value=True))
@@ -278,6 +279,21 @@ class TestExecutorServidor(unittest.TestCase):
         esc.reset_mock(); esc.return_value = False
         self.assertFalse(self.recuperar())
         self.assertEqual(esc.call_count, 1)
+
+    def test_recuperacao_escala_para_fechar_aba_depois_dos_esc(self):
+        d = self.desktop["dominio"]
+        d._verificar_retorno_tela_principal.side_effect = ["tela_principal_nao_reconhecida"] * 6 + ["tela_principal_reconhecida"]
+        esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
+        self.assertTrue(self.recuperar())
+        self.assertEqual(esc.call_count, 5)
+        d.fechar_aba_ativa.assert_called_once()
+
+    def test_recuperacao_para_se_fechar_aba_nao_puder_ser_enviado(self):
+        d = self.desktop["dominio"]
+        d._verificar_retorno_tela_principal.return_value = "tela_principal_nao_reconhecida"
+        d.fechar_aba_ativa.return_value = False
+        self.assertFalse(self.recuperar())
+        d.fechar_aba_ativa.assert_called_once()
 
 
 class TestTravaExecucao(unittest.TestCase):

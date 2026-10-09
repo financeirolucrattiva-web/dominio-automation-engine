@@ -49,14 +49,18 @@ class ExecutorDominio:
         contexto = SimpleNamespace(janela_dominio=janela)
         # Cada Esc usa a janela já reconhecida e volta a conferir o foco.
         # A tela azul interrompe a limpeza imediatamente, sem fechar Domínio.
-        for tentativa in range(6):
+        for tentativa in range(9):
             ponto_seguro()
             if dominio._verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
                 return interacao.janela_dominio_em_foco(janela)
-            if tentativa == 5:
+            if tentativa == 8:
                 break
-            if not interacao.pressionar_esc_no_dominio(
-                    janela, vezes=1, confirmar_conteudo=dominio._confirmar_conteudo_dominio):
+            if tentativa < 5:
+                if not interacao.pressionar_esc_no_dominio(
+                        janela, vezes=1, confirmar_conteudo=dominio._confirmar_conteudo_dominio):
+                    return False
+            elif not dominio.fechar_aba_ativa(janela):
+                # Esc não bastou: botão Fechar ou Ctrl+F4 (nunca Alt+F4).
                 return False
         return False
 
