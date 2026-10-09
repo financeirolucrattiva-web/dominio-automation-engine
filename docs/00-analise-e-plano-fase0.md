@@ -4599,3 +4599,31 @@ dedicado.
 competências candidatas levantadas, árvore de UI Automation da tela-alvo
 documentada (mesmo que a resposta seja "não é utilizável, precisa de
 OCR"). Nenhum desses itens exige escrever automação.
+
+### 0.97 Limpeza final universal: fechar tudo e seguir (09/10/2026)
+
+Pedido do operador: ao terminar ou falhar, SPED Fiscal, EFD Contribuições,
+Livros Fiscais (Entradas/Saídas) e Resumo por Acumulador devem fechar as
+telas abertas e só então seguir para a próxima rotina/empresa.
+
+- `dominio.voltar_ao_inicio()`: confere a tela principal calibrada e só age
+  se ela **não** estiver reconhecida (nunca envia tecla na tela azul). Sem
+  referência calibrada ou sem janela do Domínio em foco, não envia nada.
+  Escalada: até 5 Esc (um por vez, com foco conferido) e depois até 3
+  tentativas de fechar a aba (botão "Fechar" por OCR; senão Ctrl+F4, que
+  fecha só a janela filha ativa). Alt+F4 nunca é usado. Cada passo reconfere a tela.
+- `dominio._limpar_ao_encerrar()`: chamado quando a rotina falha ou levanta
+  exceção (livros, resumo e SPED/EFD). Idempotente; pula se a recuperação
+  da rotina já confirmou a tela principal; nunca troca o resultado nem
+  esconde a exceção original. Interrupção manual (BaseException) não envia teclas.
+- `_processar_empresa` (lote local): limpa depois de cada documento, com
+  sucesso ou falha, e só interrompe o lote se a tela principal não voltar.
+- `executor_servidor._voltar_ao_inicio`: mesma escalada (5 Esc, depois fechar aba).
+- Testes: `tests/test_limpeza_final.py` (novo) e ajustes em
+  `test_acompanhamento.py`/`test_executor_servidor.py` que fixavam o
+  comportamento antigo "falhou, não envia Esc".
+- **Não validado contra o Domínio real.** O botão "Fechar" e o Ctrl+F4 em
+  sessão GO-Global precisam de teste supervisionado com tela calibrada.
+- Achado de infraestrutura: em 09/10 16:11 vários arquivos do projeto
+  (inclusive `app/dominio.py`) e metadados do Git ficaram zerados,
+  deixando a interface em branco. Restaurados a partir da `main` (1fd8084).
