@@ -5,11 +5,13 @@ import math
 NOMES_ROTINAS = {
     "sped_fiscal": "SPED Fiscal", "efd_contribuicoes": "Demonstrativo EFD Contribuições",
     "registro_saidas": "Registro de Saídas", "registro_entradas": "Registro de Entradas",
+    "resumo_acumulador": "Resumo por Acumulador",
     "geracao_fiscal": "Geração fiscal",
 }
 NOMES_ETAPAS = {
     "validar_dados": "Validar dados", "identificar_empresa": "Identificar empresa",
     "abrir_livros": "Abrir Livros Fiscais", "preencher_periodo": "Preencher período",
+    "abrir_resumo": "Abrir Resumo por Acumulador",
     "gerar_previa": "Gerar prévia", "exportar_pdf": "Exportar PDF",
     "conferir_pdf": "Conferir PDF", "encerrar": "Encerrar e conferir retorno",
     "navegar_menu": "Navegar pelo menu", "identificar_formulario": "Identificar formulário",
@@ -73,7 +75,8 @@ class EstadoPainel:
             self.limpar()
             self.execution_id, self.tentativa = execucao, tentativa
             self.rotina = NOMES_ROTINAS[rotina]
-            self.etapas = ETAPAS_LIVROS if rotina.startswith("registro_") else ETAPAS_GERACAO
+            self.etapas = (tuple("abrir_resumo" if e == "abrir_livros" else e for e in ETAPAS_LIVROS)
+                           if rotina == "resumo_acumulador" else ETAPAS_LIVROS if rotina.startswith("registro_") else ETAPAS_GERACAO)
         self.etapa = NOMES_ETAPAS[etapa]
         self.linhas[etapa] = (NOMES_STATUS[status], f"{segundos:.1f} s", status)
         evidencia = evento.get("evidence")

@@ -71,7 +71,8 @@ podem ser cadastradas pelo nome, configuradas individualmente e enviadas
 à validação no painel. Isso ainda não aprova nem libera sua execução remota.
 Demonstrativo EFD Contribuições reutiliza a rotina integrada existente,
 renomeada e vinculada ao Presumido e Real; a cópia pendente foi arquivada.
-Resumo por Acumulador e Livro Fiscal de ICMS aguardam configuração.
+Resumo por Acumulador está integrado para teste individual supervisionado,
+ainda não homologado no Windows. Livro Fiscal de ICMS aguarda integração.
 O lote agora preserva a falha da rotina e continua após confirmar a
 recuperação até a tela azul; sem recuperação confirmada, interrompe.
 Conferência e recuperação desta versão precisam da rodada Windows.
@@ -116,8 +117,9 @@ O teste de pasta não homologa emissão fiscal. A exportação conjunta dos
 três livros ainda depende da navegação verificada em **Procurar Pasta**,
 da validação do PDF de ICMS e de múltiplos arquivos por tarefa; veja
 [LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
-O menu do Resumo foi identificado no print: **Relatórios → Acompanhamentos →
-Resumo por Acumulador**. O restante está em
+O Resumo segue **Relatórios → Acompanhamentos → Resumo por Acumulador**,
+preenche as duas datas e exporta o PDF para `saida/`, como nos prints.
+O procedimento de teste está em
 [RESUMO-POR-ACUMULADOR.md](docs/RESUMO-POR-ACUMULADOR.md).
 
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
@@ -173,7 +175,7 @@ Essas mudanças passaram por testes simulados e precisam de revalidação
 Windows. O Adobe pode continuar instalado e aberto.
 
 Consulte [docs/RETOMADA.md](docs/RETOMADA.md) para o próximo teste.
-`atalhos/ferramentas/Listar Funcoes.bat` mostra o catálogo preparatório das quatro rotinas,
+`atalhos/ferramentas/Listar Funcoes.bat` mostra o catálogo preparatório das cinco rotinas,
 sem executar nada ou habilitar agentes. A conferência de período/nome
 do PDF continua pendente e pausada pelo usuário.
 
@@ -308,6 +310,7 @@ Cada opção do menu também roda direto por comando, se preferir:
 python scripts\explorar.py               # gera o SPED Fiscal (ICMS) na empresa já selecionada
 python scripts\explorar_contribuicoes.py # gera a EFD Contribuições na empresa já selecionada
 python scripts\explorar_registro_saidas.py # gera o Livro Registro de Saídas (ver aviso abaixo)
+python scripts\explorar_resumo_acumulador.py # teste individual do Resumo; informa código e competência
 python scripts\trocar_empresa.py         # troca de empresa via F8 (código fixo no arquivo)
 python scripts\selecionar_empresas.py    # só carrega e filtra a lista por regime, não roda nada
 python scripts\executar_lote.py          # troca de empresa + gera, para cada empresa de um regime
@@ -337,8 +340,8 @@ o nome fica congelado na revisão inicial. Nova emissão preserva o arquivo
 anterior com sufixo `_2`, `_3` etc. O download usa esse mesmo nome.
 Vincule em **Empresas, regimes e rotinas do lote → Cadastrar ou editar
 empresa**, informando código no Domínio, nome e regime, e **Salvar empresa**.
-Resumo usará `acumulador_empresa_exemplo_2026-08.pdf` quando sua emissão
-for integrada. A EFD atual retorna apenas resultado, sem caminho de arquivo
+Resumo usa `acumulador_empresa_exemplo_2026-08.pdf`, em `saida/` nesta etapa.
+A EFD atual retorna apenas resultado, sem caminho de arquivo
 local para aplicar a convenção. O regime permanece no cadastro e histórico.
 
 **Scripts locais sem cadastro no painel:**

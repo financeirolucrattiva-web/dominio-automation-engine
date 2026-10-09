@@ -4,7 +4,7 @@
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-commit `8713586` e alterações locais desta entrega. Implementação preparada
+main até `f85cea4` e incremento do Resumo nesta entrega. Implementação preparada
 neste ambiente; instalação, execução e homologação no Windows do escritório
 continuam sendo etapas próprias.
 
@@ -39,7 +39,7 @@ da aceitação do primeiro piloto.
 
 | Indicador/rotina | Situação de partida | Próximo trabalho |
 | --- | --- | --- |
-| Resumo por Acumulador | Nome cadastrado, vinculado aos dois regimes; menu identificado | Mapear formulário/exportação, configurar e validar o relatório |
+| Resumo por Acumulador | Gerador integrado para teste individual; cadastro vinculado aos dois regimes | Testar OCR/exportação no Windows e homologar o documento |
 | Demonstrativo EFD Contribuições | Rotina EFD existente reutilizada e renomeada, vinculada aos dois regimes | Revalidar a versão atual no Windows |
 | Livro Fiscal — Registro de Entradas | Motor integrado | Revalidar empresa, período, documento e retorno |
 | Livro Fiscal — Registro de Saídas | Motor integrado, com pendência na conferência do PDF | Resolver a conferência e validar o fluxo completo |
@@ -49,8 +49,9 @@ O escritório confirmou que Demonstrativo EFD Contribuições é a mesma
 rotina EFD já existente. O motor é reutilizado e o nome de exibição foi
 ajustado; o cadastro pendente duplicado foi substituído nos regimes,
 arquivando sua configuração anterior no banco local. Livro Fiscal de
-ICMS continua distinto de SPED Fiscal. Resumo e ICMS são os dois cadastros
-novos pendentes de configuração e homologação.
+ICMS continua distinto de SPED Fiscal e aguarda integração. Resumo tem
+implementação baseada nas telas fornecidas; aguarda execução real e
+homologação. Estar integrado não significa aprovação do supervisor.
 
 O preparo inicial acontece uma vez ao iniciar o servidor atualizado.
 Novos cadastros ficam no banco local. Reiniciar não duplica nem restaura
@@ -65,7 +66,7 @@ Os PDFs confirmados emitidos pelo painel passam a usar o nome cadastrado,
 por exemplo `registro_entradas_empresa_exemplo_2026-08.pdf`. No lote,
 o nome é o que estava na revisão inicial. A competência vem do período
 pedido. Nova emissão usa sufixo se já existir o arquivo, sem substituí-lo.
-Resumo seguirá `acumulador_empresa_exemplo_2026-08.pdf` quando integrado.
+Resumo usa `acumulador_empresa_exemplo_2026-08.pdf`, em `saida/` nesta etapa.
 O regime permanece no cadastro/histórico. EFD atualmente retorna somente
 o resultado da geração, sem caminho local de arquivo para renomear.
 
@@ -83,7 +84,9 @@ continua vinculado ao documento daquela tarefa. A emissão dos três
 livros juntos ainda depende da integração da árvore de pastas, conferência
 do PDF de ICMS e múltiplos arquivos por execução. O menu do Resumo foi
 identificado como **Relatórios → Acompanhamentos → Resumo por Acumulador**;
-seu formulário e sua exportação ainda precisam ser mapeados.
+formulário/período/OK/prévia/Salvar em PDF agora estão implementados para
+teste individual. O executor confere datas/empresa/PDF e retorno à tela
+principal; os valores fiscais precisam da conferência humana de referência.
 
 ## Fluxo de trabalho
 
@@ -141,7 +144,7 @@ preserva as pendências e não reexecuta emissões automaticamente.
 | Etapa | Entrega | Responsável proposto | Critério para avançar |
 | --- | --- | --- | --- |
 | 1. Preparar cadastros e ambiente | Regimes, cinco indicadores, empresas/códigos, servidor acessível e tela calibrada | Desenvolvimento + administrador | Cadastros conferidos; instalação e acesso no Windows funcionando |
-| 2. Configurar as novas rotinas | Resumo e ICMS com parâmetros e verificações | Desenvolvimento + supervisor fiscal | Cada roteiro revisado contra as telas reais e testável individualmente |
+| 2. Configurar e testar as novas rotinas | Resumo pronto para teste individual; integrar ICMS/conjunto | Desenvolvimento + supervisor fiscal | Roteiros revisados contra telas reais e teste individual observado |
 | 3. Completar a validação | Fila de revisão, aprovador, evidências, versão e liberação no executor | Desenvolvimento + supervisores | Rotina aprovada somente após conferir documento; edição exige nova revisão |
 | 4. Homologar individualmente | Cinco rotinas corretas numa empresa de Lucro Presumido | Supervisor + operador | Empresa, período, conteúdo, destino e retorno confirmados; PDF de Saídas resolvido |
 | 5. Homologar o lote e a recuperação | Duas empresas de Lucro Presumido, uma rotina falhando de forma controlada | Desenvolvimento + supervisor | Falha registrada, tela azul/empresa confirmadas, próxima rotina executada sem repetição |
@@ -150,7 +153,7 @@ preserva as pendências e não reexecuta emissões automaticamente.
 
 Preparar o ambiente pode ocorrer junto da configuração. A homologação
 individual precede o lote. Não é possível fixar uma data final somente
-pelo código: o prazo depende do mapeamento das duas rotinas novas, da
+pelo código: o prazo depende da integração de ICMS, do teste do Resumo, da
 disponibilidade da sessão Windows e da aprovação fiscal. Planejar as
 datas com os responsáveis ao concluir a primeira etapa.
 
@@ -198,7 +201,7 @@ Os testes desta entrega são de lógica/API e navegador com fiscal/login
 simulados. Eles não operam a sessão Windows do escritório, não configuram
 as telas das rotinas novas e não conferem documentos fiscais reais.
 
-Verificação desta entrega: **371 testes de lógica/API passaram**. O teste
+Verificação desta entrega: **388 testes de lógica/API passaram**. O teste
 Chromium verifica cadastro, configuração, envio para validação, lotes,
 falha com recuperação simulada, continuidade, controles, três larguras,
 logout e offline. O teste de navegador específico do destino verifica

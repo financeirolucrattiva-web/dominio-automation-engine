@@ -76,7 +76,7 @@ sys.meta_path.insert(0, Proibido())
 with patch.object(Path, 'read_text', side_effect=AssertionError('Leitura local')):
     with patch.object(Path, 'open', side_effect=AssertionError('Arquivo local')):
         from app.capacidades import listar_capacidades
-        assert len(listar_capacidades()) == 4
+        assert len(listar_capacidades()) == 5
 print('consulta isolada OK')
 """
         resultado = subprocess.run([sys.executable, "-c", codigo], cwd=RAIZ,
@@ -91,7 +91,7 @@ print('consulta isolada OK')
         documento = json.loads(resultado.stdout)
         self.assertFalse(documento["executavel"])
         self.assertEqual({c["id"] for c in documento["capacidades"]},
-                         {"sped_fiscal", "efd_contribuicoes", "registro_saidas", "registro_entradas"})
+                         {"sped_fiscal", "efd_contribuicoes", "registro_saidas", "registro_entradas", "resumo_acumulador"})
         self.assertTrue(all(not c["agentes_habilitados"] for c in documento["capacidades"]))
         texto = subprocess.run([sys.executable, str(SCRIPT), "--id", "registro_entradas"],
                                cwd=RAIZ, capture_output=True, text=True, check=False)

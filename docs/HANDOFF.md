@@ -1,5 +1,49 @@
 # Domínio Automation Engine — handoff
 
+## Resumo por Acumulador pronto para teste individual — 09/10/2026
+
+Operador enviou formulário com Data inicial/Data final/OK e prévia com
+RESUMO POR ACUMULADOR, CNPJ e Período, seguida de Salvar em PDF em inglês
+(File name/Save). Destino mostrado: saida/ do projeto via Client C.
+Formulário e prévia mostram meses diferentes; não se presume execução
+única ou sucesso. Registro em docs/RESUMO-POR-ACUMULADOR.md e seção 0.94.
+
+Novo gerar_resumo_acumulador em app/dominio.py; oito etapas com nomes do
+Resumo, eventos locais sem conteúdo fiscal. Datas por centros de caixas
+OCR medidas em execução, sem offsets novos; Tesseract 2/4x e segunda
+opinião Windows com caixas. Digitação precisa ser relida em cada campo,
+OK por OCR, espera por prévia com título/CNPJ/Período. Reconfere código
+da empresa e período antes de exportar. Ícone pelo template existente,
+sem fallback fixo; Salvar em PDF/File name confirmados antes de Alt+n.
+Nome temporário exclusivo precisa ser lido antes de Enter.
+
+PDF novo estável/legível precisa confirmar título/período/CNPJ da prévia;
+nome acumulador_nome_cadastrado_AAAA-MM.pdf. Worker usa cadastro/snapshot,
+preserva anteriores com sufixo e mantém download. Resumo fica em saida/;
+não usa a subpasta LIVROS_FISCAIS. Valores do relatório de referência
+precisam de conferência fiscal humana. Retorno calibrado ao painel azul
+é obrigatório para concluir; recuperação não transforma falha em sucesso.
+
+Catálogo/executor/API/painel conhecem resumo_acumulador. Migração v4 troca
+IDs antigos mantendo ordem, arquiva configurações anteriores e deduplica,
+sem restaurar itens removidos. Piloto LP/LR mantém cinco indicadores;
+ICMS continua pendente e bloqueia lote completo. Testar Resumo individual.
+
+CLI scripts/explorar_resumo_acumulador.py e atalho Testar Resumo por
+Acumulador.bat: usam mesmo worker/lock/banco real, exigem empresa cadastrada,
+competência passada e apuração confirmada. Parar servidor antes do isolado;
+cinco segundos de preparação humana para focar Domínio, depois preflight
+normal valida tela azul, empresa/F8/calibração/foco. Alternativa: Nova
+execução no painel, datas e confirmação de apuração.
+
+388 testes de lógica/API passaram; Chromium geral e destino passaram.
+Testes de fluxo substituem desktop/OCR; PDFs/SQLite reais são sintéticos.
+As imagens inline não foram medidas; nenhum offset novo foi calibrado.
+Falta log no Windows: OCR das datas, ícone, foco File name, exportação,
+conferência do PDF e fechamento. Não afirmar homologação ou valores corretos.
+
+Os checkpoints abaixo preservam o histórico anterior a essa integração.
+
 ## Destino por empresa e esquema recebido — 09/10/2026
 
 Esquema do Claude recebido no commit f71813c, branch

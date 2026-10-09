@@ -2,7 +2,7 @@
 const $ = (id) => document.getElementById(id);
 let chave = "", estadoServidor = null, catalogo = [], tarefaAtual = null, pedidoPendente = null, enviando = false, versaoSessao = 0, atualizando = false, leituraAtual = 0, conectando = false, controlando = false, configurando = false, solicitacaoCodigo = null, capturaPendente = false, limiteCaptura = null;
 const nomesStatus = {pendente:"Aguardando executor", executando:"Em execução", concluida:"Concluída pela rotina", concluida_com_falhas:"Finalizada com falhas · revisar pendências", falha:"Falhou", recusada:"Pré-condição recusada", nao_confirmada:"Resultado não confirmado", interrompida:"Interrompida"};
-const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preencher período", identificar_formulario:"Identificar formulário", gerar_documento:"Gerar documento", encerrar:"Encerrar e conferir retorno", validar_dados:"Validar dados", identificar_empresa:"Identificar empresa", abrir_livros:"Abrir Livros Fiscais", gerar_previa:"Gerar prévia", exportar_pdf:"Exportar PDF", conferir_pdf:"Conferir PDF", recuperar_interface:"Recuperar interface", fim:"Resultado da rotina"};
+const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preencher período", identificar_formulario:"Identificar formulário", gerar_documento:"Gerar documento", encerrar:"Encerrar e conferir retorno", validar_dados:"Validar dados", identificar_empresa:"Identificar empresa", abrir_livros:"Abrir Livros Fiscais", abrir_resumo:"Abrir Resumo por Acumulador", gerar_previa:"Gerar prévia", exportar_pdf:"Exportar PDF", conferir_pdf:"Conferir PDF", recuperar_interface:"Recuperar interface", fim:"Resultado da rotina"};
 const estados = {inicio:"Em andamento", confirmado:"Confirmado", acao_executada:"Ação enviada", resultado_nao_verificado:"Não verificado", inconclusivo:"Inconclusivo", falha:"Falhou", concluido:"Concluído pela rotina"};
 let rotinaCadastroAtual=null;
 const etapasGeracao = ["navegar_menu","preencher_periodo","identificar_formulario","gerar_documento","encerrar"];
@@ -48,7 +48,7 @@ function desconectar() {
 }
 function atualizarCampos() {
   const item = catalogo.find((c)=>c.id===$("capacidade").value);
-  $("descricao").textContent = item ? item.periodo+(item.id.startsWith("registro_") ? " A conferência do período no PDF está pendente nesta versão." : "") : "";
+  $("descricao").textContent = item ? item.periodo+(item.id==="resumo_acumulador" ? " Implementação para teste supervisionado; ainda não homologada no Windows. O PDF fica em saida/." : "")+(item.id.startsWith("registro_") ? " A conferência do período no PDF está pendente nesta versão." : "") : "";
   const competencia = item?.tipo_periodo==="competencia";
   $("campo-competencia").hidden=!competencia; $("competencia").disabled=!competencia;
   $("campo-datas").hidden=competencia;
@@ -184,7 +184,7 @@ async function acompanhar() {
   $("tarefa-detalhe").textContent=`${nome} · Empresa ${tarefa.pedido.empresa_codigo} · ${data(tarefa.pedido.inicio)} a ${data(tarefa.pedido.fim)}${tentativa ? ` · Tentativa ${tentativa}` : ""}`;
   const retorno=[...linhas.values()].some(ev=>["encerrar","recuperar_interface"].includes(ev.step) && ev.status==="confirmado" && ev.evidence==="tela_principal_reconhecida");
   $("retorno").textContent=`Retorno à tela principal: ${retorno ? "confirmado" : "não confirmado"}.`;
-  const etapas=tarefa.pedido.capacidade.startsWith("registro_") ? etapasLivros : etapasGeracao;
+  const etapas=tarefa.pedido.capacidade==="resumo_acumulador" ? etapasLivros.map(e=>e==="abrir_livros" ? "abrir_resumo" : e) : tarefa.pedido.capacidade.startsWith("registro_") ? etapasLivros : etapasGeracao;
   $("progresso").max=etapas.length; $("progresso").value=etapas.filter(etapa=>linhas.get(etapa)?.status==="confirmado").length;
   $("estados").replaceChildren();
   for (const etapa of [...etapas,...["recuperar_interface","fim"].filter(e=>linhas.has(e))]) {

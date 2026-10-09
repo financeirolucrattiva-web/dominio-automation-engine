@@ -44,6 +44,7 @@ def nome_empresa_seguro(nome):
 def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
     """Convenção do painel: tipo, nome cadastrado e competência informada."""
     prefixos = {"Resumo por Acumulador": "acumulador",
+                "resumo_acumulador": "acumulador",
                 "Livro Fiscal de ICMS": "livro_icms",
                 "Demonstrativo EFD Contribuições": "efd_contribuicoes"}
     prefixo = nome_empresa_seguro(prefixos.get(tipo, tipo)).lower()
@@ -150,6 +151,28 @@ def nome_livro(tipo, cnpj, inicio, fim, nome_empresa=None):
     return f"{tipo}_{identificacao}_{competencia}.pdf"
 
 
+def validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado=None):
+    """Título/Período/CNPJ do cabeçalho observado, independente da ordem PDF."""
+    compacto = _compactar(texto)
+    # As seções observadas vêm depois do cabeçalho/título. Dados nas
+    # tabelas não podem compensar um período ou CNPJ errado no cabeçalho.
+    limites = [compacto.find(m) for m in ("ENTRADAS", "SAIDAS", "CODIGODESCRICAO") if m in compacto]
+    cabecalho = compacto[:min(limites)] if limites else compacto[:2500]
+    if "RESUMOPORACUMULADOR" not in cabecalho:
+        raise ValueError("O relatório não confirma o título Resumo por Acumulador.")
+    datas = re.findall(r"PERIODO:?([0-9]{2}/[0-9]{2}/[0-9]{4})(?:ATE|A|[-–])([0-9]{2}/[0-9]{2}/[0-9]{4})", cabecalho)
+    if datas != [(inicio, fim)]:
+        raise ValueError("O cabeçalho do Resumo não confirma o período solicitado.")
+    encontrados = set(re.findall(r"CNPJ:?([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})", cabecalho))
+    cnpjs = {re.sub(r"\D", "", valor) for valor in encontrados}
+    if len(cnpjs) != 1:
+        raise ValueError("CNPJ do cabeçalho do Resumo ausente ou ambíguo.")
+    cnpj = cnpjs.pop()
+    if cnpj_esperado is not None and re.sub(r"\D", "", str(cnpj_esperado)) != cnpj:
+        raise ValueError("O CNPJ do Resumo não corresponde à empresa esperada.")
+    return cnpj
+
+
 def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=None):
     """Lê um PDF novo e completo; publica sem sobrescrever arquivos prévios."""
     from pypdf import PdfReader
@@ -163,11 +186,20 @@ def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=N
         if not leitor.pages:
             raise ValueError("PDF sem páginas.")
         texto = leitor.pages[0].extract_text() or ""
-        cnpj = validar_livro(texto, tipo, inicio, fim, cnpj_esperado)
+        if tipo == "resumo_acumulador":
+            cnpj = validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado)
+        else:
+            cnpj = validar_livro(texto, tipo, inicio, fim, cnpj_esperado)
         # Força leitura de todas as páginas antes de declarar o arquivo pronto.
         for pagina in leitor.pages[1:]:
             pagina.extract_text()
-    nome = nome_livro(tipo, cnpj, inicio, fim, nome_empresa=nome_empresa)
+    if tipo == "resumo_acumulador":
+        if nome_empresa is None:
+            raise ValueError("Informe o nome da empresa para nomear o Resumo.")
+        datas = [datetime.datetime.strptime(v, "%d/%m/%Y").date().isoformat() for v in (inicio, fim)]
+        nome = nome_relatorio(tipo, nome_empresa, *datas)
+    else:
+        nome = nome_livro(tipo, cnpj, inicio, fim, nome_empresa=nome_empresa)
     destino = caminho.with_name(nome)
     numero = 1
     while True:

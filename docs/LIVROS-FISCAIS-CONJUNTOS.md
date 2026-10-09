@@ -136,3 +136,8 @@ exportação conjunta e os arquivos gerados ainda precisam ser observados.
 Não há log de execução automatizada dessa emissão conjunta. As imagens
 enviadas no chat não foram copiadas para o repositório nem medidas por OCR
 nesta sessão; nenhum novo offset de clique foi calibrado a partir delas.
+
+A nova captura de Salvar em PDF do Resumo mostra arquivos anteriores de
+ICMS NORMAL (M), Livro de Entrada e Livro de Saída com prefixo de agosto
+de 2026 na mesma pasta `saida/`. Isso identifica nomes automáticos, sem
+confirmar o conteúdo/título do PDF de ICMS ou uma execução automatizada.
