@@ -1,5 +1,21 @@
 # Domínio Automation Engine — handoff
 
+## Mapeamento de 09/10/2026 — Livros Fiscais conjuntos
+
+O operador pediu Entradas, Saídas e ICMS selecionados no mesmo formulário,
+um período e um OK. Depois: ícone PDF → Gerar um arquivo PDF para cada
+relatório → Procurar Pasta → Client C (M:) → destino local Dropbox ainda
+a confirmar no esquema do servidor. A prévia inicial pode ser qualquer
+livro. Veja [LIVROS-FISCAIS-CONJUNTOS.md](LIVROS-FISCAIS-CONJUNTOS.md).
+O esquema solicitado ao Claude cobre Lucro Presumido e Lucro Real nesta
+etapa; outros caminhos serão adicionados depois. Primeiro teste no Presumido.
+Esse seletor de pasta difere do Salvar em PDF individual existente.
+Não fixar usuário/caminho pessoal nem supor campos/coordenadas. A função
+de conversão C: local → unidade cliente já existe; confirmar destino e
+permissão de download. Faltam seleção verificada, exportação conjunta,
+validação do PDF de ICMS, múltiplos arquivos por tarefa e teste Windows.
+Mapeamento documentado; emissão conjunta ainda não implementada/homologada.
+
 ## Entrega de 09/10/2026 — cadastro e roadmap de gestão
 
 Correção seguinte confirmada pelo usuário: o Demonstrativo EFD
