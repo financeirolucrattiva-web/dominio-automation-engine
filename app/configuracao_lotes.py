@@ -101,6 +101,18 @@ class ConfiguracaoLotes:
                                   (rotina["id"], rotina["nome"], rotina["passos"], rotina["status"]))
                     banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (rotina["id"],))
                 banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_efd_integrada_v3')")
+            if not banco.execute("SELECT 1 FROM marcos_cadastro WHERE id='piloto_lp_lr_resumo_integrado_v4'").fetchone():
+                antigas = [r for r in banco.execute("SELECT * FROM rotinas_cadastradas")
+                           if r["nome"].casefold() == "resumo por acumulador"]
+                ids_antigos = {r["id"] for r in antigas}
+                for regime in self.listar(banco)["regimes"]:
+                    rotinas = list(dict.fromkeys("resumo_acumulador" if r in ids_antigos else r for r in regime["rotinas"]))
+                    banco.execute("UPDATE regimes SET rotinas=? WHERE id=?", (json.dumps(rotinas), regime["id"]))
+                for rotina in antigas:
+                    banco.execute("INSERT OR IGNORE INTO rotinas_cadastradas_arquivo VALUES (?,?,?,?)",
+                                  (rotina["id"], rotina["nome"], rotina["passos"], rotina["status"]))
+                    banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (rotina["id"],))
+                banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_resumo_integrado_v4')")
 
     def _cadastrar_pendente(self, banco, nome):
         existente = next((r for r in self.listar(banco)["rotinas"] if r["nome"].casefold() == nome.casefold()), None)

@@ -104,7 +104,7 @@ class TestApiServidor(unittest.TestCase):
         self.assertEqual(resposta.status_code, 201)
         self.assertEqual(resposta.json()["status"], "rascunho")
         self.assertEqual(len(self.client.get("/api/rotinas", headers=self.headers).json()), 1)
-        self.assertEqual(len(self.client.get("/api/capacidades", headers=self.headers).json()), 4)
+        self.assertEqual(len(self.client.get("/api/capacidades", headers=self.headers).json()), 5)
 
     def test_calibracao_exige_confirmacao_humana_e_captura_expira(self):
         self.assertEqual(self.client.post("/api/sessao/calibrar", json={"tela_principal_confirmada": False}, headers=self.headers).status_code, 422)
@@ -150,6 +150,25 @@ class TestApiServidor(unittest.TestCase):
         with self.assertRaises(ValueError):
             obter_chave(caminho)
         self.assertEqual(caminho.read_text(), "invalida")
+
+    def test_resumo_catalogo_datas_nome_cadastrado_e_download(self):
+        regime = self.repo.configuracao.salvar_regime(None, "Lucro Presumido", ["resumo_acumulador"])
+        self.repo.configuracao.salvar_empresa("52", "Empresa Cadastrada", regime["id"])
+        origem = self.saida / "nome_lido.pdf"
+        origem.write_bytes(b"%PDF-sintetico-resumo")
+        def executar(dados, receber):
+            eventos_confirmados(dados, receber)
+            return True, str(origem)
+        self.servico.executor = executar
+        capacidades = self.client.get("/api/capacidades", headers=self.headers).json()
+        resumo = next(c for c in capacidades if c["id"] == "resumo_acumulador")
+        self.assertEqual(resumo["tipo_periodo"], "datas")
+        dados = {**pedido(), "capacidade": "resumo_acumulador", "inicio": "2026-08-01", "fim": "2026-08-31"}
+        tarefa = self.client.post("/api/tarefas", json=dados, headers=self.headers).json()
+        self.assertEqual(aguardar(self.repo, tarefa["id"])["status"], "concluida")
+        resposta = self.client.get(f"/api/tarefas/{tarefa['id']}/arquivo", headers=self.headers)
+        self.assertEqual(resposta.content, b"%PDF-sintetico-resumo")
+        self.assertIn('filename="acumulador_empresa_cadastrada_2026-08.pdf"', resposta.headers["content-disposition"])
 
 
 if __name__ == "__main__":

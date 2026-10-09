@@ -240,6 +240,12 @@ def pressionar_tecla(tecla):
     pyautogui.press(tecla)
 
 
+def pressionar_atalho(*teclas):
+    """Atalho sintético, sujeito à conferência de foco da execução."""
+    ponto_seguro()
+    pyautogui.hotkey(*teclas)
+
+
 def pressionar_enter():
     """Pressiona Enter — usado pra confirmar caixa de diálogo padrão do
     Windows com um botão só (ex.: mensagem de sucesso "Final da

@@ -292,6 +292,24 @@ def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lan
     return None
 
 
+def ler_dados_ocr_windows(imagem, escala=2):
+    """Segunda opinião local com caixas medidas; None se indisponível."""
+    try:
+        import winocr
+        imagem_ocr = _preparar_para_ocr(imagem, escala)
+        resultado = winocr.recognize_pil_sync(imagem_ocr, lang="pt")
+        dados = {chave: [] for chave in ("text", "left", "top", "width", "height")}
+        for linha in resultado["lines"]:
+            for palavra in linha["words"]:
+                dados["text"].append(palavra["text"])
+                rect = palavra["bounding_rect"]
+                for chave, origem in (("left", "x"), ("top", "y"), ("width", "width"), ("height", "height")):
+                    dados[chave].append(rect[origem])
+        return dados
+    except Exception:
+        return None
+
+
 def ler_texto(imagem, escala=2):
     """Lê todo o texto de `imagem` (normalmente um recorte pequeno, ex.:
     uma caixa de erro) e devolve como string — usado pra decidir o que

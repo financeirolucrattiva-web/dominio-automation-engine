@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 from . import arquivos, empresas, erros, estados, ia, interacao, tela, tela_principal, visao
+from .formulario_resumo import campos_periodo
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
@@ -1612,6 +1613,228 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         return False, str(caminho_completo)
 
     return True, str(caminho_completo)
+
+
+def gerar_resumo_acumulador(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
+    """Resumo mapeado nos prints de 09/10; implementação para teste Windows.
+
+    Não reaproveita offsets de campos/botões dos livros. As duas datas
+    são localizadas pelas caixas OCR da captura atual. Exporta somente
+    após conferir período/empresa na prévia e valida o PDF antes do nome.
+    """
+    acompanhamento = estados.AcompanhamentoRotina("resumo_acumulador")
+    try:
+        resultado = _executar_resumo_acumulador(pasta_destino, data_inicial, data_final,
+                                                prefixo, cnpj_esperado, acompanhamento)
+        if not resultado[0]:
+            _recuperar_interface_livro(acompanhamento)
+        acompanhamento.concluir(resultado[0])
+        return resultado
+    except Exception:
+        _recuperar_interface_livro(acompanhamento)
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
+    except BaseException:
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
+
+
+def _esperar_tela_resumo(alvo, prefixo):
+    imagem, pos, houve_erro = esperar_e_achar(alvo, escala=2, espera_minima=.3, tentativas=20, intervalo=1)
+    if houve_erro:
+        _tratar_aviso_resumo(imagem, pos, prefixo)
+        return imagem, None
+    return imagem, pos
+
+
+def _tratar_aviso_resumo(imagem, pos, prefixo):
+    texto = _ler_texto_caixa(imagem, pos)
+    acao = erros.decidir(texto, documento="Resumo por Acumulador")
+    salvar(imagem, f"{prefixo}erro_aviso_resumo.png")
+    _fechar_caixa_erro(texto, prefixo)
+    if acao == erros.PARAR_LOTE:
+        raise LoteInterrompido(texto)
+    # Não repete a emissão; o worker registra falha e tenta recuperação.
+
+
+def _ler_campos_resumo():
+    imagem = tela.capturar_tela()
+    for escala in (2, 4):
+        try:
+            return campos_periodo(tela._ler_dados_ocr(imagem, escala), escala)
+        except ValueError:
+            pass
+    dados = tela.ler_dados_ocr_windows(imagem, 2)
+    if dados is not None:
+        return campos_periodo(dados, 2)
+    raise ValueError("Não consegui identificar as duas datas pelos motores locais de OCR.")
+
+
+def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo, cnpj_esperado, acompanhamento):
+    acompanhamento.iniciar("validar_dados")
+    if data_inicial is None and data_final is None:
+        data_inicial, data_final = competencia_anterior()
+    try:
+        inicio, fim = [datetime.datetime.strptime(v, "%d/%m/%Y").date() for v in (data_inicial, data_final)]
+        if inicio > fim or fim >= datetime.date.today().replace(day=1):
+            raise ValueError
+    except (TypeError, ValueError):
+        print("Resumo: informe duas datas válidas de período passado e apurado.")
+        return False, None
+    acompanhamento.confirmar("datas_validas")
+    acompanhamento.iniciar("identificar_empresa")
+    interacao.focar_dominio()
+    imagem = tela.capturar_tela()
+    empresa = tela.ler_empresa_selecionada(imagem)
+    if empresa is None:
+        salvar(imagem, f"{prefixo}erro_empresa_resumo.png")
+        return False, None
+    acompanhamento.confirmar("cabecalho_nome_codigo_lidos")
+    acompanhamento.iniciar("abrir_resumo")
+    pos = tela.achar_texto(tela.recortar_topo(imagem), "Relatórios")
+    if pos is None:
+        return False, None
+    interacao.clicar(*pos)
+    pos = _esperar_item_menu("relatorios", "Acompanhamentos", f"{prefixo}erro_menu_acompanhamentos.png")
+    if pos is None:
+        return False, None
+    interacao.passar_mouse(*pos)
+    pos = _esperar_item_menu("relatorios/acompanhamentos", "Resumo por Acumulador", f"{prefixo}erro_menu_resumo.png")
+    if pos is None:
+        return False, None
+    interacao.clicar_com_desvio(*pos)
+    imagem, pos = _esperar_tela_resumo("Data final", prefixo)
+    if pos is None or tela.achar_texto_ou_no_centro(imagem, "Resumo por acumulador", escala=2) is None:
+        salvar(tela.capturar_tela(), f"{prefixo}erro_formulario_resumo.png")
+        return False, None
+    acompanhamento.confirmar("formulario_resumo_reconhecido")
+    acompanhamento.iniciar("preencher_periodo")
+    # Tab apenas retira a seleção azul inicial para OCR; a posição do
+    # campo seguinte não é presumida. Cada data é localizada novamente.
+    interacao.pressionar_tecla("tab")
+    for papel, valor in (("inicial", data_inicial), ("final", data_final)):
+        try:
+            campos = _ler_campos_resumo()
+        except ValueError:
+            print("Resumo: datas não localizadas por OCR; nenhum offset foi presumido.")
+            salvar(tela.capturar_tela(), f"{prefixo}erro_campos_resumo.png")
+            return False, None
+        interacao.clicar(*campos[papel]["posicao"])
+        interacao.selecionar_tudo_alternativo()
+        interacao.digitar(valor.replace("/", ""))
+        interacao.pressionar_tecla("tab")
+        for tentativa in range(5):
+            try:
+                campos = _ler_campos_resumo()
+                if campos[papel]["valor"] == valor:
+                    break
+            except ValueError:
+                pass
+            time.sleep(.3)
+        else:
+            salvar(tela.capturar_tela(), f"{prefixo}erro_periodo_resumo.png")
+            return False, None
+    if campos["inicial"]["valor"] != data_inicial or campos["final"]["valor"] != data_final:
+        return False, None
+    acompanhamento.confirmar("campos_periodo_confirmados")
+    acompanhamento.iniciar("gerar_previa")
+    imagem = tela.capturar_tela()
+    pos = tela.achar_texto_ou_no_centro(imagem, "OK", escala=2)
+    if pos is None:
+        salvar(imagem, f"{prefixo}erro_ok_resumo.png")
+        return False, None
+    interacao.clicar(*pos)
+
+    def previa(imagem):
+        if (tela.achar_texto(imagem, "CNPJ", escala=2) is not None and
+                tela.achar_texto(imagem, "Período", escala=2) is not None):
+            return tela.achar_texto(imagem, "RESUMO POR ACUMULADOR", escala=2)
+        return None
+    detectores = [(titulo, lambda img, t=titulo: tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in TITULOS_ERRO]
+    imagem, estado, pos = estados.esperar_por_estado(detectores + [("previa", previa)],
+                                                    espera_minima=.3, tentativas=90, intervalo=1)
+    if estado in TITULOS_ERRO:
+        _tratar_aviso_resumo(imagem, pos, prefixo)
+        return False, None
+    if estado != "previa":
+        salvar(tela.capturar_tela(), f"{prefixo}erro_previa_resumo.png")
+        return False, None
+    acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
+    atual = tela.ler_empresa_selecionada(imagem)
+    if atual is None or str(int(atual[1])) != str(int(empresa[1])):
+        return False, None
+    try:
+        cnpj = arquivos.validar_resumo_acumulador(tela.ler_texto(imagem, escala=2), data_inicial, data_final, cnpj_esperado)
+    except ValueError as erro:
+        print(str(erro))
+        salvar(imagem, f"{prefixo}erro_conferencia_previa_resumo.png")
+        return False, None
+    acompanhamento.confirmar("previa_resumo_reconhecida")
+    acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
+    acompanhamento.iniciar("exportar_pdf")
+    pos = tela.achar_icone_robusto(imagem, Path(__file__).resolve().parent / "icones/salvar_pdf.png")
+    if pos is None:
+        print("Resumo: ícone PDF não reconhecido; não foi usada coordenada fixa.")
+        salvar(imagem, f"{prefixo}erro_icone_pdf_resumo.png")
+        return False, None
+    interacao.clicar(*pos)
+    imagem, pos = _esperar_tela_resumo("Salvar em PDF", prefixo)
+    if pos is None or tela.achar_texto_ou_no_centro(imagem, "File name", escala=2) is None:
+        salvar(tela.capturar_tela(), f"{prefixo}erro_salvar_resumo.png")
+        return False, None
+    pasta_destino = Path(pasta_destino).resolve()
+    pasta_destino.mkdir(parents=True, exist_ok=True)
+    while True:
+        temporario = pasta_destino / f"r{uuid.uuid4().hex[:12]}.pdf"
+        if not temporario.exists():
+            break
+    # Diálogo Windows em inglês observado: Alt+n foca File name.
+    interacao.pressionar_atalho("alt", "n")
+    interacao.selecionar_tudo_alternativo()
+    interacao.digitar(caminho_visto_pela_sessao_remota(temporario))
+    for tentativa in range(5):
+        imagem = tela.capturar_tela()
+        if tela.achar_texto_ou_no_centro(imagem, temporario.name, escala=2) is not None:
+            break
+        time.sleep(.3)
+    else:
+        salvar(imagem, f"{prefixo}erro_nome_temporario_resumo.png")
+        return False, None
+    interacao.pressionar_enter()
+    anterior = None
+    for tentativa in range(30):
+        imagem = tela.capturar_tela()
+        if tela.achar_texto_ou_no_centro(imagem, "does not exist", escala=2) is not None:
+            salvar(imagem, f"{prefixo}erro_caminho_resumo.png")
+            return False, None
+        try:
+            stat = temporario.stat()
+            assinatura = (stat.st_size, stat.st_mtime_ns)
+            if stat.st_size and assinatura == anterior:
+                if acompanhamento.etapa == "exportar_pdf":
+                    acompanhamento.confirmar("arquivo_novo_estavel")
+                    acompanhamento.iniciar("conferir_pdf")
+                arquivo = arquivos.finalizar_pdf(temporario, "resumo_acumulador", data_inicial, data_final,
+                                                 cnpj_esperado=cnpj, nome_empresa=empresa[0])
+                break
+            anterior = assinatura
+        except Exception as erro:
+            print(str(erro) if isinstance(erro, ValueError) else f"Resumo: PDF ainda não confirmado ({type(erro).__name__}).")
+        time.sleep(1)
+    else:
+        print("Resumo: exportação não confirmada; nenhum arquivo anterior comprova sucesso.")
+        return False, None
+    acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
+    acompanhamento.iniciar("encerrar")
+    if not interacao.pressionar_esc_no_dominio(acompanhamento.janela_dominio, vezes=2, confirmar_conteudo=_confirmar_conteudo_dominio):
+        acompanhamento.registrar_encerramento_inconclusivo()
+        return False, str(arquivo)
+    evidencia = _verificar_retorno_tela_principal(acompanhamento)
+    if evidencia != "tela_principal_reconhecida":
+        acompanhamento.registrar_encerramento_inconclusivo(evidencia)
+        return False, str(arquivo)
+    acompanhamento.confirmar(evidencia)
+    return True, str(arquivo)
 
 
 def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):

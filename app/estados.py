@@ -68,6 +68,7 @@ class AcompanhamentoRotina:
         "referencia_tela_principal_ausente", "referencia_tela_principal_invalida",
         "item_menu_reconhecido", "formulario_e_botoes_reconhecidos",
         "aviso_resultado_reconhecido", "fechamento_solicitado",
+        "formulario_resumo_reconhecido", "previa_resumo_reconhecida",
     }
     CONFIRMACOES = dict(zip(ETAPAS, (
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
@@ -83,12 +84,16 @@ class AcompanhamentoRotina:
     }
 
     def __init__(self, rotina, pasta_logs=None):
-        if rotina not in ("registro_saidas", "registro_entradas", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
+        if rotina not in ("registro_saidas", "registro_entradas", "resumo_acumulador", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
             raise ValueError("Rotina sem acompanhamento configurado.")
         self.rotina = rotina
         if rotina in ("sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
             self.CONFIRMACOES = self.FLUXO_GERACAO.copy()
             self.ETAPAS = tuple(self.CONFIRMACOES)
+        elif rotina == "resumo_acumulador":
+            self.ETAPAS = tuple("abrir_resumo" if e == "abrir_livros" else e for e in self.ETAPAS)
+            self.CONFIRMACOES = {("abrir_resumo" if e == "abrir_livros" else e): v for e, v in self.CONFIRMACOES.items()}
+            self.CONFIRMACOES.update(abrir_resumo="formulario_resumo_reconhecido", gerar_previa="previa_resumo_reconhecida")
         self.execution_id = uuid.uuid4().hex
         pasta_logs = Path(pasta_logs) if pasta_logs is not None else Path(__file__).resolve().parent.parent / "data" / "execucoes"
         self.caminho_log = pasta_logs / f"{self.execution_id}.jsonl"
@@ -163,7 +168,8 @@ class AcompanhamentoRotina:
     def registrar_recuperacao(self, status, evidencia=None):
         """Registra saída tentada, preservando a etapa/resultado que falhou."""
         if status == "inicio":
-            if self.finalizada or self.recuperacao_iniciada or "gerar_previa" not in self.confirmadas:
+            previa_resumo = self.rotina == "resumo_acumulador" and self.janela_dominio is not None and self.etapa == "gerar_previa"
+            if self.finalizada or self.recuperacao_iniciada or ("gerar_previa" not in self.confirmadas and not previa_resumo):
                 return False
             self.recuperacao_iniciada = True
         elif self.finalizada or not self.recuperacao_iniciada or status not in ("acao_executada", "resultado_nao_verificado", "inconclusivo", "confirmado"):

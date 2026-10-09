@@ -34,7 +34,7 @@ class TestCadastroRotinas(unittest.TestCase):
             self.assertEqual(regime["rotinas"].count("efd_contribuicoes"), 1)
             self.assertNotIn("sped_fiscal", regime["rotinas"])
         self.assertEqual([r["status"] for r in cad["rotinas"] if r["status"] != "integrada"],
-                         ["pendente_configuracao"] * 2)
+                         ["pendente_configuracao"])
         self.assertEqual(self.repo.listar(), [])
 
     def test_reinicio_nao_duplica_nem_restaura_configuracao_editada(self):
@@ -139,7 +139,7 @@ class TestCadastroRotinas(unittest.TestCase):
         self.assertEqual(self.config.enviar_validacao(rotina["id"])["status"], "aguardando_validacao")
         self.assertEqual(self.config.enviar_validacao(rotina["id"])["status"], "aguardando_validacao")
         self.assertEqual(self.config.configurar_rotina(rotina["id"], self.dados)["status"], "rascunho")
-        self.assertEqual(len(self.config.listar()["rotinas"]), 5)
+        self.assertEqual(len(self.config.listar()["rotinas"]), 6)
 
     def test_nome_duplicado_e_passos_invalidos_nao_alteram_cadastro(self):
         rotina = self.config.cadastrar_rotina(self.dados["nome"])
@@ -182,7 +182,7 @@ class TestCadastroRotinas(unittest.TestCase):
         self.assertEqual(cliente.post(base + "/validacao", headers=headers).json()["status"], "aguardando_validacao")
         self.assertEqual(cliente.get(base, headers=headers).json()["passos"], self.dados["passos"])
         self.assertEqual(cliente.get("/api/rotinas", headers=headers).json(), [])
-        self.assertEqual(cliente.get("/api/capacidades", headers=headers).json().__len__(), 4)
+        self.assertEqual(cliente.get("/api/capacidades", headers=headers).json().__len__(), 5)
         self.assertEqual(cliente.get("/api/rotinas/cadastros/inexistente", headers=headers).status_code, 404)
         with self.assertRaises(ValueError):
             from app.servidor import validar_pedido

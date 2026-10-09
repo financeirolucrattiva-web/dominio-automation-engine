@@ -1,4 +1,4 @@
-"""Descrições das quatro rotinas conhecidas, sem executar a interface.
+"""Descrições das rotinas conhecidas, sem executar a interface.
 
 Este catálogo prepara a etapa 3 do roadmap. Pré-condições e permissões
 são metadados para revisão, não verificações de execução. Listar uma
@@ -210,6 +210,34 @@ _CAPACIDADES = (
             "Validar reconhecimento automático da tela principal no Windows.",
             "Confirmar execução completa sem depender do sucesso da versão anterior.",
         ),
+    ),
+    Capacidade(
+        id="resumo_acumulador", nome="Resumo por Acumulador",
+        objetivo="Gerar e salvar o Resumo por Acumulador em PDF local.",
+        funcao="app.dominio.gerar_resumo_acumulador", parametros=_PARAMETROS_LIVROS,
+        contexto=_CONTEXTO, precondicoes=_PRECONDICOES + (
+            "Tela principal calibrada e empresa/código conferidos pelo executor.",
+            "Pasta local de saída acessível pela unidade Client C da sessão.",
+        ),
+        politica_periodo="Datas passadas escolhidas pelo usuário; preencher e reler Data inicial/Data final.",
+        operacoes_permitidas=("gerar", "ler"),
+        etapas=("Conferir empresa e abrir Relatórios → Acompanhamentos → Resumo por Acumulador.",
+                "Localizar as datas por OCR, preencher e conferir os dois campos.",
+                "Clicar OK e conferir título, período e empresa na prévia.",
+                "Reconhecer ícone PDF e Salvar em PDF; exportar para caminho exclusivo.",
+                "Validar o PDF e nomear com empresa/competência; confirmar retorno ao painel azul."),
+        resultado="(bool, caminho | None); conclusão exige PDF confirmado e retorno ao painel azul.",
+        checagens_atuais=("Sem offsets de campos ou botão OK presumidos.",
+                         "Prévia e PDF precisam confirmar título, período e CNPJ.",
+                         "Código da empresa é conferido novamente na prévia.",
+                         "Arquivo antigo não comprova geração e não é sobrescrito."),
+        recuperacao=_RECUPERACAO_LIVROS,
+        validacao=Validacao("Fluxo mapeado nos prints; nenhuma execução automatizada observada ainda.",
+                            "Comparação do conteúdo fiscal ainda pendente.",
+                            "Implementação para teste individual no Windows; ainda não homologada.", ("0.94",)),
+        pendencias=("Confirmar OCR das datas e ícone PDF na sessão Windows real.",
+                    "Validar foco File name, exportação, PDF e encerramento.",
+                    "Supervisor precisa conferir os valores contra o relatório de referência."),
     ),
 )
 

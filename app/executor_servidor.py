@@ -89,6 +89,7 @@ class ExecutorDominio:
             "efd_contribuicoes": dominio.gerar_efd_contribuicoes,
             "registro_saidas": dominio.gerar_registro_saidas,
             "registro_entradas": dominio.gerar_registro_entradas,
+            "resumo_acumulador": dominio.gerar_resumo_acumulador,
         }
         prefixo = f"servidor_{pedido['request_id'].replace('-', '')}_"
         def preparar_retomada():
@@ -140,7 +141,7 @@ class ExecutorDominio:
                 self._janela_lote = janela
             datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
             geracao_iniciada = True
-            if pedido["capacidade"].startswith("registro_"):
+            if pedido["capacidade"].startswith("registro_") or pedido["capacidade"] == "resumo_acumulador":
                 return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],
                                                        data_final=datas["fim"], prefixo=prefixo)
             return geradores[pedido["capacidade"]](prefixo=prefixo, data_inicial=datas["inicio"], data_final=datas["fim"])

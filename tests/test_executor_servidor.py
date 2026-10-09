@@ -26,7 +26,7 @@ class TestExecutorServidor(unittest.TestCase):
         dominio._verificar_retorno_tela_principal = Mock(return_value="tela_principal_reconhecida")
         dominio._confirmar_conteudo_dominio = Mock(return_value=True)
         dominio.competencia_anterior = Mock(return_value=tuple(__import__("datetime").date.fromisoformat(self.dados[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")))
-        for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas"):
+        for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas", "gerar_resumo_acumulador"):
             setattr(dominio, nome, Mock(return_value=True))
         self.desktop["estados"].observar_eventos = lambda callback: contextlib.nullcontext()
         interacao = self.desktop["interacao"]
@@ -59,6 +59,14 @@ class TestExecutorServidor(unittest.TestCase):
         self.assertEqual(gerador.call_args.kwargs["data_inicial"], "01/02/2024")
         self.assertEqual(gerador.call_args.kwargs["data_final"], "29/02/2024")
         self.desktop["dominio"].competencia_anterior.assert_not_called()
+
+    def test_resumo_usa_datas_solicitadas_e_pasta_local(self):
+        self.dados.update(capacidade="resumo_acumulador", inicio="2024-02-01", fim="2024-02-29")
+        self.executar()
+        gerador = self.desktop["dominio"].gerar_resumo_acumulador
+        self.assertEqual(gerador.call_args.args, (executor_servidor.ROOT / "saida",))
+        self.assertEqual(gerador.call_args.kwargs["data_inicial"], "01/02/2024")
+        self.assertEqual(gerador.call_args.kwargs["data_final"], "29/02/2024")
 
     def test_empresa_individual_divergente_nao_confirmada_nao_chama_gerador(self):
         self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")

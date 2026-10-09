@@ -4147,6 +4147,51 @@ Resumo está apenas no mapeamento inicial, sem coordenadas ou liberação.
 
 ---
 
+### 0.94 Resumo por Acumulador: período, OK, PDF e salvar (09/10/2026)
+
+**Evidência/pedido:** operador enviou formulário Resumo por acumulador com
+Data inicial/Data final/Destacar linhas/OK, prévia com título, Período e
+CNPJ, e diálogo Salvar em PDF/File name/Save na pasta saida/ via Client C.
+Menu já identificado: Relatórios → Acompanhamentos → Resumo por Acumulador.
+Os prints mostram meses diferentes entre formulário/prévia; não provam
+uma única execução nem uma emissão automatizada.
+
+**Lacuna:** só havia cadastro pendente, sem gerador do Resumo. O período
+dos livros tem outros rótulos/offsets; não pode ser copiado como calibração.
+Salvar em PDF é diálogo de arquivo, diferente da árvore dos livros conjuntos.
+
+**Implementação:** gerar_resumo_acumulador e teste individual com mesmas
+travas/worker/lock do painel. Localiza datas nos centros das caixas OCR da
+captura atual, ao lado de Data inicial/final; duas escalas e segunda opinião
+Windows. Relê após digitar, lê OK sem offset, espera prévia por título/CNPJ/
+Período e reconfere código. Valida título/período/CNPJ antes de exportar.
+PDF pelo template existente, sem fallback de coordenada fixa; exige diálogo
+e File name antes de Alt+n e reconhecimento do nome temporário exclusivo.
+
+Arquivo novo estável e PDF legível precisam confirmar título/período/CNPJ
+da prévia antes do nome acumulador_empresa_AAAA-MM.pdf. Worker aplica nome
+cadastrado/snapshot, preserva anteriores e permite download. Destino atual
+saida/, conforme captura; não usa LIVROS_FISCAIS. Retorno azul calibrado
+obrigatório; falha preserva etapa/resultado e recuperação verificada pode
+permitir próxima rotina conforme política existente. Sem repetir emissão.
+
+Migração v4 troca o ID pendente pelo gerador nativo nos regimes mantendo
+ordem, arquivando passos anteriores e deduplicando. ICMS continua pendente.
+CLI/atalho exigem empresa cadastrada, competência passada e apuração fechada;
+teste isolado requer servidor parado. Preparação humana de cinco segundos
+para colocar Domínio em foco, seguida das verificações normais.
+
+**Validação:** 388 testes de lógica/API passaram; Chromium geral e destino
+passaram. Casos novos: coordenadas OCR acompanham a janela; ambiguidade,
+data inválida/não confirmada, período errado na prévia/PDF, empresa alterada,
+ícone ausente, encerramento inconclusivo, preservação/colisão, migração e
+download com nome cadastrado. OCR/desktop substituídos; PDFs/SQLite reais
+são sintéticos. Compilação conferida antes de publicar. Não foram medidos
+os prints inline, calibrados offsets novos ou emitidos documentos reais.
+Falta teste Windows de OCR/foco/exportação/PDF/fechamento e conferência fiscal.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
