@@ -95,6 +95,13 @@ enviadas à validação continuam bloqueadas para emissão remota.
 
 ## Regra de falha e recuperação
 
+O código cadastrado determina a empresa da execução. Individual e lote
+usam F8 quando o Domínio estiver em outra empresa e confirmam novamente
+o código antes de emitir. Código ilegível, troca não confirmada ou perda
+de foco bloqueiam a emissão. Uma tela aberta no início pode ser fechada
+até o painel azul calibrado antes de preparar a rotina. O foco da janela
+é conferido nos checkpoints de mouse/teclado durante a execução.
+
 Uma falha de emissão fica registrada na rotina. O executor tenta
 recuperar a sessão até o painel azul e, quando confirma a recuperação
 e a empresa, segue para a próxima rotina, sem repetir a emissão falha.
@@ -175,7 +182,7 @@ Os testes desta entrega são de lógica/API e navegador com fiscal/login
 simulados. Eles não operam a sessão Windows do escritório, não configuram
 as telas das rotinas novas e não conferem documentos fiscais reais.
 
-Verificação desta entrega: **343 testes de lógica/API passaram**. O teste
+Verificação desta entrega: **355 testes de lógica/API passaram**. O teste
 Chromium verifica cadastro, configuração, envio para validação, lotes,
 falha com recuperação simulada, continuidade, controles, três larguras,
 logout e offline. A homologação dos cinco indicadores no Windows continua

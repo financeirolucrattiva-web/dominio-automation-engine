@@ -76,6 +76,12 @@ O lote agora preserva a falha da rotina e continua após confirmar a
 recuperação até a tela azul; sem recuperação confirmada, interrompe.
 Conferência e recuperação desta versão precisam da rodada Windows.
 
+O código da tarefa determina a empresa no Domínio. Execução individual e
+lote usam F8 quando necessário e conferem novamente código/painel azul
+antes de emitir. Tela presa no início tenta recuperação calibrada, até
+cinco Esc, parando no painel azul. Foco é conferido nos checkpoints de
+mouse/teclado; perda de foco bloqueia ações posteriores nessa execução.
+
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
 — riscos técnicos, achados confirmados (Domínio é entregue via GraphOn
 GO-Global, não local), arquitetura recomendada, roadmap e o histórico

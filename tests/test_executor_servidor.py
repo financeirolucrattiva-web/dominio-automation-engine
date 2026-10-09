@@ -4,13 +4,15 @@ import contextlib
 import importlib.util
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import Mock, patch
 
 from app import executor_servidor, trava_execucao
-from app.servidor import PrecondicaoRecusada
-from test_servidor import pedido
+from app.servidor import PrecondicaoRecusada, RepositorioTarefas, ServicoExecucao
+from app.controle_execucao import ponto_seguro
+from test_servidor import aguardar, eventos_confirmados, pedido
 
 
 class TestExecutorServidor(unittest.TestCase):
@@ -22,6 +24,7 @@ class TestExecutorServidor(unittest.TestCase):
         dominio = self.desktop["dominio"]
         dominio.trocar_empresa = Mock(return_value=True)
         dominio._verificar_retorno_tela_principal = Mock(return_value="tela_principal_reconhecida")
+        dominio._confirmar_conteudo_dominio = Mock(return_value=True)
         dominio.competencia_anterior = Mock(return_value=tuple(__import__("datetime").date.fromisoformat(self.dados[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")))
         for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas"):
             setattr(dominio, nome, Mock(return_value=True))
@@ -30,6 +33,7 @@ class TestExecutorServidor(unittest.TestCase):
         interacao._minimizar_console_proprio = Mock()
         interacao.identificar_janela_dominio_atual = Mock(return_value={"hwnd": 123})
         interacao.janela_dominio_em_foco = Mock(return_value=True)
+        interacao.pressionar_esc_no_dominio = Mock(return_value=True)
         self.desktop["tela"].capturar_tela = Mock()
         self.desktop["tela"].ler_empresa_selecionada = Mock(return_value=("EMPRESA SINTÉTICA", "52"))
         self.desktop["tela_principal"].carregar_referencia = Mock(return_value={"sintetica": True})
@@ -56,12 +60,133 @@ class TestExecutorServidor(unittest.TestCase):
         self.assertEqual(gerador.call_args.kwargs["data_final"], "29/02/2024")
         self.desktop["dominio"].competencia_anterior.assert_not_called()
 
-    def test_empresa_divergente_nao_chama_gerador(self):
+    def test_empresa_individual_divergente_nao_confirmada_nao_chama_gerador(self):
         self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")
         with self.assertRaises(PrecondicaoRecusada):
             self.executar()
         self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+        self.desktop["dominio"].trocar_empresa.assert_called_once()
+
+    def test_individual_troca_empresa_divergente_e_confere_antes_de_gerar(self):
+        self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "99"), ("SINTÉTICA", "52")]
+        self.assertTrue(self.executar())
+        self.desktop["dominio"].trocar_empresa.assert_called_once()
+        self.assertEqual(self.desktop["dominio"].trocar_empresa.call_args.args, ("52",))
+        self.desktop["dominio"].gerar_sped_fiscal.assert_called_once()
+
+    def test_troca_f8_retornando_falso_nao_gera_nem_repete(self):
+        self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")
+        self.desktop["dominio"].trocar_empresa.return_value = False
+        with self.assertRaisesRegex(PrecondicaoRecusada, "empresa_nao_confirmada"):
+            self.executar(lote=True)
+        self.desktop["dominio"].trocar_empresa.assert_called_once()
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+
+    def test_codigo_com_zeros_equivale_ao_codigo_lido(self):
+        self.dados["empresa_codigo"] = "00052"
+        self.assertTrue(self.executar())
         self.desktop["dominio"].trocar_empresa.assert_not_called()
+
+    def test_codigo_muda_entre_leituras_bloqueia_emissao(self):
+        self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "52"), ("SINTÉTICA", "99")]
+        with self.assertRaisesRegex(PrecondicaoRecusada, "empresa_nao_confirmada"):
+            self.executar(lote=True)
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+        self.desktop["dominio"].trocar_empresa.assert_not_called()
+
+    def test_codigo_ilegivel_nao_tenta_f8_nem_gera(self):
+        self.desktop["tela"].ler_empresa_selecionada.return_value = None
+        with self.assertRaisesRegex(PrecondicaoRecusada, "empresa_nao_confirmada"):
+            self.executar(lote=True)
+        self.desktop["dominio"].trocar_empresa.assert_not_called()
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+
+    def test_foco_perdido_bloqueia_acao_mesmo_se_excecao_for_absorvida(self):
+        foco = self.desktop["interacao"].janela_dominio_em_foco
+        def gerar(**kwargs):
+            foco.return_value = False
+            try:
+                ponto_seguro()
+            except executor_servidor.FocoPerdidoDuranteExecucao:
+                pass
+            foco.return_value = True
+            # Não pode voltar a agir na mesma emissão depois da perda de foco.
+            ponto_seguro()
+            self.fail("Checkpoint permitiu ação depois de perder o foco.")
+        self.desktop["dominio"].gerar_sped_fiscal.side_effect = gerar
+        with self.assertRaisesRegex(executor_servidor.FocoPerdidoDuranteExecucao, "dominio_fora_de_foco"):
+            self.executar(lote=True)
+
+    def test_worker_foco_perdido_na_emissao_recupera_e_segue_proxima(self):
+        import uuid
+        with tempfile.TemporaryDirectory() as pasta:
+            repo = RepositorioTarefas(Path(pasta) / "tarefas.sqlite3")
+            regime = repo.configuracao.salvar_regime(None, "Regime sintético", ["sped_fiscal", "efd_contribuicoes"])
+            repo.configuracao.salvar_empresa("52", "Empresa sintética", regime["id"])
+            selecao = {"empresas": ["52"], "inicio": "2024-02-01", "fim": "2024-02-29"}
+            plano = repo.configuracao.planejar(selecao)
+            chamadas, observador = [], []
+            @contextlib.contextmanager
+            def observar(callback):
+                observador.append(callback)
+                try:
+                    yield
+                finally:
+                    observador.pop()
+            self.desktop["estados"].observar_eventos = observar
+            foco = self.desktop["interacao"].janela_dominio_em_foco
+            def emitir(capacidade):
+                def gerar(**kwargs):
+                    chamadas.append(capacidade)
+                    if len(chamadas) == 1:
+                        foco.return_value = False
+                        ponto_seguro()  # perde foco depois de iniciar a emissão
+                    eventos_confirmados({"request_id": str(uuid.uuid4()), "capacidade": capacidade}, observador[-1])
+                    return True
+                return gerar
+            self.desktop["dominio"].gerar_sped_fiscal.side_effect = emitir("sped_fiscal")
+            self.desktop["dominio"].gerar_efd_contribuicoes.side_effect = emitir("efd_contribuicoes")
+            self.desktop["dominio"]._verificar_retorno_tela_principal.side_effect = lambda contexto: (
+                "tela_principal_reconhecida" if foco.return_value else "tela_principal_nao_reconhecida")
+            def recuperar_foco(*args, **kwargs):
+                foco.return_value = True  # confirmação sintética do HWND conhecido
+                return True
+            self.desktop["interacao"].pressionar_esc_no_dominio.side_effect = recuperar_foco
+            with patch.object(executor_servidor.sys, "platform", "win32"), patch.multiple("app", create=True, **self.desktop):
+                servico = ServicoExecucao(repo, executor_servidor.ExecutorDominio(), modo="simulacao")
+                servico.iniciar()
+                try:
+                    with self.assertLogs("app.servidor", level="ERROR"):
+                        lote = servico.solicitar_lote({**selecao, "request_id": str(uuid.uuid4()), "apuracao_confirmada": True, "plano_hash": plano["hash"]})
+                        tarefas = repo.obter_lote(lote["id"])["tarefas"]
+                        self.assertEqual(aguardar(repo, tarefas[0]["id"])["status"], "falha")
+                        self.assertEqual(aguardar(repo, tarefas[1]["id"])["status"], "concluida")
+                finally:
+                    servico.encerrar()
+            self.assertEqual(chamadas, ["sped_fiscal", "efd_contribuicoes"])
+            self.assertEqual(repo.obter_lote(lote["id"])["status"], "concluida_com_falhas")
+            self.desktop["interacao"].pressionar_esc_no_dominio.assert_called_once()
+
+    def test_tela_presa_inicial_recupera_antes_de_trocar_empresa(self):
+        d = self.desktop["dominio"]
+        d._verificar_retorno_tela_principal.side_effect = ["tela_principal_nao_reconhecida"] * 2 + ["tela_principal_reconhecida"] * 2
+        self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "99"), ("SINTÉTICA", "52")]
+        chamadas = Mock()
+        chamadas.attach_mock(self.desktop["interacao"].pressionar_esc_no_dominio, "esc")
+        chamadas.attach_mock(d.trocar_empresa, "f8")
+        chamadas.attach_mock(d.gerar_sped_fiscal, "gerar")
+        self.assertTrue(self.executar(lote=True))
+        self.assertEqual([c[0] for c in chamadas.mock_calls], ["esc", "f8", "gerar"])
+
+    def test_janela_ausente_ou_sem_foco_nao_tenta_limpar_ou_trocar(self):
+        for janela, foco in ((None, True), ({"hwnd": 123}, False)):
+            with self.subTest(janela=janela):
+                self.desktop["interacao"].identificar_janela_dominio_atual.return_value = janela
+                self.desktop["interacao"].janela_dominio_em_foco.return_value = foco
+                with self.assertRaisesRegex(PrecondicaoRecusada, "dominio_fora_de_foco"):
+                    self.executar(lote=True)
+                self.desktop["interacao"].pressionar_esc_no_dominio.assert_not_called()
+                self.desktop["dominio"].trocar_empresa.assert_not_called()
 
     def test_lote_reutiliza_f8_e_confere_codigo_antes_de_gerar(self):
         self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "99"), ("SINTÉTICA", "52")]

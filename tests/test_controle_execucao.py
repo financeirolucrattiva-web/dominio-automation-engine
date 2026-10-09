@@ -3,7 +3,7 @@
 import threading
 import time
 import unittest
-from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao, ponto_seguro, verificar_retomada
+from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao, ponto_seguro, verificar_retomada, verificar_antes_de_agir
 from test_servidor import BaseRepositorio, aguardar, eventos_confirmados, pedido
 from app.servidor import ServicoExecucao, SessaoOcupada
 
@@ -18,6 +18,18 @@ def esperar(condicao):
 
 
 class TestControle(unittest.TestCase):
+    def test_verificacao_antes_de_agir_bloqueia_e_nao_vaza_contexto(self):
+        chamadas = []
+        def recusar():
+            chamadas.append("verificou")
+            raise ValueError("sessao divergente")
+        with self.assertRaisesRegex(ValueError, "sessao divergente"):
+            with verificar_antes_de_agir(recusar):
+                ponto_seguro()
+                chamadas.append("acao indevida")
+        ponto_seguro()
+        self.assertEqual(chamadas, ["verificou"])
+
     def executar_pausa(self, verificar=lambda: True):
         controle, saiu, erros = ControleExecucao(), threading.Event(), []
         controle.pausar()

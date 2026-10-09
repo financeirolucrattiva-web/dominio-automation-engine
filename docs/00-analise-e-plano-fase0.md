@@ -4073,6 +4073,40 @@ offset novo calibrado e nenhum log de teste automatizado no Windows.
 
 ---
 
+### 0.92 Travas de empresa, foco e preparação da sessão (09/10/2026)
+
+**Pedido:** código solicitado X deve selecionar X, mesmo se o Domínio
+mostrar Y, e telas fora do padrão devem permitir recuperação segura.
+
+**Achados no código:** lote já usa F8, mas individual recusava empresa
+divergente. O código era lido uma vez quando não precisava trocar. Se a
+tela não era o painel azul no início, recusava sem tentar recuperação.
+O fallback de F8 no gerador legado envia Esc repetido sem conferir o
+painel entre ações. Não são achados de uma execução fiscal nesta sessão.
+
+**Correção:** individual e lote podem trocar por F8 e reler código/tela
+principal imediatamente antes de gerar. Preparação usa recuperação
+calibrada existente, com até cinco Esc na janela identificada, uma ação
+por vez e parada no painel azul. O executor fornece callback de retorno
+verificado à troca F8, antes da única nova tentativa de abertura da troca.
+Verificação de foco nos checkpoints de mouse/teclado bloqueia ações
+posteriores após perda de foco, inclusive se a exceção for absorvida.
+Não habilita emissão com código ilegível/divergente nem OK desconhecido.
+Busca por Código no F8 continua pressuposto do fluxo legado da seção 0.14.
+
+**Validação:** 355 testes de lógica/API e smoke Chromium com fiscal/login
+simulados passaram. Testes com desktop substituído verificam troca individual,
+código alterado entre leituras, ausência de janela/calibração/foco, retorno
+limitado, bloqueio persistente e callback F8. Worker/SQLite confirmam falha
+por perda de foco durante a emissão, recuperação e próxima rotina sem
+repetição. Compilação conferida. Falta
+homologar no Windows: X com Y selecionada, empresa já correta, tela aberta
+no início, falha recuperável seguida da próxima rotina e perda de foco.
+Nenhuma emissão fiscal real foi executada nesta sessão. A emissão conjunta
+dos três Livros Fiscais continua no mapeamento da seção 0.91.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

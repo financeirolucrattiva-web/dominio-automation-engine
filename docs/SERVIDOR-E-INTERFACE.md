@@ -136,8 +136,9 @@ sem desktop. Uma sessão bloqueada ou desconectada não oferece a tela
 necessária ao RPA. Este incremento não configura o Domínio automaticamente.
 
 Antes de chamar a rotina, o executor confere referência, foco, tela
-principal e código da empresa. Se houver divergência, recusa a tarefa;
-não troca a empresa automaticamente. SPED/Contribuições usam a
+principal e código da empresa. Se a empresa for outra, usa a troca F8
+existente e relê o código antes de emitir, tanto individualmente como
+no lote. Se não confirmar o código, recusa a tarefa. SPED/Contribuições usam a
 competência passada escolhida no calendário. Livros usam as datas informadas.
 A confirmação de apuração é exigida: calendário não comprova fechamento.
 
@@ -262,14 +263,27 @@ Não há instalação adicional no cliente.
    do lote**, confira empresas/rotinas/período e confirme a apuração de
    todas as empresas selecionadas antes de **Executar lote no servidor**.
 5. Acompanhe cada item, use Ver etapas, Pausar/Continuar ou Interromper
-   lote. Falha, pré-condição recusada ou retorno não confirmado interrompe
-   os itens seguintes. Resultados anteriores continuam no histórico.
+   lote. Falha de emissão ou resultado não confirmado permite continuar
+   após recuperar e confirmar painel azul/empresa. Recuperação inconclusiva,
+   pré-condição recusada ou cancelamento interrompe os itens seguintes.
+   Resultados anteriores continuam no histórico.
 
 O adapter pode trocar a empresa pelo F8 existente, mas precisa reconhecer
 tela principal/foco e código correto antes de gerar. No primeiro teste,
 confira que a busca F8 do Domínio está em Código, como no fluxo local.
-Código divergente interrompe o lote. A execução individual continua
-exigindo empresa já selecionada; não muda esse comportamento.
+Código ainda divergente depois da troca interrompe o lote. A execução
+individual também pode trocar por F8. Antes de cada rotina, o executor
+relê o código, inclusive quando a primeira leitura já estava correta.
+
+Se uma tela tiver ficado aberta antes de iniciar, tenta recuperar até o
+painel azul calibrado com até cinco Esc, um de cada vez, na janela Domínio
+identificada; só então confere/troca a empresa. O mesmo retorno verificado
+é usado se F8 não abrir a troca na primeira tentativa, antes de uma única
+nova tentativa de F8. Durante a preparação e geração, cada checkpoint de
+mouse/teclado confere o foco da janela. Perda de foco bloqueia novas ações
+nessa execução, mesmo se um trecho absorver a exceção. Sem referência ou
+janela reconhecida, não envia a limpeza. Não confirma OK desconhecido nem
+repete emissão falha automaticamente.
 
 O servidor salva um retrato do plano revisado. Alterações no regime ou
 empresa não modificam um lote em andamento. Alterar o cadastro entre
