@@ -38,7 +38,16 @@
           </form>
           <form id="form-empresa"><h2>Cadastrar ou editar empresa</h2><label for="empresa-codigo">Código no Domínio</label><input id="empresa-codigo" required inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12">
             <label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" required maxlength="100">
-            <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select><button id="salvar-empresa" type="submit">Salvar empresa</button>
+            <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select>
+            <label for="empresa-pasta">Pasta da empresa dentro da raiz do servidor</label><input id="empresa-pasta" maxlength="500" placeholder="1 LUCRO REAL E LUCRO PRESUMIDO\1.6 EMPRESA EXEMPLO">
+            <p class="discreto">Se deixar vazia, o servidor procura pelo código no mapa local de pastas. Presumido e Real compartilham a raiz; o regime é o escolhido acima.</p>
+            <label for="empresa-subpasta">Destino dos livros dentro de FISCAL/mês</label><input id="empresa-subpasta" maxlength="500" placeholder="RELATORIOS_APURAÇÃO\LIVROS_FISCAIS">
+            <p class="discreto">Deixe vazio para usar o padrão. O ano e o mês vêm da competência escolhida.</p>
+            <button id="salvar-empresa" type="submit">Salvar empresa</button>
+            <label for="empresa-competencia">Competência para conferir o destino</label><input id="empresa-competencia" type="month">
+            <p class="discreto">Ver destino mostra o caminho completo. Testar pasta cria o destino se necessário, grava e remove um temporário. Nenhum relatório é emitido nesse teste.</p>
+            <div class="controle"><button id="empresa-ver-destino" type="button" class="secundario">Ver destino</button><button id="empresa-testar-pasta" type="button" class="secundario">Testar pasta</button></div>
+            <p id="empresa-destino" role="status" class="discreto"></p>
             <p class="discreto">O código identifica a empresa no Domínio. Os PDFs emitidos pelo painel usam o nome cadastrado: tipo_empresa_AAAA-MM.pdf. Espaços e acentos são normalizados. Uma nova emissão preserva o arquivo anterior.</p>
           </form>
         </div>

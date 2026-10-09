@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr, SecretStr, Fi
 from app import capacidades
 from app.servidor import PrecondicaoRecusada, SessaoOcupada, periodo_anterior
 from app.autenticacao import CredenciaisLogin, LoginRecusado
-from app import configuracao_rotinas
+from app import configuracao_rotinas, destinos_livros
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -87,6 +87,14 @@ class PedidoEmpresa(BaseModel):
     codigo: StrictStr = Field(pattern=r"^[0-9]{1,12}$")
     nome: StrictStr = Field(min_length=1, max_length=100)
     regime_id: StrictStr = Field(pattern=r"^[0-9a-f]{32}$")
+    pasta_relativa: StrictStr | None = Field(default=None, max_length=500)
+    subpasta_livros: StrictStr | None = Field(default=None, max_length=500)
+
+
+class PedidoDestinoLivros(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    competencia: StrictStr = Field(pattern=r"^[0-9]{4}-(0[1-9]|1[0-2])$")
+    testar_gravacao: StrictBool = False
 
 
 class SelecaoLote(BaseModel):
@@ -250,9 +258,32 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     @app.post("/api/empresas", dependencies=[Depends(autorizar)])
     def empresa_salvar(pedido: PedidoEmpresa):
         try:
-            return servico.repositorio.configuracao.salvar_empresa(pedido.codigo, pedido.nome, pedido.regime_id)
+            return servico.repositorio.configuracao.salvar_empresa(**pedido.model_dump())
         except ValueError:
-            raise HTTPException(422, "Confira código, nome e regime cadastrado da empresa.") from None
+            raise HTTPException(422, "Confira código, nome, regime e pastas relativas da empresa.") from None
+
+    @app.post("/api/empresas/{codigo}/destino-livros", dependencies=[Depends(autorizar)])
+    def destino_livros(codigo: str, pedido: PedidoDestinoLivros):
+        if pedido.testar_gravacao and servico.ocupado:
+            raise HTTPException(409, "Aguarde a execução atual antes de testar a pasta.")
+        if not codigo.isascii() or not codigo.isdigit() or len(codigo) > 12:
+            raise HTTPException(422, "Informe o código cadastrado da empresa.")
+        cadastro = servico.repositorio.configuracao.listar()
+        empresa = next((e for e in cadastro["empresas"] if e["codigo"] == str(int(codigo))), None)
+        if empresa is None:
+            raise HTTPException(404, "Salve a empresa antes de conferir o destino.")
+        regime = next((r for r in cadastro["regimes"] if r["id"] == empresa["regime_id"]), None)
+        if regime is None:
+            raise HTTPException(422, "Escolha e salve o regime da empresa antes de conferir o destino.")
+        try:
+            plano = destinos_livros.planejar_destino(empresa, regime["nome"], pedido.competencia,
+                                                    pasta_dados=servico.repositorio.caminho.parent)
+            return destinos_livros.testar_gravacao(plano) if pedido.testar_gravacao else plano
+        except (OSError, UnicodeError):
+            raise HTTPException(422, "Não consegui acessar ou testar a pasta. Confira a configuração local e as permissões.") from None
+        except ValueError as erro:
+            # Mensagens do resolver são fixas, sem valores privados do CSV.
+            raise HTTPException(422, str(erro)) from None
 
     @app.post("/api/lotes/planejar", dependencies=[Depends(autorizar)])
     def lote_planejar(pedido: SelecaoLote):
@@ -369,7 +400,9 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         if tarefa is None or not tarefa["arquivo"]:
             raise HTTPException(404, "Arquivo indisponível.")
         caminho = Path(tarefa["arquivo"]).resolve()
-        if not caminho.is_relative_to(pasta_saida) or not caminho.is_file():
+        permitido = (caminho.is_relative_to(pasta_saida) or
+                     servico.repositorio.arquivo_publicado_permitido(identificador, caminho))
+        if not permitido or not caminho.is_file():
             raise HTTPException(404, "Arquivo indisponível.")
         return FileResponse(caminho, filename=caminho.name)
 

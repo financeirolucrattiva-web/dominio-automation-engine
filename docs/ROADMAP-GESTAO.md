@@ -39,7 +39,7 @@ da aceitação do primeiro piloto.
 
 | Indicador/rotina | Situação de partida | Próximo trabalho |
 | --- | --- | --- |
-| Resumo por Acumulador | Nome cadastrado, vinculado aos dois regimes | Mapear a tela, configurar e validar o relatório |
+| Resumo por Acumulador | Nome cadastrado, vinculado aos dois regimes; menu identificado | Mapear formulário/exportação, configurar e validar o relatório |
 | Demonstrativo EFD Contribuições | Rotina EFD existente reutilizada e renomeada, vinculada aos dois regimes | Revalidar a versão atual no Windows |
 | Livro Fiscal — Registro de Entradas | Motor integrado | Revalidar empresa, período, documento e retorno |
 | Livro Fiscal — Registro de Saídas | Motor integrado, com pendência na conferência do PDF | Resolver a conferência e validar o fluxo completo |
@@ -68,6 +68,22 @@ pedido. Nova emissão usa sufixo se já existir o arquivo, sem substituí-lo.
 Resumo seguirá `acumulador_empresa_exemplo_2026-08.pdf` quando integrado.
 O regime permanece no cadastro/histórico. EFD atualmente retorna somente
 o resultado da geração, sem caminho local de arquivo para renomear.
+
+O esquema de pastas foi recebido e o destino escolhido é
+**FISCAL → mês → RELATORIOS_APURAÇÃO → LIVROS_FISCAIS**. O cadastro da
+empresa permite escolher a pasta da empresa e personalizar a subpasta
+dos livros. A raiz do Dropbox fica configurada somente no PC executor.
+**Ver destino** mostra o caminho completo sem criar nada; **Testar pasta**
+confere gravação com um temporário removido em seguida. O teste de pasta
+não emite documento nem substitui a homologação fiscal.
+
+Entradas/Saídas confirmados pelos geradores individuais são guardados
+nesse destino ao final, preservando arquivos anteriores. O download
+continua vinculado ao documento daquela tarefa. A emissão dos três
+livros juntos ainda depende da integração da árvore de pastas, conferência
+do PDF de ICMS e múltiplos arquivos por execução. O menu do Resumo foi
+identificado como **Relatórios → Acompanhamentos → Resumo por Acumulador**;
+seu formulário e sua exportação ainda precisam ser mapeados.
 
 ## Fluxo de trabalho
 
@@ -182,8 +198,10 @@ Os testes desta entrega são de lógica/API e navegador com fiscal/login
 simulados. Eles não operam a sessão Windows do escritório, não configuram
 as telas das rotinas novas e não conferem documentos fiscais reais.
 
-Verificação desta entrega: **355 testes de lógica/API passaram**. O teste
+Verificação desta entrega: **371 testes de lógica/API passaram**. O teste
 Chromium verifica cadastro, configuração, envio para validação, lotes,
 falha com recuperação simulada, continuidade, controles, três larguras,
-logout e offline. A homologação dos cinco indicadores no Windows continua
+logout e offline. O teste de navegador específico do destino verifica
+cadastro, edição, prévia sem criação, gravação/limpeza e três larguras.
+A homologação dos cinco indicadores no Windows continua
 pendente.

@@ -5,7 +5,7 @@ import json
 import re
 import uuid
 
-from app import capacidades, configuracao_rotinas
+from app import capacidades, configuracao_rotinas, destinos_livros
 
 
 def codigo_empresa(valor):
@@ -43,6 +43,10 @@ class ConfiguracaoLotes:
                     status TEXT NOT NULL
                 );
             """)
+            colunas = {r["name"] for r in banco.execute("PRAGMA table_info(empresas_painel)")}
+            for coluna in ("pasta_relativa", "subpasta_livros"):
+                if coluna not in colunas:
+                    banco.execute(f"ALTER TABLE empresas_painel ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''")
 
     def listar(self, banco=None):
         if banco is None:
@@ -170,7 +174,7 @@ class ConfiguracaoLotes:
                           (identificador, nome, json.dumps(rotinas)))
         return {"id": identificador, "nome": nome, "rotinas": list(rotinas)}
 
-    def salvar_empresa(self, codigo, nome, regime_id):
+    def salvar_empresa(self, codigo, nome, regime_id, pasta_relativa=None, subpasta_livros=None):
         codigo, nome = codigo_empresa(codigo), nome_cadastro(nome)
         if not isinstance(regime_id, str):
             raise ValueError("Escolha o regime da empresa.")
@@ -178,9 +182,12 @@ class ConfiguracaoLotes:
             banco.execute("BEGIN IMMEDIATE")
             if not banco.execute("SELECT 1 FROM regimes WHERE id=?", (regime_id,)).fetchone():
                 raise ValueError("Escolha um regime cadastrado.")
-            banco.execute("INSERT INTO empresas_painel VALUES (?,?,?) ON CONFLICT(codigo) DO UPDATE SET nome=excluded.nome, regime_id=excluded.regime_id",
-                          (codigo, nome, regime_id))
-        return {"codigo": codigo, "nome": nome, "regime_id": regime_id}
+            atual = banco.execute("SELECT * FROM empresas_painel WHERE codigo=?", (codigo,)).fetchone()
+            pasta = destinos_livros.caminho_relativo(pasta_relativa) if pasta_relativa is not None else (atual["pasta_relativa"] if atual else "")
+            subpasta = destinos_livros.caminho_relativo(subpasta_livros) if subpasta_livros is not None else (atual["subpasta_livros"] if atual else "")
+            banco.execute("INSERT INTO empresas_painel (codigo,nome,regime_id,pasta_relativa,subpasta_livros) VALUES (?,?,?,?,?) ON CONFLICT(codigo) DO UPDATE SET nome=excluded.nome, regime_id=excluded.regime_id, pasta_relativa=excluded.pasta_relativa, subpasta_livros=excluded.subpasta_livros",
+                          (codigo, nome, regime_id, pasta, subpasta))
+        return {"codigo": codigo, "nome": nome, "regime_id": regime_id, "pasta_relativa": pasta, "subpasta_livros": subpasta}
 
     def planejar(self, selecao, banco=None):
         from app.servidor import validar_pedido

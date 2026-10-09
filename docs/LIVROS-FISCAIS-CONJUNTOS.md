@@ -5,8 +5,11 @@ Este documento registra o fluxo para implementação e teste individual.
 A emissão conjunta ainda não está implementada nem homologada no motor.
 Os cadastros existentes e seus estados de validação permanecem vigentes.
 
-**Escopo confirmado:** receber o esquema de caminhos de **Lucro Presumido**
-e **Lucro Real**. Primeiro teste individual e piloto no Lucro Presumido;
+**Escopo confirmado:** esquema recebido de **Lucro Presumido**
+e **Lucro Real**, integrado em [ARQUITETURA-SERVIDOR.md](ARQUITETURA-SERVIDOR.md).
+Destino padrão escolhido: `FISCAL\MM\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`,
+com possibilidade de configurar outra subpasta por empresa no painel.
+Primeiro teste individual e piloto no Lucro Presumido;
 homologar Lucro Real depois. Outros caminhos/regimes serão acrescentados
 futuramente, sem presumir sua estrutura agora. Cada destino deve ser
 associado explicitamente ao regime cadastrado, evitando misturar saídas.
@@ -36,8 +39,8 @@ associado explicitamente ao regime cadastrado, evitando misturar saídas.
    gerador individual antigo. Não digitar nome de arquivo nesse diálogo.
 10. Selecionar a pasta de destino do computador cliente e confirmar no
     **OK** desse diálogo. O operador informou navegação para a pasta do
-    usuário/Dropbox. O destino completo e o modo de preencher/navegar a
-    árvore ainda dependem do esquema do ambiente.
+    usuário/Dropbox. O destino completo agora pode ser conferido no painel;
+    o modo de navegar a árvore ainda precisa de teste no ambiente.
 11. Conferir os arquivos novos produzidos: conteúdo de cada livro,
     empresa, período e resultado individual. Os nomes e o comportamento
     do exportador após a confirmação da pasta ainda não foram observados.
@@ -63,7 +66,33 @@ configurações locais da instalação, sem fixar dados pessoais no código.
 Salvar na pasta local sincronizada usa o sistema de arquivos; não requer
 integração com a API do Dropbox.
 
-## Informações necessárias do esquema do servidor
+## Configuração e teste do destino
+
+1. No PC executor, usar **Configurar Destino Livros.bat** para informar
+   a raiz local em C: que contém os regimes/empresas. Salva em
+   `data/destino_livros.json`, ignorado pelo Git.
+2. No cadastro da empresa, informar a pasta relativa dentro da raiz;
+   vazia, procurar o código no CSV local. Escolher o regime explicitamente.
+3. Deixar a subpasta vazia para o padrão escolhido, ou personalizar dentro
+   de `FISCAL/mês`. Salvar e usar **Editar** na lista.
+4. Escolher competência passada e **Ver destino**: exibe caminho completo
+   local, equivalente no Domínio e nomes previstos, sem criar nada.
+5. **Testar pasta**: cria o destino se necessário, grava e remove um
+   temporário, sem emissão fiscal. Conferir a pasta no Explorador do PC.
+
+O resolvedor usa a pasta de ano existente, ou `FISCAL` diretamente na
+empresa quando não há pasta de ano. Não inventa raiz/empresa/estrutura
+FISCAL nem escolhe pasta por semelhança de nome. Presumido e Real
+compartilham a pasta principal; o regime vem do cadastro.
+
+Ao final dos geradores individuais integrados, Entradas/Saídas confirmados
+são copiados para o destino da empresa com o nome cadastrado e competência.
+Colisões usam sufixo; falha de cópia remove parcial e preserva a origem.
+O download aceita somente o arquivo final registrado naquela tarefa,
+além da saída local existente. Use um mês por emissão no destino mensal.
+Isso não implementa a geração conjunta nem valida o conteúdo de ICMS.
+
+## Esquema recebido e informações ainda necessárias
 
 O esquema geral pode ser documentado em `docs/ARQUITETURA-SERVIDOR.md`:
 
@@ -79,9 +108,8 @@ O esquema geral pode ser documentado em `docs/ARQUITETURA-SERVIDOR.md`:
 
 Caminhos pessoais exatos devem ficar na configuração local ignorada pelo
 Git. O esquema público usa exemplos genéricos, sem dados de clientes,
-credenciais, tokens ou documentos fiscais. A configuração do destino
-conjunto ainda precisa ser implementada. A pasta permitida pelo download
-da API deve coincidir com o destino aprovado dos arquivos publicados.
+credenciais, tokens ou documentos fiscais. A navegação no seletor da
+exportação conjunta e os arquivos gerados ainda precisam ser observados.
 
 ## Integração e teste pendentes
 
