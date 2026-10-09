@@ -21,8 +21,8 @@ Os demais atalhos continuam disponíveis, organizados por finalidade:
 | `atalhos/ocr/` | Instalar Python/Paddle opcionais e avaliar OCR |
 | `atalhos/ferramentas/` | Calibrar tela, diagnosticar PDF, listar funções e abrir o menu SPED |
 
-Veja o [índice dos atalhos](atalhos/README.md). Todos os 21 arquivos BAT
-foram preservados; apenas os caminhos dos auxiliares mudaram. Pode abrir
+Veja o [índice dos atalhos](atalhos/README.md). Os atalhos existentes
+foram preservados. Pode abrir
 os atalhos por duplo clique dentro de suas pastas. Esta organização não
 exige reinstalar aplicativos ou apagar `data/`.
 
@@ -81,6 +81,44 @@ lote usam F8 quando necessário e conferem novamente código/painel azul
 antes de emitir. Tela presa no início tenta recuperação calibrada, até
 cinco Esc, parando no painel azul. Foco é conferido nos checkpoints de
 mouse/teclado; perda de foco bloqueia ações posteriores nessa execução.
+
+### Onde guardar os Livros Fiscais por empresa
+
+O esquema recebido está em [ARQUITETURA-SERVIDOR.md](docs/ARQUITETURA-SERVIDOR.md).
+Presumido e Real compartilham a pasta principal; o código e o regime vêm
+do cadastro. No PC com o executor:
+
+1. Execute `atalhos/servidor/Configurar Destino Livros.bat` e informe a
+   raiz **local em C:** do servidor Dropbox, até a pasta que contém os
+   regimes. A configuração fica somente em `data/destino_livros.json`.
+2. Em **Cadastrar ou editar empresa**, informe a pasta relativa da empresa,
+   por exemplo `1 LUCRO REAL E LUCRO PRESUMIDO\1.6 EMPRESA EXEMPLO`.
+   Vazia, ela usa o código no CSV local `data/mapa_pastas_empresas.csv`.
+3. O destino padrão dentro de `FISCAL/mês` é
+   `RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`. Pode escolher outra subpasta nessa
+   empresa. Salve, use **Editar** na lista e escolha uma competência passada.
+4. **Ver destino** exibe o caminho completo local, o equivalente no
+   Domínio e os nomes previstos; não cria pastas. **Testar pasta** cria o
+   destino se necessário, grava e remove um temporário. Não emite PDF.
+
+Exemplo final: `<RAIZ>\<PASTA EMPRESA>\2026\FISCAL\08\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`.
+Empresas sem pasta de ano usam a estrutura `FISCAL` existente. A raiz,
+a empresa e a estrutura fiscal precisam existir e ser conferidas.
+
+Com essa configuração, os geradores integrados de Entradas e Saídas
+guardam o PDF confirmado nessa pasta **ao final**, com nome cadastrado e
+competência, preservando anteriores. O download do painel continua disponível.
+Falha na cópia mantém a origem e exige conferência. Use um mês por execução
+para o destino mensal. Sem configurar a raiz, a saída existente continua
+em `saida/`. Os caminhos reais e o CSV ficam locais, ignorados pelo Git.
+
+O teste de pasta não homologa emissão fiscal. A exportação conjunta dos
+três livros ainda depende da navegação verificada em **Procurar Pasta**,
+da validação do PDF de ICMS e de múltiplos arquivos por tarefa; veja
+[LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
+O menu do Resumo foi identificado no print: **Relatórios → Acompanhamentos →
+Resumo por Acumulador**. O restante está em
+[RESUMO-POR-ACUMULADOR.md](docs/RESUMO-POR-ACUMULADOR.md).
 
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
 — riscos técnicos, achados confirmados (Domínio é entregue via GraphOn

@@ -57,13 +57,15 @@ def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
     return f"{prefixo}_{empresa}_{competencia}{extensao.lower()}"
 
 
-def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio, fim):
-    """Renomeia a saída já confirmada, dentro da pasta local, sem substituir."""
+def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio, fim, pasta_destino=None):
+    """Publica a saída já confirmada na pasta final, sem substituir anteriores."""
     caminho = Path(caminho).resolve(strict=True)
     if not caminho.is_relative_to(Path(pasta_saida).resolve()) or not caminho.is_file():
         raise ValueError("Arquivo fora da pasta de saída.")
     nome = nome_relatorio(tipo, nome_empresa, inicio, fim, caminho.suffix)
-    destino = caminho.with_name(nome)
+    pasta_final = Path(pasta_destino).resolve() if pasta_destino is not None else caminho.parent
+    pasta_final.mkdir(parents=True, exist_ok=True)
+    destino = pasta_final / nome
     if destino == caminho:
         # No Windows, Path compara sem distinguir maiúsculas/minúsculas.
         if destino.name != caminho.name:
@@ -80,7 +82,7 @@ def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio
             break
         except FileExistsError:
             numero += 1
-            destino = caminho.with_name(f"{Path(nome).stem}_{numero}{Path(nome).suffix}")
+            destino = pasta_final / f"{Path(nome).stem}_{numero}{Path(nome).suffix}"
         except Exception:
             if criado:
                 destino.unlink(missing_ok=True)

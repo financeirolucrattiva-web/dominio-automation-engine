@@ -10,7 +10,7 @@ import sqlite3
 import threading
 import uuid
 
-from app import arquivos, capacidades, painel
+from app import arquivos, capacidades, destinos_livros, painel
 from app.trava_execucao import TravaExecucao
 from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
 from app.autenticacao import SessaoLogin, LoginRecusado
@@ -89,6 +89,9 @@ class RepositorioTarefas:
                     lote_id TEXT NOT NULL, posicao INTEGER NOT NULL,
                     tarefa_id TEXT UNIQUE NOT NULL, PRIMARY KEY(lote_id, posicao)
                 );
+                CREATE TABLE IF NOT EXISTS arquivos_publicados (
+                    tarefa_id TEXT PRIMARY KEY, caminho TEXT NOT NULL, pasta TEXT NOT NULL
+                );
             """)
         self.configuracao = ConfiguracaoLotes(self)
 
@@ -124,6 +127,23 @@ class RepositorioTarefas:
         if item is None:
             return None
         return dict(item) if privado else self._publica(item)
+
+    def registrar_arquivo_publicado(self, identificador, caminho, pasta):
+        caminho, pasta = Path(caminho).resolve(strict=True), Path(pasta).resolve(strict=True)
+        if not caminho.is_file() or not caminho.is_relative_to(pasta):
+            raise ValueError("Arquivo fora do destino confirmado.")
+        with self.conectar() as banco:
+            banco.execute("INSERT OR REPLACE INTO arquivos_publicados VALUES (?,?,?)",
+                          (identificador, str(caminho), str(pasta)))
+
+    def arquivo_publicado_permitido(self, identificador, caminho):
+        with self.conectar() as banco:
+            item = banco.execute("SELECT caminho,pasta FROM arquivos_publicados WHERE tarefa_id=?",
+                                 (identificador,)).fetchone()
+        # Não autoriza o Dropbox inteiro nem outros arquivos na mesma pasta.
+        caminho = Path(caminho).resolve()
+        return bool(item and str(caminho) == item["caminho"] and
+                    caminho.is_relative_to(Path(item["pasta"])))
 
     @staticmethod
     def _publica(item):
@@ -484,8 +504,24 @@ class ServicoExecucao:
         empresa = next((e for e in empresas if e["codigo"] == str(int(pedido["empresa_codigo"]))), None)
         if empresa is None:
             return arquivo  # Chamadas antigas sem cadastro conservam a convenção local.
-        return str(arquivos.nomear_relatorio_cadastrado(
-            arquivo, self.pasta_saida, pedido["capacidade"], empresa["nome"], pedido["inicio"], pedido["fim"]))
+        pasta_destino = None
+        if (pedido["capacidade"] in ("registro_entradas", "registro_saidas") and
+                (self.repositorio.caminho.parent / "destino_livros.json").exists()):
+            if pedido["inicio"][:7] != pedido["fim"][:7]:
+                raise ValueError("O destino mensal dos Livros Fiscais exige um mês por execução.")
+            regime = empresa.get("regime")
+            if regime is None:
+                regime = next((r["nome"] for r in self.repositorio.configuracao.listar()["regimes"]
+                               if r["id"] == empresa["regime_id"]), "")
+            plano = destinos_livros.planejar_destino(empresa, regime, pedido["inicio"][:7],
+                                                     self.repositorio.caminho.parent)
+            pasta_destino = plano["caminho_local"]
+        destino = arquivos.nomear_relatorio_cadastrado(
+            arquivo, self.pasta_saida, pedido["capacidade"], empresa["nome"], pedido["inicio"], pedido["fim"],
+            pasta_destino=pasta_destino)
+        if pasta_destino is not None:
+            self.repositorio.registrar_arquivo_publicado(tarefa["id"], destino, pasta_destino)
+        return str(destino)
 
     def _executar_pendentes(self):
         while not self._parar.is_set():
@@ -531,7 +567,7 @@ class ServicoExecucao:
                     try:
                         arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)
                     except (OSError, ValueError):
-                        logging.getLogger(__name__).exception("Nome do arquivo não confirmado na tarefa %s", identificador)
+                        logging.getLogger(__name__).exception("Nome ou destino do arquivo não confirmado na tarefa %s", identificador)
                         status, motivo = "nao_confirmada", "nome_arquivo_nao_confirmado"
                 recuperada = status != "concluida" and self._recuperar_lote(tarefa, pedido, controle)
                 self.repositorio.concluir(identificador, status, resultado, arquivo,

@@ -14,6 +14,7 @@ Mantenha estas pastas dentro do projeto, pois os atalhos precisam de
 | [Testar Interface Servidor.bat](servidor/Testar%20Interface%20Servidor.bat) | Simulação no próprio PC |
 | [Executar Dominio no Servidor.bat](servidor/Executar%20Dominio%20no%20Servidor.bat) | Execução real no próprio PC |
 | [Configurar Acesso Rede.bat](servidor/Configurar%20Acesso%20Rede.bat) | Preparar HTTPS/endereço e pacote público do cliente |
+| [Configurar Destino Livros.bat](servidor/Configurar%20Destino%20Livros.bat) | Definir a raiz local das pastas de empresas para conferir/testar os destinos no painel |
 | [Liberar Acesso Rede.bat](servidor/Liberar%20Acesso%20Rede.bat) | Criar regra de firewall; executar como administrador |
 | [Testar Interface na Rede.bat](servidor/Testar%20Interface%20na%20Rede.bat) | Simulação para dois PCs |
 | [Executar Dominio na Rede.bat](servidor/Executar%20Dominio%20na%20Rede.bat) | Execução real para dois PCs |

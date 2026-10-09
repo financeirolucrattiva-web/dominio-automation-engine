@@ -4107,6 +4107,46 @@ dos três Livros Fiscais continua no mapeamento da seção 0.91.
 
 ---
 
+### 0.93 Destino dos Livros Fiscais por empresa e teste de pasta (09/10/2026)
+
+**Pedido/evidência:** esquema publicado pelo Claude em f71813c; operador
+escolheu `FISCAL\MM\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS` e pediu definir
+o lugar no cadastro e testar onde guarda. Documento confirma LP/LR na
+mesma pasta principal e empresas com/sem ano. CSV real ficou no PC.
+Novo print identifica o menu do Resumo: Relatórios → Acompanhamentos →
+Resumo por Acumulador; não mostra formulário ou emissão.
+
+**Causa da lacuna:** cadastro só tinha código/nome/regime; os geradores
+integrados publicavam em `saida/` e a API só permitia essa pasta. O
+diálogo conjunto é uma árvore nativa, não um campo para digitar caminho.
+
+**Correção:** esquema genérico integrado sobre main bb50f50 sem retirar
+travas. Configuração local da raiz por atalho; pasta relativa e subpasta
+por empresa, migração preservando cadastros. Resolução por código no mapa
+local quando campo vazio, contenção da raiz, estrutura FISCAL existente,
+ano opcional e competência passada. Prévia autenticada sem efeitos;
+teste explícito grava/remove temporário e pode criar o destino. Não
+deduz regime por pasta nem consulta Dropbox/API de nuvem.
+
+Entradas/Saídas confirmados pelo worker são guardados ao final nessa
+pasta, com nome cadastrado/snapshot e competência. Cópia exclusiva preserva
+anteriores; falha remove parcial e conserva origem. Download de destino
+externo à saída depende do caminho exato publicado pelo worker nessa
+tarefa, persistido separadamente. Um mês por execução no destino mensal;
+sem configurar raiz, saída anterior preservada.
+
+**Validação:** 371 testes de lógica/API passaram e smoke geral Chromium
+com fiscal/login simulados passou. Cobertura nova: CSV por código,
+duplicidade, caminhos/link externo, estruturas com/sem ano, migração,
+prévia/gravação, cópia final/colisão/falha, snapshot e download restrito.
+Smoke específico verifica cadastro, edição, prévia, gravação, edição não
+salva, três larguras e logout. Compilação Python conferida antes de publicar.
+Não houve emissão fiscal real nesta sessão. Emissão conjunta permanece
+pendente de seleção visual/árvore/validação de ICMS/múltiplos arquivos;
+Resumo está apenas no mapeamento inicial, sem coordenadas ou liberação.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

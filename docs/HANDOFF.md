@@ -1,5 +1,46 @@
 # Domínio Automation Engine — handoff
 
+## Destino por empresa e esquema recebido — 09/10/2026
+
+Esquema do Claude recebido no commit f71813c, branch
+`claude/arquitetura-servidor-20261009`; somente documento novo, baseado
+na main anterior às travas. Integrado como `docs/ARQUITETURA-SERVIDOR.md`
+sobre a main bb50f50, preservando F8/foco/recuperação. Clientes citados
+foram generalizados; CSV real continua somente no PC do operador.
+
+Operador escolheu `FISCAL\MM\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS` e pediu
+destino configurável na empresa, com teste para conferir onde guarda.
+SQLite migra `empresas_painel` preservando cadastros e adicionando
+`pasta_relativa`/`subpasta_livros`. Campos omitidos por clientes antigos
+preservam valores; vazios herdam CSV por código/padrão. Lote congela esses
+campos na revisão. LP/LR compartilham raiz, sem deduzir regime pela pasta.
+
+`Configurar Destino Livros.bat` salva raiz local em C: no arquivo ignorado
+`data/destino_livros.json`. `app/destinos_livros.py` confere raiz/empresa/
+FISCAL existentes, ano opcional, mês passado e contenção de caminho.
+Não importa o desktop. API autenticada e painel: Ver destino não cria
+nada; Testar pasta cria destino/grava/remove temporário, sem PDF fiscal.
+Testar gravação durante execução é recusado.
+
+Ao final de Entradas/Saídas confirmados, worker usa cadastro/snapshot e
+publica no destino, com nome e competência, cópia exclusiva e sufixos.
+Falha preserva origem e resulta em não confirmada. Destino mensal exige
+um mês por execução. Sem raiz configurada, continua a saída antiga.
+`arquivos_publicados` registra somente o caminho final daquela tarefa;
+download não abre acesso genérico ao Dropbox nem depende da configuração
+atual para servir documentos anteriores.
+
+371 testes de lógica/API passaram; smoke geral Chromium passou. O smoke
+específico confere cadastro, edição, prévia, gravação, edição não salva,
+larguras e logout. Fiscal permanece simulado; testar no Windows antes
+de homologar. Emissão conjunta continua pendente: caixas, árvore nativa
+de Procurar Pasta, conteúdo de ICMS e múltiplos arquivos por tarefa.
+
+Novo print identifica **Relatórios → Acompanhamentos → Resumo por
+Acumulador**. Registrado em `docs/RESUMO-POR-ACUMULADOR.md`; ainda falta
+formulário, filtros, exportação e validação. Nenhuma coordenada inventada
+ou rotina pendente liberada.
+
 ## Travas de empresa e preparação de sessão — 09/10/2026
 
 Pedido seguinte: código cadastrado X deve determinar a empresa alvo,
@@ -23,7 +64,8 @@ recuperável pelo worker, sem repetir a emissão.
 Encerramento/cancelamento/retomada continuam respeitados. Recuperação após
 falha mantém a política anterior: painel azul + código da empresa corretos
 para ir à próxima; não reconhecer interrompe. Emissão conjunta de Livros
-continua pendente do esquema do servidor e da implementação/exportação.
+continua pendente da implementação/exportação; esquema recebido no
+checkpoint acima.
 355 testes de lógica/API passaram, além do smoke Chromium com fiscal/login
 simulados. Homologação das travas e troca na sessão Windows ainda pendente.
 
@@ -32,7 +74,7 @@ simulados. Homologação das travas e troca na sessão Windows ainda pendente.
 O operador pediu Entradas, Saídas e ICMS selecionados no mesmo formulário,
 um período e um OK. Depois: ícone PDF → Gerar um arquivo PDF para cada
 relatório → Procurar Pasta → Client C (M:) → destino local Dropbox ainda
-a confirmar no esquema do servidor. A prévia inicial pode ser qualquer
+a conferir no painel conforme checkpoint acima. A prévia inicial pode ser qualquer
 livro. Veja [LIVROS-FISCAIS-CONJUNTOS.md](LIVROS-FISCAIS-CONJUNTOS.md).
 O esquema solicitado ao Claude cobre Lucro Presumido e Lucro Real nesta
 etapa; outros caminhos serão adicionados depois. Primeiro teste no Presumido.

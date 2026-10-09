@@ -13,14 +13,14 @@ const painelLotes=(()=>{
   function invalidar() {plano=null; pedidoLote=null; $("lote-revisao").hidden=true; $("lote-apuracao").checked=false; controles();}
   function controles() {
     const online=!!chave && !!estadoServidor && navigator.onLine;
-    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar","cadastrar-rotina"]) $(id).disabled=!online || ocupado;
+    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar","cadastrar-rotina","empresa-ver-destino","empresa-testar-pasta"]) $(id).disabled=!online || ocupado;
     for (const b of $("rotinas-cadastradas").querySelectorAll("button")) b.disabled=!online || ocupado || b.dataset.aguardando==="true";
     for (const select of $("lote-empresas").querySelectorAll("select")) select.disabled=!online || ocupado;
     $("lote-executar").disabled=!online || ocupado || !plano || !estadoServidor?.execucao_habilitada || estadoServidor?.ocupado;
     $("lote-apuracao").disabled=!plano;
     const competencia=$("lote-tipo-periodo").value==="competencia";
     $("lote-campo-competencia").hidden=!competencia; $("lote-campo-datas").hidden=competencia; $("lote-competencia").disabled=!competencia;
-    $("lote-competencia").max=estadoServidor?.periodo_anterior.inicio.slice(0,7) || "";
+    $("lote-competencia").max=estadoServidor?.periodo_anterior.inicio.slice(0,7) || ""; $("empresa-competencia").max=$("lote-competencia").max;
     for (const id of ["lote-inicio","lote-fim"]) {$(id).disabled=competencia; $(id).max=estadoServidor?.periodo_anterior.fim || "";}
     const ativo=detalhe?.tarefas?.some(t=>t.id===estadoServidor?.controle_execucao?.tarefa_id);
     const estado=estadoServidor?.controle_execucao?.estado;
@@ -73,7 +73,7 @@ const painelLotes=(()=>{
       const regime=document.createElement("select"); regime.setAttribute("aria-label",`Regime de ${empresa.nome}`); opcoes(regime,cadastro.regimes,null); regime.value=empresa.regime_id; regime.disabled=ocupado || !chave || !estadoServidor;
       regime.addEventListener("change",async()=>{if (ocupado) {regime.value=empresa.regime_id; return;} regime.disabled=true; invalidar(); if (!await salvarCadastro("empresas",{...empresa,regime_id:regime.value})) regime.value=empresa.regime_id; controles();}); celula(linha,"").append(regime);
       const editar=document.createElement("button"); editar.type="button"; editar.className="secundario"; editar.textContent="Editar";
-      editar.addEventListener("click",()=>{$("config-empresas").open=true; $("empresa-codigo").value=empresa.codigo; $("empresa-nome").value=empresa.nome; $("empresa-regime").value=empresa.regime_id; $("empresa-nome").focus();}); celula(linha,"").append(editar);
+      editar.addEventListener("click",()=>{$("config-empresas").open=true; $("empresa-codigo").value=empresa.codigo; $("empresa-nome").value=empresa.nome; $("empresa-regime").value=empresa.regime_id; $("empresa-pasta").value=empresa.pasta_relativa || ""; $("empresa-subpasta").value=empresa.subpasta_livros || ""; $("empresa-destino").textContent=""; $("empresa-nome").focus();}); celula(linha,"").append(editar);
       $("lote-empresas").append(linha);
     }
   }
@@ -88,7 +88,22 @@ const painelLotes=(()=>{
   $("regime-editar").addEventListener("change",()=>{const r=cadastro.regimes.find(r=>r.id===$("regime-editar").value); $("regime-nome").value=r?.nome || ""; sequencia=[...(r?.rotinas || [])]; exibirSequencia();});
   $("regime-adicionar").addEventListener("click",()=>{const id=$("regime-rotina").value; if (id && !sequencia.includes(id)) {sequencia.push(id); exibirSequencia();}});
   $("form-regime").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-regime").reportValidity()) return; await salvarCadastro("regimes",{id:$("regime-editar").value || null,nome:$("regime-nome").value,rotinas:sequencia});});
-  $("form-empresa").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-empresa").reportValidity()) return; if (await salvarCadastro("empresas",{codigo:$("empresa-codigo").value,nome:$("empresa-nome").value,regime_id:$("empresa-regime").value})) $("form-empresa").reset();});
+  $("form-empresa").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-empresa").reportValidity()) return; if (await salvarCadastro("empresas",{codigo:$("empresa-codigo").value,nome:$("empresa-nome").value,regime_id:$("empresa-regime").value,pasta_relativa:$("empresa-pasta").value,subpasta_livros:$("empresa-subpasta").value})) {$("empresa-destino").textContent="Empresa salva. Use Editar na lista e confira o destino antes do teste."; $("form-empresa").reset();}});
+  async function conferirDestino(testar) {
+    const codigo=$("empresa-codigo").value, competencia=$("empresa-competencia").value;
+    if (!codigo || !competencia) {$("empresa-destino").textContent="Use Editar numa empresa salva e informe a competência para conferir o destino."; return;}
+    if (ocupado || !chave || !estadoServidor) return;
+    const empresa=cadastro.empresas.find(e=>e.codigo===String(Number(codigo)));
+    if (!empresa || empresa.pasta_relativa!==$("empresa-pasta").value.replaceAll("\\","/").trim() || empresa.subpasta_livros!==$("empresa-subpasta").value.replaceAll("\\","/").trim() || empresa.regime_id!==$("empresa-regime").value || empresa.nome!==$("empresa-nome").value.trim()) {$("empresa-destino").textContent="Salve as alterações da empresa e use Editar antes de conferir o destino."; return;}
+    ocupado=true; controles(); const versao=versaoSessao;
+    try {const destino=await api(`empresas/${encodeURIComponent(codigo)}/destino-livros`,{method:"POST",body:JSON.stringify({competencia,testar_gravacao:testar})});
+      if (versao!==versaoSessao) return;
+      $("empresa-destino").textContent=`${destino.gravacao_confirmada ? "Gravação confirmada. Teste de pasta concluído; não emite relatório fiscal." : "Destino previsto; nenhuma pasta ou arquivo foi criado."} Pasta local: ${destino.caminho_local}. ${destino.caminho_dominio ? "No Domínio: "+destino.caminho_dominio+". " : ""}Arquivos previstos: ${destino.arquivos_previstos.join(", ")}.`;
+    } catch (erro) {if (versao===versaoSessao) $("empresa-destino").textContent=erro.message;}
+    finally {ocupado=false; controles();}
+  }
+  $("empresa-ver-destino").addEventListener("click",()=>conferirDestino(false));
+  $("empresa-testar-pasta").addEventListener("click",()=>conferirDestino(true));
   $("form-cadastro-rotina").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-cadastro-rotina").reportValidity()) return; if (await salvarCadastro("rotinas/cadastros",{nome:$("cadastro-rotina-nome").value})) $("form-cadastro-rotina").reset();});
   $("lote-filtro").addEventListener("change",()=>{selecionadas.clear(); invalidar(); exibirEmpresas();});
   $("lote-selecionar").addEventListener("click",()=>{for (const e of cadastro.empresas.filter(e=>!$("lote-filtro").value || e.regime_id===$("lote-filtro").value)) selecionadas.add(e.codigo); invalidar(); exibirEmpresas();});
@@ -172,7 +187,7 @@ const painelLotes=(()=>{
     for (const id of ["form-regime","form-empresa","form-lote"]) $(id).reset();
     for (const id of ["lote-empresas","lote-plano","lote-tarefas","regime-sequencia"]) $(id).replaceChildren();
     for (const [id,nome] of [["regime-editar","Criar regime"],["empresa-regime","Escolha o regime"],["lote-filtro","Todos os regimes"],["lote-historico","Nenhum lote"]]) opcoes($(id),[],nome);
-    $("regime-rotina").replaceChildren(); $("cadastro-aviso").textContent=$("lote-aviso").textContent=""; $("lote-resultado").textContent="Aguardando seleção"; invalidar();
+    $("regime-rotina").replaceChildren(); $("cadastro-aviso").textContent=$("lote-aviso").textContent=$("empresa-destino").textContent=""; $("lote-resultado").textContent="Aguardando seleção"; invalidar();
   }
   return {atualizar:atualizarPainel,controles,limpar};
 })();
