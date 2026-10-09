@@ -141,7 +141,7 @@ _CAPACIDADES = (
         pendencias=_PENDENCIAS_SPED,
     ),
     Capacidade(
-        id="efd_contribuicoes", nome="EFD Contribuições",
+        id="efd_contribuicoes", nome="Demonstrativo EFD Contribuições",
         objetivo="Gerar EFD PIS/COFINS pela rotina de exportação conhecida.",
         funcao="app.dominio.gerar_efd_contribuicoes", parametros=_PARAMETROS_SPED,
         contexto=_CONTEXTO, precondicoes=_PRECONDICOES + (

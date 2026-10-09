@@ -8,14 +8,26 @@ de ICMS. Atualizar/reiniciar o servidor após integrar a alteração e Ctrl+F5
 no cliente. Cadastros real/simulado continuam separados. Conferir nomes,
 regimes e empresas no banco do modo escolhido; não copiar empresas reais
 para a nuvem nem inventar códigos. Regimes existentes preservam sua
-sequência, com o vínculo ICMS acrescentado uma vez.
+sequência, com os vínculos ICMS e EFD integrada acrescentados uma vez.
+O usuário confirmou que o Demonstrativo é a EFD existente: foi renomeada
+e vinculada nos dois regimes; a cópia pendente foi arquivada no SQLite.
 
 No painel, cadastrar pelo nome → adicionar ao regime → Configurar →
 Salvar configuração → Enviar para validação. O envio marca uma pendência;
 não aprova ou libera roteiro novo no executor. Configurações desses novos
 cadastros ficam no SQLite; gravador JSON legado continua disponível.
-Faltam mapear as telas de Resumo, Demonstrativo e ICMS e integrar o teste,
+Faltam mapear as telas de Resumo e ICMS e integrar o teste,
 aprovação formal e execução remota de versões validadas.
+
+Empresa/código/regime são vinculados em Cadastrar ou editar empresa.
+PDFs confirmados emitidos pelo painel usam o nome cadastrado normalizado
+em minúsculas: `registro_saidas_empresa_exemplo_2026-08.pdf`.
+No lote, usar o nome congelado na revisão do plano. Não renomear arquivos
+de emissão falha/inconclusiva nem fora de `saida/`; preservar anteriores
+com sufixo e registrar o caminho final para download. Se a cópia falhar,
+preservar original e marcar nome_arquivo_nao_confirmado. A EFD integrada
+retorna bool, sem arquivo local para renomear. Resumo só gera arquivo após
+integração futura; sua convenção será `acumulador_empresa_AAAA-MM.pdf`.
 
 Teste real da nova regra: emissão falha numa rotina integrada, retorno por
 Esc até o painel azul e continuação na próxima rotina, preservando a falha.

@@ -120,6 +120,7 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     if not isinstance(chave, str) or len(chave) < 32:
         raise ValueError("Configure uma chave de acesso de pelo menos 32 caracteres.")
     pasta_saida = Path(pasta_saida).resolve()
+    servico.pasta_saida = pasta_saida
     autenticacao = HTTPBearer(auto_error=False)
 
     def autorizar(credenciais: HTTPAuthorizationCredentials | None = Depends(autenticacao)):

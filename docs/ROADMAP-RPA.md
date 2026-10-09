@@ -3,7 +3,10 @@
 **Prioridade em 09/10/2026:** concluir o piloto do Lucro Presumido com
 Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais
 de Entradas, Saídas e ICMS; expandir depois para Lucro Real. Cadastro por
-nome/configuração individual/envio à validação preparado. Aprovação formal
+nome/configuração individual/envio à validação preparado. Demonstrativo
+reutiliza a EFD integrada existente, renomeada e vinculada aos dois regimes;
+Resumo e ICMS aguardam configuração. PDFs do painel usam o nome cadastrado
+da empresa e competência, preservando emissões anteriores. Aprovação formal
 e promoção dos roteiros ao executor ainda pendentes. Lote registra falha
 e continua após recuperação confirmada até o painel azul/empresa correta;
 recuperação inconclusiva interrompe. Veja o
