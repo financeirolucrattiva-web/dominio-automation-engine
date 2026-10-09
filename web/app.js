@@ -10,6 +10,11 @@ const etapasLivros = ["validar_dados","identificar_empresa","abrir_livros","pree
 const motivos = {nome_arquivo_nao_confirmado:"O nome ou destino final do arquivo não foi confirmado; confira a saída e o log no servidor.",calibracao_indisponivel:"Calibre a tela principal no servidor.", dominio_fora_de_foco:"Deixe o Domínio visível na sessão do servidor.", tela_principal_nao_confirmada:"Confira a tela principal do Domínio no servidor.", empresa_nao_confirmada:"A empresa no servidor não corresponde ao código solicitado.", periodo_nao_confirmado:"Confira o período solicitado.", servidor_reiniciado:"O servidor reiniciou; confira o Domínio antes de uma nova execução.", erro_execucao_consulte_servidor:"Consulte o log local do servidor.", resultado_ou_retorno_nao_confirmado:"O resultado ou retorno não foi confirmado; confira o servidor.", executor_requer_windows:"O executor precisa de uma sessão Windows.", precondicao_nao_confirmada:"Confira as condições da sessão do servidor."};
 
 function aviso(texto) { $("aviso").textContent = texto; }
+function atualizarLimitePeriodo(id, limite) {
+  const campo=$(id);
+  // Reaplicar max durante a digitação reinicia a edição dos segmentos no Chromium.
+  if (campo.max!==limite) campo.max=limite;
+}
 function conectado(online) { $("conexao").textContent = online ? "Servidor conectado" : "Desconectado"; $("conexao").classList.toggle("online", online); }
 function selecionarTarefa(identificador) {
   if (tarefaAtual===identificador) return;
@@ -52,10 +57,10 @@ function atualizarCampos() {
   const competencia = item?.tipo_periodo==="competencia";
   $("campo-competencia").hidden=!competencia; $("competencia").disabled=!competencia;
   $("campo-datas").hidden=competencia;
-  for (const nome of ["inicio","fim"]) {$(nome).disabled=competencia; $(nome).max=estadoServidor?.periodo_anterior.fim || "";}
-  $("competencia").max=estadoServidor?.periodo_anterior.inicio.slice(0,7) || "";
+  for (const nome of ["inicio","fim"]) {$(nome).disabled=competencia; atualizarLimitePeriodo(nome,estadoServidor?.periodo_anterior.fim || "");}
+  atualizarLimitePeriodo("competencia",estadoServidor?.periodo_anterior.inicio.slice(0,7) || "");
   const periodo=periodoSelecionado();
-  $("periodo-competencia").textContent=periodo ? `Período: ${periodo.inicio.split("-").reverse().join("/")} a ${periodo.fim.split("-").reverse().join("/")}` : "Escolha a competência no calendário.";
+  $("periodo-competencia").textContent=periodo ? `Período: ${periodo.inicio.split("-").reverse().join("/")} a ${periodo.fim.split("-").reverse().join("/")}` : "Digite a competência ou escolha no calendário.";
 }
 function periodoSelecionado() {
   if (catalogo.find(c=>c.id===$("capacidade").value)?.tipo_periodo!=="competencia") return $("inicio").value && $("fim").value ? {inicio:$("inicio").value,fim:$("fim").value} : null;

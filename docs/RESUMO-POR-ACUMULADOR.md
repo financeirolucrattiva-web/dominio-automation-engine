@@ -51,6 +51,25 @@ preserva ordem, arquiva passos anteriores e evita duplicação. Não restaura
 rotinas removidas. ICMS continua pendente e bloqueia o lote completo;
 primeiro testar o Resumo individualmente.
 
+## Correção da abertura após a primeira tentativa
+
+O operador informou falha na etapa Abrir Resumo por Acumulador. A revisão
+encontrou a busca de submenu limitada aos 300 pixels superiores, recorte
+legado das outras rotinas. O item do Resumo fica mais abaixo no menu longo
+de Acompanhamentos. A busca desse submenu agora usa a captura completa,
+mantendo OCR e espera por estado. Não introduz coordenada fixa ou clique
+em item vizinho quando o texto não aparece.
+
+O console distingue Relatórios ausente, Acompanhamentos ausente, item
+Resumo ausente e formulário não confirmado. As capturas de diagnóstico
+continuam locais em capturas/. Um teste com OCR real em menu sintético
+confirma que o alvo abaixo de 300 pixels é encontrado. Ainda é necessário
+repetir no Windows para confirmar a causa da falha relatada.
+
+Os campos da interface permitem digitar ou usar o calendário. O limite
+de período só é reaplicado quando muda; atualizações do servidor não
+reiniciam a edição de um ano incompleto no navegador.
+
 ## Como testar
 
 1. Atualizar, reiniciar servidor e atualizar a página do painel.

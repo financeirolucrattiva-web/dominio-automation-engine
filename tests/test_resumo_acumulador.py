@@ -7,7 +7,9 @@ from pathlib import Path
 import tempfile
 import types
 import unittest
+import shutil
 from unittest.mock import Mock, patch
+from PIL import Image, ImageDraw, ImageFont
 
 from app import arquivos
 from app.formulario_resumo import campos_periodo
@@ -113,6 +115,8 @@ class TestResumoFluxo(unittest.TestCase):
             spec = importlib.util.spec_from_file_location("app._resumo_teste", Path(__file__).resolve().parents[1] / "app/dominio.py")
             self.d = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.d)
+        self.esperar_item_menu_real = self.d._esperar_item_menu
+        self.achar_texto_real = self.d.tela.achar_texto
         from app.estados import AcompanhamentoRotina
         self.rotina = AcompanhamentoRotina("resumo_acumulador", Path(self.pasta.name) / "logs")
         self.stack.enter_context(patch.object(self.d.estados, "AcompanhamentoRotina", return_value=self.rotina))
@@ -123,7 +127,7 @@ class TestResumoFluxo(unittest.TestCase):
         self.esc = self.stack.enter_context(patch.object(self.d.interacao, "pressionar_esc_no_dominio", return_value=True, create=True))
         self.stack.enter_context(patch.object(self.d, "_verificar_retorno_tela_principal", return_value="tela_principal_reconhecida"))
         self.stack.enter_context(patch.object(self.d, "salvar"))
-        self.stack.enter_context(patch.object(self.d, "_esperar_item_menu", return_value=(12, 34)))
+        self.menu = self.stack.enter_context(patch.object(self.d, "_esperar_item_menu", return_value=(12, 34)))
         self.stack.enter_context(patch.object(self.d, "_esperar_tela_resumo", return_value=("frame", (10, 20))))
         self.stack.enter_context(patch.object(self.d.estados, "esperar_por_estado", return_value=("frame", "previa", (30, 40))))
         self.stack.enter_context(patch.object(self.d.tela, "capturar_tela", return_value="frame"))
@@ -162,6 +166,31 @@ class TestResumoFluxo(unittest.TestCase):
         logs = self.rotina.caminho_log.read_text()
         self.assertNotIn("Empresa Fict", logs)
         self.assertNotIn(self.pasta.name, logs)
+        self.assertTrue(self.menu.call_args_list[1].kwargs["menu_completo"])
+
+    @unittest.skipUnless(shutil.which("tesseract"), "Tesseract nao instalado")
+    def test_item_baixo_no_submenu_e_localizado_por_ocr_real(self):
+        from app.mapa_menus import MapaMenus
+        imagem = Image.new("RGB", (1000, 760), "#2859a5")
+        desenho = ImageDraw.Draw(imagem)
+        desenho.rectangle((210, 130, 620, 700), fill="white")
+        desenho.text((235, 355), "Resumo por Acumulador", fill="black", font=ImageFont.load_default(size=16))
+        self.assertIsNone(self.achar_texto_real(self.d.tela.recortar_area_menu(imagem), "Resumo por Acumulador", escala=2))
+        mapa = MapaMenus(Path(self.pasta.name) / "mapa.json")
+        with patch.object(self.d.tela, "capturar_tela", return_value=imagem), \
+                patch.object(self.d.tela, "achar_texto", side_effect=self.achar_texto_real), \
+                patch("app.mapa_menus.MapaMenus", return_value=mapa):
+            pos = self.esperar_item_menu_real("relatorios/acompanhamentos", "Resumo por Acumulador",
+                                            "erro_sintetico.png", menu_completo=True)
+        self.assertIsNotNone(pos)
+        self.assertGreater(pos[1], 300)
+        self.assertLess(pos[1], 390)
+
+    def test_item_do_resumo_ausente_nao_clica_em_vizinho_ou_gera(self):
+        self.menu.side_effect = [(12, 34), None]
+        self.assertEqual(self.executar(), (False, None))
+        self.d.interacao.clicar_com_desvio.assert_not_called()
+        self.d.estados.esperar_por_estado.assert_not_called()
 
     def test_periodo_corrente_ou_campo_nao_confirmado_nao_gera(self):
         self.assertEqual(self.executar("01/08/2026", "01/01/2099"), (False, None))

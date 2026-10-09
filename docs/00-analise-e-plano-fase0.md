@@ -4219,6 +4219,37 @@ untracked, merge pendente, HEAD destacado, ausência de main local,
 refspec restrito e origem indisponível. Compilação conferida. O novo BAT
 não foi executado no CMD do operador; a recuperação manual acima foi.
 
+### 0.96 Digitação de datas e abertura do Resumo por Acumulador (09/10/2026)
+
+**Evidência:** operador relatou apagamento do campo antes de terminar a
+digitação e falha do Resumo na etapa de abertura. Também reafirmou a rotina
+conjunta Livros Fiscais para Entradas, Saídas e ICMS, com três PDFs.
+
+**Achados:** Chromium reproduziu reinício dos segmentos de data/ano ao
+reaplicar max com o mesmo valor em cada input/poll. A busca de menu do
+motor recortava só os primeiros 300 pixels, excluindo o item do Resumo
+no submenu longo de Acompanhamentos. O operador informou apenas a etapa,
+sem console/captura; o recorte é um erro confirmado no código, ainda não
+é confirmação da causa exata daquela execução Windows.
+
+**Correção:** helper atualiza max apenas quando muda, nos sete campos de
+datas/competências. Mantém input date/month, teclado, calendário e validação.
+Cache web v9. Somente o submenu do Resumo usa a captura completa na busca
+OCR, sem coordenadas fixas. Console/capturas locais distinguem barra,
+Acompanhamentos, item Resumo e confirmação do formulário. Ausência do alvo
+continua interrompendo sem clicar em vizinho ou gerar.
+
+**Validação:** 404 testes passaram; sintaxe Python/JavaScript conferida.
+Novo caso usa OCR real em menu sintético com alvo abaixo de 300 pixels;
+outro verifica item ausente sem emissão. Smoke de destinos passou com
+digitação do ano vazio/parcial nos sete campos e chamadas reais à API
+entre teclas. A emissão fiscal/desktop não foi executada nesta nuvem.
+
+**Pendência explícita:** Livros Fiscais será a emissão conjunta dos três
+PDFs; permanece não integrada. O painel agora explica que Entradas/Saídas
+estão integradas individualmente e ICMS só cadastrado. Sem alteração de
+regimes/vínculos ou liberação da rotina conjunta neste ajuste.
+
 ---
 
 ## 1. Análise do projeto

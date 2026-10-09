@@ -20,8 +20,9 @@ const painelLotes=(()=>{
     $("lote-apuracao").disabled=!plano;
     const competencia=$("lote-tipo-periodo").value==="competencia";
     $("lote-campo-competencia").hidden=!competencia; $("lote-campo-datas").hidden=competencia; $("lote-competencia").disabled=!competencia;
-    $("lote-competencia").max=estadoServidor?.periodo_anterior.inicio.slice(0,7) || ""; $("empresa-competencia").max=$("lote-competencia").max;
-    for (const id of ["lote-inicio","lote-fim"]) {$(id).disabled=competencia; $(id).max=estadoServidor?.periodo_anterior.fim || "";}
+    const mesMaximo=estadoServidor?.periodo_anterior.inicio.slice(0,7) || "";
+    for (const id of ["lote-competencia","empresa-competencia"]) atualizarLimitePeriodo(id,mesMaximo);
+    for (const id of ["lote-inicio","lote-fim"]) {$(id).disabled=competencia; atualizarLimitePeriodo(id,estadoServidor?.periodo_anterior.fim || "");}
     const ativo=detalhe?.tarefas?.some(t=>t.id===estadoServidor?.controle_execucao?.tarefa_id);
     const estado=estadoServidor?.controle_execucao?.estado;
     $("lote-pausar").hidden=!ativo; $("lote-pausar").disabled=!online || ocupado || estado==="pausa_solicitada";

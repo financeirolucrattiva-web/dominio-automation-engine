@@ -1,4 +1,4 @@
-"""Cadastro/prévia/teste de pasta no Chromium; sem Domínio ou PDF fiscal."""
+"""Digitação de datas e cadastro/prévia/teste de pasta no Chromium, sem Domínio."""
 import json
 from pathlib import Path
 import shutil
@@ -14,6 +14,27 @@ from playwright.sync_api import expect, sync_playwright
 import uvicorn
 from app.api_servidor import criar_app
 from app.servidor import RepositorioTarefas, ServicoExecucao
+
+
+def digitar_ano_com_pausas(page, identificador, tipo):
+    campo = page.locator("#" + identificador)
+    valor = "2001-02-28" if tipo == "date" else "2001-02"
+    esperado = valor.replace("2001", "2024")
+    assert campo.get_attribute("type") == tipo, "O calendário nativo precisa continuar disponível"
+    campo.fill(valor)
+    campo.click(position={"x": 18, "y": 18})
+    for _ in range(2 if tipo == "date" else 1):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Backspace")
+    assert campo.input_value() == "" and campo.evaluate("c => c.validity.badInput")
+    page.evaluate("atualizar()")  # Atualização real da API enquanto o ano está vazio.
+    assert campo.input_value() == "" and campo.evaluate("c => c.validity.badInput")
+    page.keyboard.type("20")
+    page.evaluate("atualizar()")  # Pausa no meio da digitação do ano.
+    page.keyboard.type("24")
+    expect(campo).to_have_value(esperado)
+    assert campo.evaluate("c => c.checkValidity()")
+    assert not page.locator("#apuracao").is_checked()
 
 
 with tempfile.TemporaryDirectory() as temporaria:
@@ -59,6 +80,20 @@ with tempfile.TemporaryDirectory() as temporaria:
             expect(page.locator("#descricao")).to_contain_text("teste supervisionado")
             expect(page.locator("#campo-datas")).to_be_visible()
             expect(page.locator("#competencia")).to_be_disabled()
+            for identificador in ("inicio", "fim"):
+                page.locator("#apuracao").check()
+                digitar_ano_com_pausas(page, identificador, "date")
+            page.locator("#capacidade").select_option("sped_fiscal")
+            page.locator("#apuracao").check()
+            digitar_ano_com_pausas(page, "competencia", "month")
+            page.locator("#capacidade").select_option("resumo_acumulador")
+            page.locator("#config-lotes summary").click()
+            page.locator("#lote-tipo-periodo").select_option("datas")
+            for identificador in ("lote-inicio", "lote-fim"):
+                digitar_ano_com_pausas(page, identificador, "date")
+            page.locator("#lote-tipo-periodo").select_option("competencia")
+            digitar_ano_com_pausas(page, "lote-competencia", "month")
+            page.locator("#config-lotes summary").click()
             page.locator("#config-empresas summary").click()
             page.locator("#empresa-codigo").fill("52")
             page.locator("#empresa-nome").fill("Empresa Fictícia")
@@ -70,7 +105,7 @@ with tempfile.TemporaryDirectory() as temporaria:
             page.locator("#config-lotes summary").click()
             page.locator("#lote-empresas button").filter(has_text="Editar").click()
             expect(page.locator("#empresa-pasta")).to_have_value(relativa)
-            page.locator("#empresa-competencia").fill("2024-02")
+            digitar_ano_com_pausas(page, "empresa-competencia", "month")
             page.locator("#empresa-ver-destino").click()
             expect(page.locator("#empresa-destino")).to_contain_text("nenhuma pasta ou arquivo foi criado")
             destino = raiz / relativa / "2024/FISCAL/02/RELATORIOS_APURAÇÃO/LIVROS_FISCAIS"
