@@ -26,6 +26,12 @@ foram preservados. Pode abrir
 os atalhos por duplo clique dentro de suas pastas. Esta organização não
 exige reinstalar aplicativos ou apagar `data/`.
 
+`Atualizar.bat` abre a `main` e avança somente para commits publicados,
+sem criar merge ou exigir nome/e-mail no Git. Alterações locais e histórico
+divergente interrompem a atualização para revisão. Veja
+[como atualizar e recuperar o atalho antigo](docs/ATUALIZACAO.md), inclusive
+o erro `Committer identity unknown`.
+
 ## Site conectado ao servidor
 
 O projeto agora inclui uma interface web para enviar tarefas individuais
