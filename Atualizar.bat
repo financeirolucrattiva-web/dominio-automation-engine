@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-git pull origin main
+python scripts\atualizar_projeto.py
 if errorlevel 1 goto atualizacao_falhou
 echo.
 echo Conferindo dependencias (so instala o que mudou)...

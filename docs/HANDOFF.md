@@ -1,5 +1,29 @@
 # Domínio Automation Engine — handoff
 
+## Atualizador sem commit de merge — 09/10/2026
+
+Operador informou fetch bb50f50..868c5be seguido de Committer identity
+unknown. Atualizar.bat usava git pull origin main: integra main na branch
+atual, podendo exigir merge. O log não informa qual era a branch local;
+não presumir que fosse a do Claude. Comando de recuperação informado:
+git switch main && git pull --ff-only origin main, sem configurar identidade.
+Operador confirmou troca para main e fast-forward bb50f50..868c5be,
+com os novos arquivos de destinos e Resumo por Acumulador.
+
+Atalho agora usa scripts/atualizar_projeto.py (somente biblioteca padrão).
+Confere raiz/estado local, busca explicitamente origin/main, confere se a
+main local é ancestral e abre main antes do avanço --ff-only. Commits de
+outras branches permanecem nelas. Operação pendente, alterações tracked,
+HEAD destacado ou main divergente interrompem sem reset/stash/rebase.
+Git protege arquivos untracked que colidiriam; --no-overwrite-ignore na
+troca/avanço também protege dados ignorados. Falha retorna código 1,
+impedindo instalação de dependências no BAT.
+
+Quatorze testes com repositórios Git reais locais, sem identidade configurada,
+confirmam avanço, troca de branch, preservação de trabalho/dados, conflito
+pendente, origem indisponível e refspec restrito. Não executado no CMD do
+Windows do operador. Passo a passo em docs/ATUALIZACAO.md e seção 0.95.
+
 ## Resumo por Acumulador pronto para teste individual — 09/10/2026
 
 Operador enviou formulário com Data inicial/Data final/OK e prévia com

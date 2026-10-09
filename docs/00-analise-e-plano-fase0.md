@@ -4190,6 +4190,35 @@ são sintéticos. Compilação conferida antes de publicar. Não foram medidos
 os prints inline, calibrados offsets novos ou emitidos documentos reais.
 Falta teste Windows de OCR/foco/exportação/PDF/fechamento e conferência fiscal.
 
+### 0.95 Atualização sem identidade de committer (09/10/2026)
+
+**Evidência:** operador executou Atualizar.bat e recebeu fetch
+bb50f50..868c5be seguido de Committer identity unknown. O atalho usava
+git pull origin main, que integra a main remota na branch atual e pode
+exigir um commit de merge. Não era falha do download. A branch inicial
+não apareceu no log, portanto não foi deduzida.
+
+**Recuperação confirmada:** operador executou git switch main &&
+git pull --ff-only origin main. O log confirmou troca para main e avanço
+bb50f50..868c5be por fast-forward, com os arquivos de destino e Resumo.
+Não foi necessário configurar identidade ou apagar dados.
+
+**Correção:** Atualizar.bat chama scripts/atualizar_projeto.py, somente
+biblioteca padrão. Confere raiz/estado, busca explicitamente origin/main,
+abre main e exige avanço --ff-only. Commits de outras branches permanecem
+nelas. Alterações tracked, integração pendente, HEAD destacado e commits
+exclusivos na main interrompem sem stash/reset/rebase; falha retorna 1
+antes de instalar dependências. Arquivos novos que colidiriam são protegidos
+pelo Git; --no-overwrite-ignore protege dados ignorados também na troca
+de branch e no avanço. Documentado em ATUALIZACAO.md.
+
+**Validação:** 14 testes contra repositórios Git reais locais passaram sem
+identidade configurada. Cobrem avanço sem commit novo, branch de documento,
+main divergente, alterações no índice/worktree, dados ignorados, colisão
+untracked, merge pendente, HEAD destacado, ausência de main local,
+refspec restrito e origem indisponível. Compilação conferida. O novo BAT
+não foi executado no CMD do operador; a recuperação manual acima foi.
+
 ---
 
 ## 1. Análise do projeto

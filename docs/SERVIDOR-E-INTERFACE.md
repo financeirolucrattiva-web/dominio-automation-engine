@@ -10,6 +10,10 @@ Para o teste em dois PCs na mesma rede, o PC atual com Domínio pode
 assumir temporariamente a execução. A conexão entre os PCs e os
 instaladores Windows ainda precisam da rodada real do operador.
 
+Para atualizar, feche o servidor e rode `Atualizar.bat`: abre a `main`
+sem criar commits. Se o atalho antigo apresentar `Committer identity unknown`,
+siga a [recuperação da atualização](ATUALIZACAO.md) antes de rodar o motor.
+
 ## Dois instaladores, dois papéis
 
 | Computador | Instalador | Componentes |
