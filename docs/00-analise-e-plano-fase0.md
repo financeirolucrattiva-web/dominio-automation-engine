@@ -4046,6 +4046,33 @@ implementados neste incremento.
 
 ---
 
+### 0.91 Mapeamento de emissão conjunta de Livros Fiscais (09/10/2026)
+
+**Achado pelas telas e instruções do operador:** a aba Geral de Livros
+Fiscais permite selecionar Entradas, Saídas e ICMS com o mesmo período.
+Depois de OK/processamento, a primeira prévia pode ser qualquer livro.
+O ícone PDF abre um menu; a opção escolhida é “Gerar um arquivo PDF para
+cada relatório”. Ela abre “Procurar Pasta”, com Unidade/árvore/OK, distinto
+do diálogo de nome de arquivo usado pelo gerador individual antigo.
+As capturas mostram Servidor (C:) e depois Client C (M:).
+
+**Consequências para a implementação:** não alternar caixas já marcadas;
+confirmar as três seleções e datas. Não tratar a ordem da prévia como
+identidade do PDF. Reutilizar a conversão de caminho local para unidade
+cliente da seção 0.59, com destino configurável. O usuário vai solicitar
+um esquema do servidor para confirmar pasta local Dropbox, organização
+e acesso. Não fixar usuário nem caminho pessoal no código. A API atual
+guarda um caminho por tarefa; a conjunta precisará guardar resultados e
+downloads de cada documento e evitar emissão duplicada no lote.
+
+**Estado:** [mapeamento detalhado](LIVROS-FISCAIS-CONJUNTOS.md), sem mudar
+geradores nem habilitar emissão. Faltam navegação real no seletor,
+arquivos produzidos, título/conteúdo do ICMS e retorno das prévias.
+Imagens não foram versionadas nem medidas por OCR nesta sessão; nenhum
+offset novo calibrado e nenhum log de teste automatizado no Windows.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
