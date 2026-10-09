@@ -5,6 +5,7 @@ from contextvars import ContextVar
 import threading
 
 _ATUAL = ContextVar("controle_da_execucao", default=None)
+_VERIFICAR_ACAO = ContextVar("verificacao_antes_da_acao", default=None)
 
 
 class ExecucaoInterrompida(RuntimeError):
@@ -102,7 +103,20 @@ def verificar_retomada(preparar):
         controle._preparar_retomada = anterior
 
 
+@contextmanager
+def verificar_antes_de_agir(verificar):
+    """Verificação da sessão em cada checkpoint de mouse/teclado."""
+    token = _VERIFICAR_ACAO.set(verificar)
+    try:
+        yield
+    finally:
+        _VERIFICAR_ACAO.reset(token)
+
+
 def ponto_seguro():
     controle = _ATUAL.get()
     if controle is not None:
         controle.ponto_seguro()
+    verificar = _VERIFICAR_ACAO.get()
+    if verificar is not None:
+        verificar()

@@ -331,7 +331,7 @@ def _fechar_caixa_erro(texto_lido, prefixo=""):
     interacao.pressionar_enter()
 
 
-def trocar_empresa(codigo, prefixo=""):
+def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     """Troca a empresa selecionada no Domínio via F8, buscando por
     código (seção 0.14). Assume que o modo de busca "Busca por" já está
     em Código — o Domínio lembra do último modo usado, não volta pro
@@ -347,6 +347,10 @@ def trocar_empresa(codigo, prefixo=""):
     Devolve True se clicou em "Acessar" e confirmou que a tela de troca
     fechou, False se algo falhou no caminho (fica registrado por print
     + screenshot de erro).
+
+    O executor fornece `recuperar_inicio`: retorno verificado ao painel
+    azul, um Esc por vez, antes da única nova tentativa de F8. Chamadas
+    locais antigas sem callback mantêm o fluxo legado de exploração.
     """
     # Refaz o foco no Domínio antes de qualquer ação (seção 0.6) — não
     # só uma vez no início do lote inteiro. Achado real, seção 0.28: o
@@ -374,7 +378,12 @@ def trocar_empresa(codigo, prefixo=""):
         # 1 vez, antes de desistir de verdade.
         print("Não achei o botão 'Acessar' — talvez uma tela anterior tenha ficado presa. Tentando limpar (Esc) e F8 de novo...")
         salvar(imagem, f"{prefixo}erro_f8.png")
-        interacao.pressionar_esc_repetidas()
+        if recuperar_inicio is not None:
+            if not recuperar_inicio():
+                print("Não confirmei o painel azul para tentar F8 novamente.")
+                return False
+        else:
+            interacao.pressionar_esc_repetidas()
         interacao.focar_dominio()
         interacao.pressionar_tecla("f8")
         time.sleep(1)

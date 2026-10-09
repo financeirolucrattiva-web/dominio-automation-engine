@@ -1,5 +1,32 @@
 # Domínio Automation Engine — handoff
 
+## Travas de empresa e preparação de sessão — 09/10/2026
+
+Pedido seguinte: código cadastrado X deve determinar a empresa alvo,
+mesmo se o Domínio mostrar Y; recuperação segura de telas fora do padrão.
+O executor individual agora também usa F8. Individual/lote releem código
+e painel azul imediatamente antes do gerador, mesmo sem trocar empresa.
+Código ilegível ou divergente após F8 bloqueia emissão. Busca por Código
+na tela F8 ainda é pressuposto legado; conferir no teste Windows.
+
+Preparação com tela aberta usa recuperação calibrada existente (até cinco
+Esc, um por vez, parando no painel azul), antes de identificar/trocar a
+empresa. `trocar_empresa()` aceita callback `recuperar_inicio`; o executor
+o fornece na única nova tentativa de F8. Evita o Esc repetido legado nesse
+caminho. Chamadas locais sem callback preservam fluxo anterior.
+
+`verificar_antes_de_agir()` verifica foco nos checkpoints de mouse/teclado
+da preparação/geração. O bloqueio é persistente durante essa execução: não
+libera ações se o gerador absorver a exceção e o foco voltar depois.
+Antes de gerar, perda de foco recusa a tarefa; durante a geração é falha
+recuperável pelo worker, sem repetir a emissão.
+Encerramento/cancelamento/retomada continuam respeitados. Recuperação após
+falha mantém a política anterior: painel azul + código da empresa corretos
+para ir à próxima; não reconhecer interrompe. Emissão conjunta de Livros
+continua pendente do esquema do servidor e da implementação/exportação.
+355 testes de lógica/API passaram, além do smoke Chromium com fiscal/login
+simulados. Homologação das travas e troca na sessão Windows ainda pendente.
+
 ## Mapeamento de 09/10/2026 — Livros Fiscais conjuntos
 
 O operador pediu Entradas, Saídas e ICMS selecionados no mesmo formulário,
