@@ -52,14 +52,26 @@ Configurar novas rotinas salva rascunhos compatíveis com o gravador para
 revisão e teste; ainda não executa rascunhos remotamente. Cadastre regimes
 com as rotinas integradas na ordem escolhida e atribua um regime a cada
 empresa. O lote faz todas as rotinas da empresa antes de trocar para a
-próxima, com calendário, revisão, pausa e interrupção. Falha ou retorno
-não confirmado interrompe o restante. Agendamento é futuro no
+próxima, com calendário, revisão, pausa e interrupção. Após uma falha,
+recuperação confirmada até a tela azul permite continuar a sequência;
+sem recuperação confirmada, interrompe o restante. Agendamento é futuro no
 [roadmap](docs/ROADMAP-RPA.md). Lote, novos controles e login precisam da
 rodada Windows; testes da nuvem usam execução e autenticação simuladas.
 
 ![Site com tarefa simulada](docs/preview-interface-conectada.png)
 
 ## Estado atual: consolidar execução e recuperação — incremento 2 do RPA
+
+**Roadmap para administradores e supervisores:**
+[ROADMAP-GESTAO.md](docs/ROADMAP-GESTAO.md), com o piloto inicial de Lucro
+Presumido e posterior expansão para Lucro Real. O servidor atualizado
+prepara os regimes com Resumo por Acumulador, Demonstrativo EFD
+Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. As rotinas novas
+podem ser cadastradas pelo nome, configuradas individualmente e enviadas
+à validação no painel. Isso ainda não aprova nem libera sua execução remota.
+O lote agora preserva a falha da rotina e continua após confirmar a
+recuperação até a tela azul; sem recuperação confirmada, interrompe.
+Conferência e recuperação desta versão precisam da rodada Windows.
 
 👉 **[docs/00-analise-e-plano-fase0.md](docs/00-analise-e-plano-fase0.md)**
 — riscos técnicos, achados confirmados (Domínio é entregue via GraphOn

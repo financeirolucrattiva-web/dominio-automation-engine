@@ -88,6 +88,7 @@ def main(argv=None):
     nome_banco = "servidor_simulado.sqlite3" if args.simular else "servidor.sqlite3"
     try:
         servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo, login=login)
+        servico.repositorio.configuracao.preparar_piloto()
         app = criar_app(servico, chave)
         print(f"Modo do servidor: {modo}. Porta {args.porta}.")
         if args.rede_local:

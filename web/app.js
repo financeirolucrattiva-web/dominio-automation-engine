@@ -1,9 +1,10 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let chave = "", estadoServidor = null, catalogo = [], tarefaAtual = null, pedidoPendente = null, enviando = false, versaoSessao = 0, atualizando = false, leituraAtual = 0, conectando = false, controlando = false, configurando = false, solicitacaoCodigo = null, capturaPendente = false, limiteCaptura = null;
-const nomesStatus = {pendente:"Aguardando executor", executando:"Em execução", concluida:"Concluída pela rotina", falha:"Falhou", recusada:"Pré-condição recusada", nao_confirmada:"Resultado não confirmado", interrompida:"Interrompida"};
+const nomesStatus = {pendente:"Aguardando executor", executando:"Em execução", concluida:"Concluída pela rotina", concluida_com_falhas:"Finalizada com falhas · revisar pendências", falha:"Falhou", recusada:"Pré-condição recusada", nao_confirmada:"Resultado não confirmado", interrompida:"Interrompida"};
 const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preencher período", identificar_formulario:"Identificar formulário", gerar_documento:"Gerar documento", encerrar:"Encerrar e conferir retorno", validar_dados:"Validar dados", identificar_empresa:"Identificar empresa", abrir_livros:"Abrir Livros Fiscais", gerar_previa:"Gerar prévia", exportar_pdf:"Exportar PDF", conferir_pdf:"Conferir PDF", recuperar_interface:"Recuperar interface", fim:"Resultado da rotina"};
 const estados = {inicio:"Em andamento", confirmado:"Confirmado", acao_executada:"Ação enviada", resultado_nao_verificado:"Não verificado", inconclusivo:"Inconclusivo", falha:"Falhou", concluido:"Concluído pela rotina"};
+let rotinaCadastroAtual=null;
 const etapasGeracao = ["navegar_menu","preencher_periodo","identificar_formulario","gerar_documento","encerrar"];
 const etapasLivros = ["validar_dados","identificar_empresa","abrir_livros","preencher_periodo","gerar_previa","exportar_pdf","conferir_pdf","encerrar"];
 const motivos = {calibracao_indisponivel:"Calibre a tela principal no servidor.", dominio_fora_de_foco:"Deixe o Domínio visível na sessão do servidor.", tela_principal_nao_confirmada:"Confira a tela principal do Domínio no servidor.", empresa_nao_confirmada:"A empresa no servidor não corresponde ao código solicitado.", periodo_nao_confirmado:"Confira o período solicitado.", servidor_reiniciado:"O servidor reiniciou; confira o Domínio antes de uma nova execução.", erro_execucao_consulte_servidor:"Consulte o log local do servidor.", resultado_ou_retorno_nao_confirmado:"O resultado ou retorno não foi confirmado; confira o servidor.", executor_requer_windows:"O executor precisa de uma sessão Windows.", precondicao_nao_confirmada:"Confira as condições da sessão do servidor."};
@@ -30,6 +31,11 @@ async function api(caminho, opcoes = {}) {
   finally {clearTimeout(limite);}
 }
 function desconectar() {
+  rotinaCadastroAtual=null;
+  $("nova-rotina-avulsa").hidden=true;
+  $("salvar-rotina").textContent="Salvar rascunho no servidor";
+  $("rotina-contexto").textContent="Monte um roteiro para revisão e teste supervisionado.";
+  $("rotinas-cadastradas").replaceChildren(); $("form-cadastro-rotina").reset();
   versaoSessao++; chave=""; estadoServidor=null; selecionarTarefa(null); pedidoPendente=null; catalogo=[];
   painelLotes.limpar();
   $("conteudo").hidden=true; $("sair").hidden=true; $("login").hidden=false; conectado(false);
@@ -224,7 +230,7 @@ $("form-login").addEventListener("submit",async(e)=>{
   } catch (erro) {if (versao===versaoSessao) {chave=""; aviso(erro.message);}}
   finally {conectando=false;}
 });
-function adicionarPasso() {
+function adicionarPasso(passo=null) {
   if ($("rotina-passos").children.length>=80) return;
   const linha=document.createElement("div"); linha.className="passo-rotina";
   const tipo=document.createElement("select"); tipo.setAttribute("aria-label","Tipo de ação");
@@ -238,7 +244,10 @@ function adicionarPasso() {
       for (const [valor,nome] of opcoes) {const opcao=document.createElement("option"); opcao.value=valor; opcao.textContent=nome; campo.append(opcao);} valores.append(campo);
     }
   }
-  tipo.addEventListener("change",atualizarValor); atualizarValor();
+  tipo.addEventListener("change",atualizarValor);
+  if (passo?.tipo) tipo.value=passo.tipo;
+  atualizarValor();
+  if (passo?.valor) valores.querySelector("input,select").value=passo.valor;
   const remover=document.createElement("button"); remover.type="button"; remover.className="secundario"; remover.textContent="Remover"; remover.addEventListener("click",()=>linha.remove());
   linha.append(tipo,valores,remover); $("rotina-passos").append(linha);
 }
@@ -246,15 +255,28 @@ function exibirRotinas(rotinas) {
   $("rotinas-configuradas").replaceChildren();
   for (const rotina of rotinas) {const linha=document.createElement("tr"); celula(linha,rotina.nome); celula(linha,rotina.status==="aprovada" ? "Aprovada no gravador" : "Rascunho · precisa de revisão"); celula(linha,String(rotina.quantidade_passos)); $("rotinas-configuradas").append(linha);}
 }
-$("adicionar-passo").addEventListener("click",adicionarPasso); adicionarPasso();
+async function configurarRotinaCadastrada(id) {
+  if (configurando || !chave || !estadoServidor || !navigator.onLine) return;
+  const versao=versaoSessao; configurando=true;
+  try {const rotina=await api(`rotinas/cadastros/${id}`); if (versao!==versaoSessao) return;
+    rotinaCadastroAtual=id; $("config-rotinas").open=true; $("rotina-nome").value=rotina.nome; $("rotina-passos").replaceChildren();
+    for (const passo of rotina.passos) adicionarPasso(passo); if (!rotina.passos.length) adicionarPasso();
+    $("rotina-contexto").textContent=`Configurando ${rotina.nome}. Salvar alterações devolve a rotina a rascunho para nova revisão. A configuração vale para todos os regimes vinculados.`;
+    $("nova-rotina-avulsa").hidden=false; $("salvar-rotina").textContent="Salvar configuração da rotina";
+    $("rotina-aviso").textContent=""; $("rotina-nome").focus();
+  } catch (erro) {if (versao===versaoSessao) $("cadastro-aviso").textContent=erro.message;}
+  finally {configurando=false;}
+}
+$("nova-rotina-avulsa").addEventListener("click",()=>{rotinaCadastroAtual=null; $("form-rotina").reset(); $("rotina-passos").replaceChildren(); adicionarPasso(); $("nova-rotina-avulsa").hidden=true; $("salvar-rotina").textContent="Salvar rascunho no servidor"; $("rotina-contexto").textContent="Novo rascunho avulso para revisão no gravador local.";});
+$("adicionar-passo").addEventListener("click",()=>adicionarPasso()); adicionarPasso();
 $("form-rotina").addEventListener("submit",async e=>{
   e.preventDefault(); if (configurando || !chave || !estadoServidor || !navigator.onLine || !$("form-rotina").reportValidity()) return;
   const passos=[...$("rotina-passos").children].map(linha=>({tipo:linha.querySelector("select").value,valor:linha.querySelector(".valor-passo input,.valor-passo select").value}));
   if (!passos.length) {$("rotina-aviso").textContent="Adicione pelo menos um passo."; return;}
   const versao=versaoSessao; configurando=true; $("salvar-rotina").disabled=true;
-  try {const rotina=await api("rotinas",{method:"POST",body:JSON.stringify({nome:$("rotina-nome").value,passos})});
+  try {const rotina=await api(rotinaCadastroAtual ? `rotinas/cadastros/${rotinaCadastroAtual}` : "rotinas",{method:rotinaCadastroAtual ? "PUT" : "POST",body:JSON.stringify({nome:$("rotina-nome").value,passos})});
     if (versao!==versaoSessao) return;
-    $("rotina-aviso").textContent=`${rotina.nome}: rascunho salvo. Revise e teste no fluxo do gravador antes de aprovar.`;
+    $("rotina-aviso").textContent=rotinaCadastroAtual ? `${rotina.nome}: configuração salva como rascunho. No cadastro, envie para validação. A execução continua bloqueada.` : `${rotina.nome}: rascunho salvo. Revise e teste no fluxo do gravador antes de aprovar.`;
     await atualizar();
   } catch (erro) {if (versao===versaoSessao) $("rotina-aviso").textContent=erro.message;}
   finally {configurando=false; $("salvar-rotina").disabled=false; atualizarLogin();}

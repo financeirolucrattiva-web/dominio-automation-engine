@@ -1,5 +1,34 @@
 # Domínio Automation Engine — handoff
 
+## Entrega de 09/10/2026 — cadastro e roadmap de gestão
+
+Pedido confirmado: preparar Lucro Presumido e Lucro Real; primeiro piloto
+somente Lucro Presumido. Indicadores: Resumo por Acumulador, Demonstrativo
+EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O ICMS é
+cadastro próprio pendente, não SPED Fiscal; título/tela exatos ainda precisam
+de mapeamento. `scripts/servidor.py` prepara os cadastros uma vez no SQLite,
+sem empresas reais, preservando sequências existentes; a migração ICMS
+acrescenta esse vínculo aos dois regimes uma vez.
+
+Cadastro por nome, vínculo por ID, configuração individual e envio à
+validação no painel. Estados pendente_configuracao/rascunho/aguardando_validacao;
+editar devolve a rascunho. Roteiros do cadastro ficam no SQLite, separados dos
+JSON do gravador legado. Faltam aprovação formal/evidências/versionamento e
+ligação desses roteiros ao executor. Cadastro não aprova nem habilita emissão.
+
+Pedido seguinte mudou a política de falhas do lote: registra a falha,
+recupera até a tela azul e continua na próxima rotina. O adapter reutiliza
+Esc com HWND/foco conferidos, uma ação por vez, até cinco ações; confere
+tela calibrada e código da empresa antes de liberar continuação. Não repete
+emissão, não reinicia servidor e não envia OK genérico. Pré-condição recusada,
+cancelamento ou recuperação inconclusiva ainda interrompem. O resultado do
+lote pode ser concluida_com_falhas, preservando resultados de cada item.
+
+Veja [ROADMAP-GESTAO.md](ROADMAP-GESTAO.md) para o relatório aos gestores,
+responsáveis propostos e critérios de conclusão. Esta entrega precisa ser
+instalada e revalidada no Windows. O histórico abaixo descreve versões
+anteriores e sua política anterior de interromper após qualquer falha.
+
 ## Estado para retomada em 08/10/2026
 
 Repositório atual: `financeirolucrattiva-web/dominio-automation-engine`,

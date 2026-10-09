@@ -40,6 +40,11 @@ class LoginSimulado:
 
 
 def fiscal(dados, receber):
+    if getattr(fiscal,'falhar_proxima',False):
+        fiscal.falhar_proxima=False
+        receber({'execution_id':dados['request_id'].replace('-',''),'routine_id':dados['capacidade'],
+                 'attempt':1,'step':'fim','status':'falha','elapsed_seconds':0,'evidence':None})
+        return False
     for etapa in ('navegar_menu','preencher_periodo','identificar_formulario','gerar_documento','encerrar','fim'):
         ponto_seguro()
         time.sleep(.7)
@@ -51,6 +56,7 @@ def fiscal(dados, receber):
 
 # O navegador exercita o mesmo contrato do adapter de lote, sem desktop.
 fiscal.executar_em_lote = fiscal
+fiscal.recuperar_em_lote = lambda dados: True  # confirmação sintética, sem desktop
 
 
 executavel = os.environ.get('DOMINIO_BROWSER_BIN') or shutil.which('chromium') or shutil.which('chromium-browser')
@@ -170,6 +176,13 @@ with tempfile.TemporaryDirectory() as pasta:
             page.locator('#lote-cancelar').click()
             expect(page.locator('#lote-resultado')).to_contain_text('Interrompida',timeout=6000)
             expect(page.locator('#lote-cancelar')).to_be_hidden()
+            fiscal.falhar_proxima=True
+            page.locator('#lote-competencia').fill('2024-02'); page.locator('#lote-planejar').click()
+            expect(page.locator('#lote-plano tr')).to_have_count(3)
+            page.locator('#lote-apuracao').check(); page.locator('#lote-executar').click()
+            expect(page.locator('#lote-resultado')).to_contain_text('Finalizada com falhas',timeout=18000)
+            expect(page.locator('#lote-resultado')).to_contain_text('2/3 rotinas concluídas')
+            expect(page.locator('#lote-tarefas tr').first).to_contain_text('Falhou')
             page.locator('#capacidade').select_option('registro_saidas')
             expect(page.locator('#campo-datas')).to_be_visible()
             expect(page.locator('#competencia')).to_be_disabled()
@@ -199,6 +212,32 @@ with tempfile.TemporaryDirectory() as pasta:
             expect(page.locator('#rotina-aviso')).to_contain_text('rascunho salvo',timeout=5000)
             expect(page.locator('#rotinas-configuradas')).to_contain_text('Roteiro simulado')
             assert len(list((root/'rotinas').glob('*.json')))==1
+            # Pré-cadastro pedido: metadados, sem promover rotinas ou executar.
+            repo.configuracao.preparar_piloto()
+            expect(page.locator('#empresa-regime option')).to_have_count(5,timeout=6000)
+            resumo=page.locator('#rotinas-cadastradas tr').filter(has_text='Resumo por Acumulador')
+            expect(resumo).to_contain_text('Lucro Presumido, Lucro Real')
+            expect(resumo).to_contain_text('Pendente de configuração')
+            resumo.get_by_role('button',name='Configurar',exact=True).click()
+            expect(page.locator('#rotina-nome')).to_have_value('Resumo por Acumulador')
+            page.locator('.passo-rotina input').fill('Relatórios')
+            page.locator('#salvar-rotina').click()
+            expect(page.locator('#rotina-aviso')).to_contain_text('configuração salva como rascunho')
+            resumo.get_by_role('button',name='Enviar para validação',exact=True).click()
+            expect(resumo).to_contain_text('Enviada para validação · execução bloqueada')
+            resumo.get_by_role('button',name='Configurar',exact=True).click()
+            expect(page.locator('.passo-rotina input')).to_have_value('Relatórios')
+            page.locator('#salvar-rotina').click()
+            expect(resumo).to_contain_text('Rascunho · revisar e testar')
+            page.locator('#cadastro-rotina-nome').fill('Indicador sintético sem passos')
+            page.locator('#cadastrar-rotina').click()
+            expect(page.locator('#rotinas-cadastradas')).to_contain_text('Indicador sintético sem passos')
+            presumido=next(r for r in repo.configuracao.listar()['regimes'] if r['nome']=='Lucro Presumido')
+            page.locator('#regime-editar').select_option(presumido['id'])
+            expect(page.locator('#regime-sequencia li')).to_have_count(5)
+            expect(page.locator('#regime-sequencia')).to_contain_text('Livro Fiscal de ICMS')
+            if os.environ.get('DOMINIO_CADASTRO_PREVIEW'):
+                page.locator('#config-empresas').screenshot(path=os.environ['DOMINIO_CADASTRO_PREVIEW'])
             for campo,valor in [('onvio-senha','senha-simulada'),('dominio-senha','senha-simulada')]:page.locator('#'+campo).fill(valor)
             page.locator('#confirmar-reinicio').check(); page.locator('#reiniciar-ciclo').click()
             expect(page.locator('#form-codigo')).to_be_visible(timeout=5000)
@@ -215,7 +254,7 @@ with tempfile.TemporaryDirectory() as pasta:
             expect(page.locator('#login')).to_be_visible()
             assert not erros,erros
             browser.close()
-        print('Chromium passou: regimes/empresas/sequência por empresa, calendário obrigatório/bissexto, lote e pausa/retomada/interrupção, código único, senhas limpas, calibração/captura simuladas, rascunho, reinício/cancelamento, responsividade, logout e offline.')
+        print('Chromium passou: pré-cadastro Lucro Presumido/Real, configuração individual e envio à validação sem liberar execução, regimes/empresas/sequência por empresa, calendário, lote, pausa/retomada/interrupção, login/captura simulados, responsividade, logout e offline.')
     finally:
         server.should_exit=True; thread.join(15)
         assert not thread.is_alive(), 'Servidor precisa encerrar sem travamento'

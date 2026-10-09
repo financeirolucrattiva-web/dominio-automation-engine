@@ -1,5 +1,14 @@
 # Caminho até o RPA com agentes de IA
 
+**Prioridade em 09/10/2026:** concluir o piloto do Lucro Presumido com
+Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais
+de Entradas, Saídas e ICMS; expandir depois para Lucro Real. Cadastro por
+nome/configuração individual/envio à validação preparado. Aprovação formal
+e promoção dos roteiros ao executor ainda pendentes. Lote registra falha
+e continua após recuperação confirmada até o painel azul/empresa correta;
+recuperação inconclusiva interrompe. Veja o
+[roadmap para administradores e supervisores](ROADMAP-GESTAO.md).
+
 Este plano continua o projeto Domínio Automation Engine. O objetivo é
 transformar as rotinas de leitura/geração já conhecidas em capacidades
 que agentes possam escolher e executar pela interface, com resultados
@@ -224,8 +233,10 @@ A fila mantém um único worker. O plano confirmado fica congelado:
 alterações posteriores no cadastro valem só para novos lotes. Se o cadastro
 mudar entre revisão e envio, exige nova revisão. Pausa/retomada usa o
 controle atual; interromper lote bloqueia as próximas tarefas e interrompe
-a atual num ponto seguro. Falha ou retorno não confirmado interrompe o
-restante, preservando resultados anteriores. Reinício não repete ações.
+a atual num ponto seguro. Falha registrada passa por recuperação até a tela
+azul; quando confirmada com empresa correta, segue a próxima rotina.
+Recuperação não confirmada interrompe o restante, preservando resultados.
+Um lote terminado pode conter falhas; reinício não repete ações.
 
 No adapter de lote, a troca usa `dominio.trocar_empresa()` existente (F8),
 com tela principal/foco confirmados antes e depois e código relido no
