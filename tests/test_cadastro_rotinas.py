@@ -1,5 +1,6 @@
 """Cadastro independente de execução, com configurações sintéticas."""
 import importlib.util
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -30,10 +31,10 @@ class TestCadastroRotinas(unittest.TestCase):
         for regime in cad["regimes"]:
             self.assertEqual([nomes[r] for r in regime["rotinas"]],
                              ["Resumo por Acumulador", "Demonstrativo EFD Contribuições", "Registro de Entradas", "Registro de Saídas", "Livro Fiscal de ICMS"])
-            self.assertNotIn("efd_contribuicoes", regime["rotinas"])
+            self.assertEqual(regime["rotinas"].count("efd_contribuicoes"), 1)
             self.assertNotIn("sped_fiscal", regime["rotinas"])
         self.assertEqual([r["status"] for r in cad["rotinas"] if r["status"] != "integrada"],
-                         ["pendente_configuracao"] * 3)
+                         ["pendente_configuracao"] * 2)
         self.assertEqual(self.repo.listar(), [])
 
     def test_reinicio_nao_duplica_nem_restaura_configuracao_editada(self):
@@ -51,7 +52,8 @@ class TestCadastroRotinas(unittest.TestCase):
         atualizado = self.config.listar()["regimes"][0]
         self.assertEqual(atualizado["id"], existente["id"])
         self.assertEqual(atualizado["rotinas"][0], "sped_fiscal")
-        self.assertEqual(len(atualizado["rotinas"]), 2)
+        self.assertEqual(len(atualizado["rotinas"]), 3)
+        self.assertIn("efd_contribuicoes", atualizado["rotinas"])
         self.assertEqual(len(self.config.listar()["regimes"]), 2)
 
     def test_icms_acrescenta_ao_piloto_anterior_sem_recriar_demais_rotinas(self):
@@ -60,7 +62,6 @@ class TestCadastroRotinas(unittest.TestCase):
         with self.repo.conectar() as banco:
             banco.execute("DELETE FROM marcos_cadastro WHERE id='piloto_lp_lr_icms_v2'")
             for regime in self.config.listar(banco)["regimes"]:
-                import json
                 banco.execute("UPDATE regimes SET rotinas=? WHERE id=?",
                               (json.dumps([r for r in regime["rotinas"] if r != icms["id"]]), regime["id"]))
             banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (icms["id"],))
@@ -71,6 +72,54 @@ class TestCadastroRotinas(unittest.TestCase):
         for antes, depois in zip(anterior["regimes"], atual["regimes"]):
             self.assertEqual(antes["rotinas"], depois["rotinas"][:-1])
         self.assertEqual(len(atual["rotinas"]), len(anterior["rotinas"]) + 1)
+
+    def test_atualizacao_substitui_efd_duplicada_e_preserva_ordem_e_configuracao(self):
+        self.config.preparar_piloto()
+        antigo = "a" * 32
+        with self.repo.conectar() as banco:
+            banco.execute("DELETE FROM marcos_cadastro WHERE id='piloto_lp_lr_efd_integrada_v3'")
+            banco.execute("INSERT INTO rotinas_cadastradas VALUES (?,?,?,?)",
+                          (antigo, "Demonstrativo EFD Contribuições", json.dumps(self.dados["passos"]), "rascunho"))
+            regimes = self.config.listar(banco)["regimes"]
+            for regime in regimes:
+                sequencia = [antigo if r == "efd_contribuicoes" else r for r in regime["rotinas"]]
+                banco.execute("UPDATE regimes SET rotinas=? WHERE id=?", (json.dumps(sequencia), regime["id"]))
+        antes = self.config.listar()
+        self.config.preparar_piloto()
+        depois = self.config.listar()
+        for original, atualizado in zip(antes["regimes"], depois["regimes"]):
+            self.assertEqual(atualizado["rotinas"], ["efd_contribuicoes" if r == antigo else r for r in original["rotinas"]])
+        efd = [r for r in depois["rotinas"] if r["nome"] == "Demonstrativo EFD Contribuições"]
+        self.assertEqual(len(efd), 1)
+        self.assertEqual(efd[0]["id"], "efd_contribuicoes")
+        self.assertEqual(efd[0]["status"], "integrada")
+        with self.repo.conectar() as banco:
+            arquivo = banco.execute("SELECT * FROM rotinas_cadastradas_arquivo WHERE id=?", (antigo,)).fetchone()
+            self.assertEqual(json.loads(arquivo["passos"]), self.dados["passos"])
+        self.config.preparar_piloto()
+        self.assertEqual(self.config.listar(), depois)
+
+    def test_efd_ja_integrada_nao_e_duplicada_ao_migrar_outro_regime(self):
+        self.config.preparar_piloto()
+        antigo = "a" * 32
+        with self.repo.conectar() as banco:
+            banco.execute("DELETE FROM marcos_cadastro WHERE id='piloto_lp_lr_efd_integrada_v3'")
+            banco.execute("INSERT INTO rotinas_cadastradas VALUES (?,?,?,?)",
+                          (antigo, "Demonstrativo EFD Contribuições", "[]", "pendente_configuracao"))
+        outro = self.config.salvar_regime(None, "Outro regime sintético", ["registro_entradas", antigo, "efd_contribuicoes", "sped_fiscal"])
+        self.config.preparar_piloto()
+        atualizado = next(r for r in self.config.listar()["regimes"] if r["id"] == outro["id"])
+        self.assertEqual(atualizado["rotinas"], ["registro_entradas", "efd_contribuicoes", "sped_fiscal"])
+
+    def test_efd_reutiliza_catalogo_e_planejamento_integrados(self):
+        from app import capacidades
+        self.assertEqual(capacidades.obter_capacidade("efd_contribuicoes").nome, "Demonstrativo EFD Contribuições")
+        self.config.preparar_piloto()
+        for regime in self.config.listar()["regimes"]:
+            self.config.salvar_regime(regime["id"], regime["nome"], ["efd_contribuicoes"])
+            self.config.salvar_empresa("9001", "Empresa sintética", regime["id"])
+            plano = self.config.planejar({"empresas": ["9001"], "inicio": "2024-02-01", "fim": "2024-02-29"})
+            self.assertEqual(plano["empresas"][0]["rotinas"], ["efd_contribuicoes"])
 
     def test_cadastro_sem_passos_pode_ser_vinculado_antes_de_configurar(self):
         rotina = self.config.cadastrar_rotina(self.dados["nome"])

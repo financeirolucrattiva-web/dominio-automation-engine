@@ -38,6 +38,10 @@ class ConfiguracaoLotes:
                 CREATE TABLE IF NOT EXISTS marcos_cadastro (
                     id TEXT PRIMARY KEY
                 );
+                CREATE TABLE IF NOT EXISTS rotinas_cadastradas_arquivo (
+                    id TEXT PRIMARY KEY, nome TEXT NOT NULL, passos TEXT NOT NULL,
+                    status TEXT NOT NULL
+                );
             """)
 
     def listar(self, banco=None):
@@ -60,10 +64,8 @@ class ConfiguracaoLotes:
         with self.repositorio.conectar() as banco:
             banco.execute("BEGIN IMMEDIATE")
             if not banco.execute("SELECT 1 FROM marcos_cadastro WHERE id='piloto_lp_lr_v1'").fetchone():
-                ids = []
-                for nome in ("Resumo por Acumulador", "Demonstrativo EFD Contribuições"):
-                    ids.append(self._cadastrar_pendente(banco, nome))
-                rotinas = ids + ["registro_entradas", "registro_saidas"]
+                resumo = self._cadastrar_pendente(banco, "Resumo por Acumulador")
+                rotinas = [resumo, "efd_contribuicoes", "registro_entradas", "registro_saidas"]
                 for nome in ("Lucro Presumido", "Lucro Real"):
                     # Preserva configurações já feitas pelo operador.
                     if not any(r["nome"].casefold() == nome.casefold() for r in self.listar(banco)["regimes"]):
@@ -76,6 +78,25 @@ class ConfiguracaoLotes:
                         banco.execute("UPDATE regimes SET rotinas=? WHERE id=?",
                                       (json.dumps(regime["rotinas"] + [icms]), regime["id"]))
                 banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_icms_v2')")
+            if not banco.execute("SELECT 1 FROM marcos_cadastro WHERE id='piloto_lp_lr_efd_integrada_v3'").fetchone():
+                duplicadas = [r for r in banco.execute("SELECT * FROM rotinas_cadastradas")
+                              if r["nome"].casefold() in ("demonstrativo efd contribuições", "efd contribuições")]
+                ids_antigos = {r["id"] for r in duplicadas}
+                for regime in self.listar(banco)["regimes"]:
+                    # Mantém a ordem; se as duas versões estavam vinculadas,
+                    # a capacidade integrada aparece somente uma vez.
+                    rotinas = list(dict.fromkeys("efd_contribuicoes" if r in ids_antigos else r
+                                                 for r in regime["rotinas"]))
+                    if regime["nome"].casefold() in ("lucro presumido", "lucro real") and "efd_contribuicoes" not in rotinas:
+                        rotinas.append("efd_contribuicoes")
+                    banco.execute("UPDATE regimes SET rotinas=? WHERE id=?", (json.dumps(rotinas), regime["id"]))
+                for rotina in duplicadas:
+                    # Guarda configurações anteriores antes de retirar a cópia
+                    # do catálogo ativo. Histórico de tarefas não é alterado.
+                    banco.execute("INSERT OR IGNORE INTO rotinas_cadastradas_arquivo VALUES (?,?,?,?)",
+                                  (rotina["id"], rotina["nome"], rotina["passos"], rotina["status"]))
+                    banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (rotina["id"],))
+                banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_efd_integrada_v3')")
 
     def _cadastrar_pendente(self, banco, nome):
         existente = next((r for r in self.listar(banco)["rotinas"] if r["nome"].casefold() == nome.casefold()), None)

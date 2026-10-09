@@ -2,6 +2,21 @@
 
 ## Entrega de 09/10/2026 — cadastro e roadmap de gestão
 
+Correção seguinte confirmada pelo usuário: o Demonstrativo EFD
+Contribuições é a rotina EFD integrada existente, apenas renomeada.
+Migração `piloto_lp_lr_efd_integrada_v3` substitui vínculos da cópia pendente,
+evita repetição nos regimes e arquiva passos antigos no SQLite. O motor
+`efd_contribuicoes` não muda. Pendentes novos: Resumo por Acumulador e ICMS.
+
+Novo pedido: PDFs confirmados do painel usam nome cadastrado da empresa,
+tipo e competência, normalizados em minúsculas. O lote conserva o nome
+da revisão do plano. Cópia exclusiva evita sobrescrever; falha conserva
+origem e pede conferência. Download usa o caminho final salvo na tarefa.
+Chamadas locais sem cadastro conservam o nome OCR antigo. EFD ainda
+retorna bool, sem caminho para renomear; Resumo aguarda integração.
+343 testes de lógica/API e smoke Chromium com fiscal/login simulados;
+emissão, conteúdo fiscal e recuperação no Windows ainda por homologar.
+
 Pedido confirmado: preparar Lucro Presumido e Lucro Real; primeiro piloto
 somente Lucro Presumido. Indicadores: Resumo por Acumulador, Demonstrativo
 EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O ICMS é

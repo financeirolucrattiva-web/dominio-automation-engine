@@ -39,7 +39,7 @@
           <form id="form-empresa"><h2>Cadastrar ou editar empresa</h2><label for="empresa-codigo">Código no Domínio</label><input id="empresa-codigo" required inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12">
             <label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" required maxlength="100">
             <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select><button id="salvar-empresa" type="submit">Salvar empresa</button>
-            <p class="discreto">O código identifica a empresa no Domínio. O nome facilita a seleção no painel.</p>
+            <p class="discreto">O código identifica a empresa no Domínio. Os PDFs emitidos pelo painel usam o nome cadastrado: tipo_empresa_AAAA-MM.pdf. Espaços e acentos são normalizados. Uma nova emissão preserva o arquivo anterior.</p>
           </form>
         </div>
         <div class="calibracao"><h2>Cadastrar rotina para configurar depois</h2>

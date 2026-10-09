@@ -3,7 +3,7 @@
 import math
 
 NOMES_ROTINAS = {
-    "sped_fiscal": "SPED Fiscal", "efd_contribuicoes": "EFD Contribuições",
+    "sped_fiscal": "SPED Fiscal", "efd_contribuicoes": "Demonstrativo EFD Contribuições",
     "registro_saidas": "Registro de Saídas", "registro_entradas": "Registro de Entradas",
     "geracao_fiscal": "Geração fiscal",
 }

@@ -3,6 +3,7 @@
 import datetime
 from pathlib import Path
 import re
+import shutil
 import unicodedata
 
 
@@ -38,6 +39,57 @@ def nome_empresa_seguro(nome):
     if not texto or not any(c.isalpha() for c in texto):
         raise ValueError("Nome da empresa ilegível para nomear o PDF.")
     return texto
+
+
+def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
+    """Convenção do painel: tipo, nome cadastrado e competência informada."""
+    prefixos = {"Resumo por Acumulador": "acumulador",
+                "Livro Fiscal de ICMS": "livro_icms",
+                "Demonstrativo EFD Contribuições": "efd_contribuicoes"}
+    prefixo = nome_empresa_seguro(prefixos.get(tipo, tipo)).lower()
+    empresa = nome_empresa_seguro(nome_empresa).lower()
+    inicial, final = (datetime.date.fromisoformat(data) for data in (inicio, fim))
+    if final < inicial or not re.fullmatch(r"\.[a-zA-Z0-9]{1,10}", extensao):
+        raise ValueError("Período ou extensão inválida para nomear o relatório.")
+    competencia = f"{inicial:%Y-%m}"
+    if (inicial.year, inicial.month) != (final.year, final.month):
+        competencia += f"_a_{final:%Y-%m}"
+    return f"{prefixo}_{empresa}_{competencia}{extensao.lower()}"
+
+
+def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio, fim):
+    """Renomeia a saída já confirmada, dentro da pasta local, sem substituir."""
+    caminho = Path(caminho).resolve(strict=True)
+    if not caminho.is_relative_to(Path(pasta_saida).resolve()) or not caminho.is_file():
+        raise ValueError("Arquivo fora da pasta de saída.")
+    nome = nome_relatorio(tipo, nome_empresa, inicio, fim, caminho.suffix)
+    destino = caminho.with_name(nome)
+    if destino == caminho:
+        # No Windows, Path compara sem distinguir maiúsculas/minúsculas.
+        if destino.name != caminho.name:
+            caminho.rename(destino)
+        return destino
+    numero = 1
+    while True:
+        criado = False
+        try:
+            with destino.open("xb") as saida:
+                criado = True
+                with caminho.open("rb") as entrada:
+                    shutil.copyfileobj(entrada, saida)
+            break
+        except FileExistsError:
+            numero += 1
+            destino = caminho.with_name(f"{Path(nome).stem}_{numero}{Path(nome).suffix}")
+        except Exception:
+            if criado:
+                destino.unlink(missing_ok=True)
+            raise
+    try:
+        caminho.unlink()
+    except OSError:
+        pass  # A cópia publicada está completa; o exportador pode prender a origem.
+    return destino
 
 
 def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
@@ -123,7 +175,6 @@ def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=N
             with destino.open("xb") as saida:
                 criado = True
                 with caminho.open("rb") as entrada:
-                    import shutil
                     shutil.copyfileobj(entrada, saida)
             break
         except FileExistsError:

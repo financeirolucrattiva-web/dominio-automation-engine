@@ -124,6 +124,24 @@ class TestApiServidor(unittest.TestCase):
         resposta = self.client.get(f"/api/tarefas/{tarefa['id']}/arquivo", headers=self.headers)
         self.assertEqual(resposta.content, b"%PDF-simulado")
 
+    def test_download_usa_nome_empresa_cadastrada_e_preserva_conteudo(self):
+        regime = self.repo.configuracao.salvar_regime(None, "Lucro Presumido sintético", ["registro_entradas"])
+        self.repo.configuracao.salvar_empresa("52", "Empresa Fictícia", regime["id"])
+        origem = self.saida / "exportacao_sintetica.pdf"
+        origem.write_bytes(b"%PDF-sintetico")
+        def executar(dados, receber):
+            eventos_confirmados(dados, receber)
+            return True, str(origem)
+        self.servico.executor = executar
+        dados = {**pedido(), "capacidade": "registro_entradas", "inicio": "2026-08-01", "fim": "2026-08-31"}
+        tarefa = self.client.post("/api/tarefas", json=dados, headers=self.headers).json()
+        self.assertEqual(aguardar(self.repo, tarefa["id"])["status"], "concluida")
+        resposta = self.client.get(f"/api/tarefas/{tarefa['id']}/arquivo", headers=self.headers)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.content, b"%PDF-sintetico")
+        self.assertIn('filename="registro_entradas_empresa_ficticia_2026-08.pdf"', resposta.headers["content-disposition"])
+        self.assertFalse(origem.exists())
+
     def test_chave_existente_nao_e_trocada_ou_impressa(self):
         caminho = self.pasta / "chave.txt"
         primeira = obter_chave(caminho)

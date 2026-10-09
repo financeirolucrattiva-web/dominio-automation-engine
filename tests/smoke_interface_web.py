@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory() as pasta:
             page.locator('#lote-planejar').click()
             expect(page.locator('#lote-plano tr')).to_have_count(4)
             assert [row.locator('td').nth(1).inner_text().split(' · ')[0] for row in page.locator('#lote-plano tr').all()]==['9001','9001','9002','9002']
-            assert page.locator('#lote-plano tr').first.locator('td').nth(2).inner_text()=='EFD Contribuições'
+            assert page.locator('#lote-plano tr').first.locator('td').nth(2).inner_text()=='Demonstrativo EFD Contribuições'
             page.locator('#lote-apuracao').check()
             with page.expect_response(lambda r:r.url.endswith('/api/lotes') and r.request.method=='POST') as resposta:
                 page.locator('#lote-executar').click()
@@ -218,6 +218,10 @@ with tempfile.TemporaryDirectory() as pasta:
             resumo=page.locator('#rotinas-cadastradas tr').filter(has_text='Resumo por Acumulador')
             expect(resumo).to_contain_text('Lucro Presumido, Lucro Real')
             expect(resumo).to_contain_text('Pendente de configuração')
+            demonstrativo=page.locator('#rotinas-cadastradas tr').filter(has_text='Demonstrativo EFD Contribuições')
+            expect(demonstrativo).to_have_count(1)
+            expect(demonstrativo).to_contain_text('Lucro Presumido, Lucro Real')
+            expect(demonstrativo).to_contain_text('Integrada')
             resumo.get_by_role('button',name='Configurar',exact=True).click()
             expect(page.locator('#rotina-nome')).to_have_value('Resumo por Acumulador')
             page.locator('.passo-rotina input').fill('Relatórios')

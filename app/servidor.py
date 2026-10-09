@@ -10,7 +10,7 @@ import sqlite3
 import threading
 import uuid
 
-from app import capacidades, painel
+from app import arquivos, capacidades, painel
 from app.trava_execucao import TravaExecucao
 from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
 from app.autenticacao import SessaoLogin, LoginRecusado
@@ -267,8 +267,9 @@ class RepositorioTarefas:
 class ServicoExecucao:
     """Um único worker; novas tarefas são recusadas enquanto a sessão ocupa."""
 
-    def __init__(self, repositorio, executor=None, modo="consulta", login=None):
+    def __init__(self, repositorio, executor=None, modo="consulta", login=None, pasta_saida=None):
         self.repositorio, self.executor, self.modo = repositorio, executor, modo
+        self.pasta_saida = Path(pasta_saida or Path(__file__).resolve().parent.parent / "saida").resolve()
         self._acordar = threading.Event()
         self._parar = threading.Event()
         self._worker = None
@@ -472,6 +473,20 @@ class ServicoExecucao:
                   "tela_principal_reconhecida" if recuperada else None)
         return recuperada
 
+    def _nomear_arquivo(self, tarefa, pedido, arquivo):
+        if not arquivo:
+            return arquivo
+        if tarefa.get("lote_id"):
+            # Usa o nome revisado ao criar o lote, mesmo se o cadastro mudar.
+            empresas = self.repositorio.obter_lote(tarefa["lote_id"])["plano"]["empresas"]
+        else:
+            empresas = self.repositorio.configuracao.listar()["empresas"]
+        empresa = next((e for e in empresas if e["codigo"] == str(int(pedido["empresa_codigo"]))), None)
+        if empresa is None:
+            return arquivo  # Chamadas antigas sem cadastro conservam a convenção local.
+        return str(arquivos.nomear_relatorio_cadastrado(
+            arquivo, self.pasta_saida, pedido["capacidade"], empresa["nome"], pedido["inicio"], pedido["fim"]))
+
     def _executar_pendentes(self):
         while not self._parar.is_set():
             self._acordar.wait(timeout=1)
@@ -511,9 +526,16 @@ class ServicoExecucao:
                 retorno = modelo.retorno == "Tela principal confirmada"
                 concluido = modelo.linhas.get("fim", (None, None, None))[2] == "concluido"
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
+                motivo = "resultado_ou_retorno_nao_confirmado" if status == "nao_confirmada" else None
+                if status == "concluida" and arquivo:
+                    try:
+                        arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)
+                    except (OSError, ValueError):
+                        logging.getLogger(__name__).exception("Nome do arquivo não confirmado na tarefa %s", identificador)
+                        status, motivo = "nao_confirmada", "nome_arquivo_nao_confirmado"
                 recuperada = status != "concluida" and self._recuperar_lote(tarefa, pedido, controle)
                 self.repositorio.concluir(identificador, status, resultado, arquivo,
-                                         None if status != "nao_confirmada" else "resultado_ou_retorno_nao_confirmado",
+                                         motivo,
                                          continuar_lote=recuperada)
             except ExecucaoInterrompida as erro:
                 motivo = str(erro) if str(erro) in ("retomada_nao_confirmada", "servidor_encerrado_durante_pausa", "reinicio_solicitado", "lote_cancelado") else "retomada_nao_confirmada"

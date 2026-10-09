@@ -69,6 +69,9 @@ prepara os regimes com Resumo por Acumulador, Demonstrativo EFD
 Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. As rotinas novas
 podem ser cadastradas pelo nome, configuradas individualmente e enviadas
 à validação no painel. Isso ainda não aprova nem libera sua execução remota.
+Demonstrativo EFD Contribuições reutiliza a rotina integrada existente,
+renomeada e vinculada ao Presumido e Real; a cópia pendente foi arquivada.
+Resumo por Acumulador e Livro Fiscal de ICMS aguardam configuração.
 O lote agora preserva a falha da rotina e continua após confirmar a
 recuperação até a tela azul; sem recuperação confirmada, interrompe.
 Conferência e recuperação desta versão precisam da rodada Windows.
@@ -282,6 +285,19 @@ seção 0.25/0.32 do documento): salva print, decide o que fazer
 (`app/erros.py`) e segue sem travar o lote.
 
 ### Arquivos dos Livros Fiscais
+
+**Empresas cadastradas no painel:** os PDFs de emissões confirmadas usam
+o nome salvo no cadastro, normalizado em minúsculas, junto com o tipo e a
+competência: `registro_saidas_empresa_exemplo_2026-08.pdf`. No lote,
+o nome fica congelado na revisão inicial. Nova emissão preserva o arquivo
+anterior com sufixo `_2`, `_3` etc. O download usa esse mesmo nome.
+Vincule em **Empresas, regimes e rotinas do lote → Cadastrar ou editar
+empresa**, informando código no Domínio, nome e regime, e **Salvar empresa**.
+Resumo usará `acumulador_empresa_exemplo_2026-08.pdf` quando sua emissão
+for integrada. A EFD atual retorna apenas resultado, sem caminho de arquivo
+local para aplicar a convenção. O regime permanece no cadastro e histórico.
+
+**Scripts locais sem cadastro no painel:**
 
 Registro de Saídas e Registro de Entradas salvam PDFs em `saida/` com
 nome por tipo, nome da empresa e competência, por exemplo
