@@ -1,7 +1,8 @@
 # Roadmap de gestão — Domínio Automation Engine
 
-**Referência:** 09/10/2026 · **Empresa:** Lucrattiva Contabilidade  
-**Público:** administradores, supervisores e equipe fiscal  
+**Referência:** 09/10/2026 · **Empresa:** Lucrattiva Contabilidade
+
+**Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
 commit `8713586` e alterações locais desta entrega. Implementação preparada
 neste ambiente; instalação, execução e homologação no Windows do escritório
