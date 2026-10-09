@@ -164,6 +164,79 @@ class TestRepositorioLotes(BaseLotes):
 
 
 class TestWorkerLotes(BaseLotes):
+    def test_falha_recuperada_segue_proxima_e_finaliza_com_falhas(self):
+        chamadas, recuperacoes = [], []
+        def executar(dados, receber):
+            chamadas.append((dados["empresa_codigo"], dados["capacidade"]))
+            if len(chamadas) == 1:
+                return False, "arquivo_sintetico.pdf"
+            eventos_confirmados(dados, receber)
+            return True
+        def recuperar(dados):
+            recuperacoes.append(dados["capacidade"])
+            return True
+        executar.recuperar_em_lote = recuperar
+        lote = self.iniciar(executar).solicitar_lote(self.dados())
+        final = self.aguardar(lote["id"])
+        self.assertEqual(len(chamadas), 4)
+        self.assertEqual(recuperacoes, ["efd_contribuicoes"])
+        self.assertEqual(final["status"], "concluida_com_falhas")
+        self.assertEqual(final["motivo"], "rotinas_com_falhas")
+        self.assertEqual([t["status"] for t in final["tarefas"]], ["falha", "concluida", "concluida", "concluida"])
+        self.assertFalse(final["tarefas"][0]["resultado"])
+        self.assertTrue(final["tarefas"][0]["arquivo_disponivel"])
+        self.assertEqual(self.repo.eventos(final["tarefas"][0]["id"])[-1]["evidence"], "tela_principal_reconhecida")
+
+    def test_recuperacao_nao_confirmada_interrompe_inclusive_apos_falha_recuperada(self):
+        chamadas = []
+        def executar(dados, receber):
+            chamadas.append(dados)
+            return False
+        executar.recuperar_em_lote = lambda dados: len(chamadas) == 1
+        lote = self.iniciar(executar).solicitar_lote(self.dados())
+        final = self.aguardar(lote["id"])
+        self.assertEqual(len(chamadas), 2)
+        self.assertEqual(final["status"], "interrompida")
+        self.assertEqual(final["motivo"], "rotina_nao_concluida")
+        self.assertEqual([t["status"] for t in final["tarefas"]], ["falha", "falha", "interrompida", "interrompida"])
+
+    def test_excecao_original_permanece_falha_depois_da_recuperacao(self):
+        chamadas = []
+        def executar(dados, receber):
+            chamadas.append(dados)
+            if len(chamadas) == 1:
+                raise RuntimeError("Falha sintética")
+            eventos_confirmados(dados, receber)
+            return True
+        executar.recuperar_em_lote = lambda dados: True
+        with self.assertLogs("app.servidor", level="ERROR"):
+            lote = self.iniciar(executar).solicitar_lote(self.dados())
+            final = self.aguardar(lote["id"])
+        self.assertEqual(len(chamadas), 4)
+        self.assertEqual(final["tarefas"][0]["status"], "falha")
+        self.assertEqual(final["tarefas"][0]["motivo"], "erro_execucao_consulte_servidor")
+
+    def test_cancelar_durante_recuperacao_nao_retoma_proximas(self):
+        entrou, liberar = threading.Event(), threading.Event()
+        chamadas = []
+        def executar(dados, receber):
+            chamadas.append(dados)
+            return False
+        def recuperar(dados):
+            entrou.set()
+            self.assertTrue(liberar.wait(2))
+            return True
+        executar.recuperar_em_lote = recuperar
+        servico = self.iniciar(executar)
+        lote = servico.solicitar_lote(self.dados())
+        self.assertTrue(entrou.wait(2))
+        with self.assertLogs("app.servidor", level="ERROR"):
+            servico.cancelar_lote(lote["id"]); liberar.set()
+            final = self.aguardar(lote["id"])
+        self.assertEqual(len(chamadas), 1)
+        self.assertEqual(final["status"], "interrompida")
+        self.assertEqual(final["motivo"], "lote_cancelado")
+
     def test_executa_empresa_inteira_antes_da_proxima(self):
         chamadas = []
         def executar(dados, receber):

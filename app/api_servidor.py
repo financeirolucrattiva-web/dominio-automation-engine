@@ -74,7 +74,12 @@ class PedidoRegime(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: StrictStr | None = None
     nome: StrictStr = Field(min_length=1, max_length=100)
-    rotinas: list[StrictStr] = Field(max_length=4)
+    rotinas: list[StrictStr] = Field(max_length=80)
+
+
+class CadastroRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    nome: StrictStr = Field(min_length=1, max_length=100)
 
 
 class PedidoEmpresa(BaseModel):
@@ -253,7 +258,7 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         try:
             return servico.repositorio.configuracao.planejar(pedido.model_dump())
         except ValueError:
-            raise HTTPException(422, "Confira empresas cadastradas, regimes com rotinas e período passado. SPED exige um mês completo.") from None
+            raise HTTPException(422, "Confira empresas, período passado e rotinas integradas. Rotinas em configuração/validação ainda não executam. SPED exige um mês completo.") from None
 
     @app.get("/api/lotes", dependencies=[Depends(autorizar)])
     def lotes_listar():
@@ -287,6 +292,34 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     @app.get("/api/rotinas", dependencies=[Depends(autorizar)])
     def rotinas_listar():
         return configuracao_rotinas.listar(pasta_rotinas)
+
+    @app.post("/api/rotinas/cadastros", status_code=201, dependencies=[Depends(autorizar)])
+    def cadastrar_rotina(pedido: CadastroRotina):
+        try:
+            return servico.repositorio.configuracao.cadastrar_rotina(pedido.nome)
+        except ValueError:
+            raise HTTPException(422, "Informe um nome de rotina ainda não cadastrado.") from None
+
+    @app.get("/api/rotinas/cadastros/{identificador}", dependencies=[Depends(autorizar)])
+    def consultar_rotina_cadastrada(identificador: str):
+        try:
+            return servico.repositorio.configuracao.obter_rotina(identificador)
+        except ValueError:
+            raise HTTPException(404, "Rotina cadastrada não encontrada.") from None
+
+    @app.put("/api/rotinas/cadastros/{identificador}", dependencies=[Depends(autorizar)])
+    def configurar_rotina_cadastrada(identificador: str, pedido: PedidoRotina):
+        try:
+            return servico.repositorio.configuracao.configurar_rotina(identificador, pedido.model_dump())
+        except ValueError:
+            raise HTTPException(422, "Confira a rotina cadastrada e os passos de geração/leitura.") from None
+
+    @app.post("/api/rotinas/cadastros/{identificador}/validacao", dependencies=[Depends(autorizar)])
+    def enviar_rotina_validacao(identificador: str):
+        try:
+            return servico.repositorio.configuracao.enviar_validacao(identificador)
+        except ValueError:
+            raise HTTPException(422, "Configure os passos da rotina antes de enviar para validação.") from None
 
     @app.post("/api/rotinas", status_code=201, dependencies=[Depends(autorizar)])
     def rotinas_salvar(pedido: PedidoRotina):

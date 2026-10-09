@@ -100,6 +100,52 @@ class TestExecutorServidor(unittest.TestCase):
         self.assertEqual(argumentos.kwargs["data_inicial"], "01/08/2026")
         self.assertEqual(argumentos.kwargs["data_final"], "31/08/2026")
 
+    def recuperar(self, janela=True):
+        executor = executor_servidor.ExecutorDominio()
+        if janela:
+            executor._janela_lote = {"hwnd": 123}
+        with patch.object(executor_servidor.sys, "platform", "win32"), patch.multiple("app", create=True, **self.desktop):
+            return executor.recuperar_em_lote(self.dados)
+
+    def test_recuperacao_ja_na_tela_azul_nao_envia_esc(self):
+        self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
+        self.assertTrue(self.recuperar())
+        self.desktop["interacao"].pressionar_esc_no_dominio.assert_not_called()
+
+    def test_recuperacao_fecha_uma_tela_por_vez_e_confere_empresa(self):
+        d = self.desktop["dominio"]
+        d._verificar_retorno_tela_principal.side_effect = ["tela_principal_nao_reconhecida"] * 2 + ["tela_principal_reconhecida"]
+        d._confirmar_conteudo_dominio = Mock(return_value=True)
+        esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
+        self.assertTrue(self.recuperar())
+        self.assertEqual(esc.call_count, 2)
+        self.assertTrue(all(c.kwargs["vezes"] == 1 for c in esc.call_args_list))
+        d.gerar_sped_fiscal.assert_not_called()
+
+    def test_recuperacao_sem_janela_ou_calibracao_nao_envia_acao(self):
+        esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock()
+        self.assertFalse(self.recuperar(janela=False))
+        self.desktop["tela_principal"].carregar_referencia.return_value = None
+        self.assertFalse(self.recuperar())
+        esc.assert_not_called()
+
+    def test_recuperacao_recusa_empresa_divergente_e_foco_perdido(self):
+        self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "99")
+        self.assertFalse(self.recuperar())
+        self.desktop["tela"].ler_empresa_selecionada.return_value = ("SINTÉTICA", "52")
+        self.desktop["interacao"].janela_dominio_em_foco.return_value = False
+        self.assertFalse(self.recuperar())
+
+    def test_recuperacao_tem_limite_e_recusa_envio_sem_foco(self):
+        self.desktop["dominio"]._verificar_retorno_tela_principal.return_value = "tela_principal_nao_reconhecida"
+        self.desktop["dominio"]._confirmar_conteudo_dominio = Mock(return_value=True)
+        esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
+        self.assertFalse(self.recuperar())
+        self.assertEqual(esc.call_count, 5)
+        esc.reset_mock(); esc.return_value = False
+        self.assertFalse(self.recuperar())
+        self.assertEqual(esc.call_count, 1)
+
 
 class TestTravaExecucao(unittest.TestCase):
     def test_segundo_executor_nao_adquire_ate_liberacao(self):

@@ -2,7 +2,8 @@
 const painelLotes=(()=>{
   let cadastro={empresas:[],regimes:[]}, cadastroTexto="", sequencia=[], plano=null, loteAtual=null, detalhe=null, ocupado=false, pedidoLote=null;
   const selecionadas=new Set();
-  const nomeRotina=id=>catalogo.find(r=>r.id===id)?.nome || "Rotina indisponível";
+  const nomeRotina=id=>(cadastro.rotinas || catalogo).find(r=>r.id===id)?.nome || "Rotina indisponível";
+  const statusRotinas={integrada:"Integrada · revalidar no Windows",pendente_configuracao:"Pendente de configuração",rascunho:"Rascunho · revisar e testar",aguardando_validacao:"Enviada para validação · execução bloqueada"};
   function opcoes(select, itens, inicial) {
     const valor=select.value; select.replaceChildren();
     if (inicial!==null) {const o=document.createElement("option"); o.value=""; o.textContent=inicial; select.append(o);}
@@ -12,7 +13,8 @@ const painelLotes=(()=>{
   function invalidar() {plano=null; pedidoLote=null; $("lote-revisao").hidden=true; $("lote-apuracao").checked=false; controles();}
   function controles() {
     const online=!!chave && !!estadoServidor && navigator.onLine;
-    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar"]) $(id).disabled=!online || ocupado;
+    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar","cadastrar-rotina"]) $(id).disabled=!online || ocupado;
+    for (const b of $("rotinas-cadastradas").querySelectorAll("button")) b.disabled=!online || ocupado || b.dataset.aguardando==="true";
     for (const select of $("lote-empresas").querySelectorAll("select")) select.disabled=!online || ocupado;
     $("lote-executar").disabled=!online || ocupado || !plano || !estadoServidor?.execucao_habilitada || estadoServidor?.ocupado;
     $("lote-apuracao").disabled=!plano;
@@ -38,7 +40,26 @@ const painelLotes=(()=>{
         b.addEventListener("click",()=>{if (delta===0) sequencia.splice(indice,1); else [sequencia[indice],sequencia[indice+delta]]=[sequencia[indice+delta],sequencia[indice]]; exibirSequencia();}); botoes.append(b);
       }
       li.append(botoes); $("regime-sequencia").append(li);
+      const rotina=cadastro.rotinas?.find(r=>r.id===id);
+      if (rotina) {const status=document.createElement("small"); status.className="discreto"; status.textContent=statusRotinas[rotina.status] || "Não configurada"; li.append(status);}
     });
+  }
+  function exibirRotinasCadastradas() {
+    $("rotinas-cadastradas").replaceChildren();
+    for (const rotina of cadastro.rotinas || []) {
+      const linha=document.createElement("tr"); celula(linha,rotina.nome);
+      celula(linha,cadastro.regimes.filter(r=>r.rotinas.includes(rotina.id)).map(r=>r.nome).join(", ") || "Ainda sem vínculo");
+      celula(linha,statusRotinas[rotina.status] || "Não configurada"); const acoes=celula(linha,"");
+      if (rotina.status!=="integrada") {
+        const b=document.createElement("button"); b.type="button"; b.className="secundario"; b.textContent="Configurar";
+        b.addEventListener("click",()=>configurarRotinaCadastrada(rotina.id)); acoes.append(b);
+        if (rotina.quantidade_passos>0) {const validar=document.createElement("button"); validar.type="button"; validar.className="secundario";
+          validar.textContent=rotina.status==="aguardando_validacao" ? "Enviada para validação" : "Enviar para validação";
+          validar.dataset.aguardando=String(rotina.status==="aguardando_validacao");
+          validar.addEventListener("click",()=>salvarCadastro(`rotinas/cadastros/${rotina.id}/validacao`,{})); acoes.append(validar);}
+      }
+      $("rotinas-cadastradas").append(linha);
+    }
   }
   function exibirEmpresas() {
     $("lote-empresas").replaceChildren();
@@ -68,6 +89,7 @@ const painelLotes=(()=>{
   $("regime-adicionar").addEventListener("click",()=>{const id=$("regime-rotina").value; if (id && !sequencia.includes(id)) {sequencia.push(id); exibirSequencia();}});
   $("form-regime").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-regime").reportValidity()) return; await salvarCadastro("regimes",{id:$("regime-editar").value || null,nome:$("regime-nome").value,rotinas:sequencia});});
   $("form-empresa").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-empresa").reportValidity()) return; if (await salvarCadastro("empresas",{codigo:$("empresa-codigo").value,nome:$("empresa-nome").value,regime_id:$("empresa-regime").value})) $("form-empresa").reset();});
+  $("form-cadastro-rotina").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-cadastro-rotina").reportValidity()) return; if (await salvarCadastro("rotinas/cadastros",{nome:$("cadastro-rotina-nome").value})) $("form-cadastro-rotina").reset();});
   $("lote-filtro").addEventListener("change",()=>{selecionadas.clear(); invalidar(); exibirEmpresas();});
   $("lote-selecionar").addEventListener("click",()=>{for (const e of cadastro.empresas.filter(e=>!$("lote-filtro").value || e.regime_id===$("lote-filtro").value)) selecionadas.add(e.codigo); invalidar(); exibirEmpresas();});
   $("lote-limpar").addEventListener("click",()=>{selecionadas.clear(); invalidar(); exibirEmpresas();});
@@ -124,7 +146,7 @@ const painelLotes=(()=>{
     if (texto!==cadastroTexto) {
       invalidar(); cadastro=novoCadastro; cadastroTexto=texto;
       opcoes($("regime-editar"),cadastro.regimes,"Criar regime"); opcoes($("empresa-regime"),cadastro.regimes,"Escolha o regime"); opcoes($("lote-filtro"),cadastro.regimes,"Todos os regimes");
-      opcoes($("regime-rotina"),catalogo,null); exibirEmpresas(); exibirSequencia();
+      opcoes($("regime-rotina"),cadastro.rotinas || catalogo,null); exibirEmpresas(); exibirSequencia(); exibirRotinasCadastradas();
     }
     const encontrado=pedidoLote && lotes.find(l=>l.request_id===pedidoLote.request_id);
     if (encontrado) {aceitarLote(encontrado.id); invalidar();}
@@ -134,7 +156,7 @@ const painelLotes=(()=>{
       const versao=versaoSessao, id=loteAtual, resultado=await api(`lotes/${id}`);
       if (versao!==versaoSessao || id!==loteAtual) return; detalhe=resultado;
       const feitas=detalhe.tarefas.filter(t=>t.status==="concluida").length;
-      const motivo={rotina_nao_concluida:"Uma rotina falhou ou não confirmou o resultado; as próximas foram interrompidas.",lote_cancelado:"Interrupção solicitada. A ação atual termina em um ponto seguro.",servidor_reiniciado:"O servidor reiniciou. O lote não foi repetido.",reinicio_solicitado:"Reinício do ciclo solicitado."}[detalhe.motivo] || "";
+      const motivo={rotina_nao_concluida:"A recuperação até a tela azul não foi confirmada; as próximas foram interrompidas.",rotinas_com_falhas:"As rotinas com falha permanecem no histórico. Após recuperar a tela azul, a sequência continua.",lote_cancelado:"Interrupção solicitada. A ação atual termina em um ponto seguro.",servidor_reiniciado:"O servidor reiniciou. O lote não foi repetido.",reinicio_solicitado:"Reinício do ciclo solicitado."}[detalhe.motivo] || "";
       $("lote-resultado").textContent=`${nomesStatus[detalhe.status] || "Não confirmado"} · ${feitas}/${detalhe.tarefas.length} rotinas concluídas. ${motivo}`;
       $("lote-tarefas").replaceChildren();
       for (const tarefa of detalhe.tarefas) {

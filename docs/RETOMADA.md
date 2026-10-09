@@ -1,4 +1,32 @@
-# Retomada do projeto — 08/10/2026
+# Retomada do projeto — 09/10/2026
+
+## Próximo piloto: Lucro Presumido
+
+Nesta entrega o servidor prepara Lucro Presumido/Real com Resumo por
+Acumulador, Demonstrativo EFD Contribuições, Entradas, Saídas e Livro Fiscal
+de ICMS. Atualizar/reiniciar o servidor após integrar a alteração e Ctrl+F5
+no cliente. Cadastros real/simulado continuam separados. Conferir nomes,
+regimes e empresas no banco do modo escolhido; não copiar empresas reais
+para a nuvem nem inventar códigos. Regimes existentes preservam sua
+sequência, com o vínculo ICMS acrescentado uma vez.
+
+No painel, cadastrar pelo nome → adicionar ao regime → Configurar →
+Salvar configuração → Enviar para validação. O envio marca uma pendência;
+não aprova ou libera roteiro novo no executor. Configurações desses novos
+cadastros ficam no SQLite; gravador JSON legado continua disponível.
+Faltam mapear as telas de Resumo, Demonstrativo e ICMS e integrar o teste,
+aprovação formal e execução remota de versões validadas.
+
+Teste real da nova regra: emissão falha numa rotina integrada, retorno por
+Esc até o painel azul e continuação na próxima rotina, preservando a falha.
+Confirmar empresa, foco, documento, período e o resultado “Finalizado com
+falhas”. Se não reconhecer o painel azul/empresa, interrompe. Confirmar
+também cancelamento durante recuperação e ausência de repetição de emissão.
+Tratamento de OK/Fechar continua o que já existe nas rotinas; qualquer
+diálogo diferente precisa de mapeamento real, sem supor coordenadas.
+
+O planejamento para gestores está em [ROADMAP-GESTAO.md](ROADMAP-GESTAO.md).
+O checkpoint abaixo conserva as evidências e os testes da entrega anterior.
 
 Organização dos arquivos: os três instaladores principais e `Atualizar.bat`
 continuam na raiz. Os outros 17 atalhos estão em `atalhos/servidor/`,

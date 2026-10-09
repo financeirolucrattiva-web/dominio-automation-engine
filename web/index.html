@@ -34,13 +34,19 @@
             <label for="regime-nome">Nome do regime</label><input id="regime-nome" required maxlength="100" placeholder="Ex.: Simples Nacional">
             <label for="regime-rotina">Rotina para adicionar</label><select id="regime-rotina"></select><button id="regime-adicionar" type="button" class="secundario">Adicionar à sequência</button>
             <ol id="regime-sequencia" class="sequencia"></ol><button id="salvar-regime" type="submit">Salvar regime</button>
-            <p class="discreto">Por enquanto, escolha entre as quatro rotinas integradas. Novos roteiros continuam disponíveis como rascunhos para revisão.</p>
+            <p class="discreto">Cadastre rotinas pelo nome e configure cada roteiro depois. Rotinas pendentes ou em validação bloqueiam a execução do regime.</p>
           </form>
           <form id="form-empresa"><h2>Cadastrar ou editar empresa</h2><label for="empresa-codigo">Código no Domínio</label><input id="empresa-codigo" required inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12">
             <label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" required maxlength="100">
             <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select><button id="salvar-empresa" type="submit">Salvar empresa</button>
             <p class="discreto">O código identifica a empresa no Domínio. O nome facilita a seleção no painel.</p>
           </form>
+        </div>
+        <div class="calibracao"><h2>Cadastrar rotina para configurar depois</h2>
+          <p class="discreto">Lucro Presumido e Lucro Real serão preparados com Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O primeiro piloto será no Lucro Presumido.</p>
+          <form id="form-cadastro-rotina"><label for="cadastro-rotina-nome">Nome da rotina</label><input id="cadastro-rotina-nome" required maxlength="100"><button id="cadastrar-rotina" type="submit">Cadastrar sem configurar</button></form>
+          <p class="discreto">Depois de cadastrar, adicione a rotina à sequência do regime. Uma rotina vinculada a vários regimes compartilha a mesma configuração.</p>
+          <div class="tabela-scroll"><table><thead><tr><th>Rotina</th><th>Regimes vinculados</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="rotinas-cadastradas"></tbody></table></div>
         </div>
         <p id="cadastro-aviso" role="status" class="discreto"></p>
       </details></section>
@@ -62,7 +68,7 @@
         <div class="calibracao"><label for="lote-historico">Acompanhar lote</label><select id="lote-historico"><option value="">Nenhum lote</option></select>
           <p id="lote-resultado" class="resultado" role="status">Aguardando seleção</p><div class="controle"><button id="lote-pausar" class="secundario" type="button" hidden>Pausar execução</button><button id="lote-cancelar" class="secundario" type="button" hidden>Interromper lote</button></div>
           <div class="tabela-scroll"><table><thead><tr><th>Empresa</th><th>Rotina</th><th>Resultado</th><th></th></tr></thead><tbody id="lote-tarefas"></tbody></table></div>
-          <p class="discreto">Falha ou retorno não confirmado interrompe as próximas rotinas. Reiniciar o servidor preserva o histórico e não repete o lote.</p>
+          <p class="discreto">Após uma falha, o executor tenta voltar à tela azul e continua na próxima rotina quando confirma a recuperação. A falha permanece no histórico. Sem recuperação confirmada, interrompe a sequência. Reiniciar o servidor não repete o lote.</p>
         </div>
       </details></section>
       <div class="colunas">
@@ -103,7 +109,8 @@
         <p class="discreto">O servidor precisa manter uma sessão Windows aberta e desbloqueada. Se aparecer uma tela diferente da sequência configurada, o login para e informa a etapa.</p>
       </details></section>
       <section class="bloco configuracao"><details id="config-rotinas"><summary>Configurar novas rotinas</summary>
-        <p class="discreto">Monte um roteiro com os textos que aparecem nas telas do Domínio. O rascunho será salvo no mesmo catálogo do gravador, para revisão e teste supervisionado. Ele ainda não entra nas execuções remotas.</p>
+        <p class="discreto" id="rotina-contexto">Monte um roteiro com os textos que aparecem nas telas do Domínio. O rascunho será salvo para revisão e teste supervisionado.</p>
+        <button id="nova-rotina-avulsa" type="button" class="secundario" hidden>Criar outro rascunho avulso</button>
         <form id="form-rotina"><label for="rotina-nome">Nome da rotina</label><input id="rotina-nome" required maxlength="100" placeholder="Ex.: relatório mensal">
           <div id="rotina-passos"></div><button id="adicionar-passo" type="button" class="secundario">Adicionar passo</button><button id="salvar-rotina" type="submit">Salvar rascunho no servidor</button>
         </form><p id="rotina-aviso" class="discreto" role="status"></p>

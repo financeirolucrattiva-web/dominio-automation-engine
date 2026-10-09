@@ -163,7 +163,7 @@ class RepositorioTarefas:
             banco.execute("UPDATE tarefas SET status='interrompida', resultado=NULL, motivo='reinicio_solicitado', atualizado=? WHERE status='pendente'", (_agora(),))
             banco.execute("UPDATE lotes SET status='interrompida', motivo='reinicio_solicitado', atualizado=? WHERE status IN ('pendente','executando')", (_agora(),))
 
-    def concluir(self, identificador, status, resultado=None, arquivo=None, motivo=None):
+    def concluir(self, identificador, status, resultado=None, arquivo=None, motivo=None, continuar_lote=False):
         with self.conectar() as banco:
             banco.execute("BEGIN IMMEDIATE")
             banco.execute("UPDATE tarefas SET status=?, resultado=?, arquivo=?, motivo=?, atualizado=? WHERE id=?",
@@ -171,12 +171,16 @@ class RepositorioTarefas:
             item = banco.execute("SELECT lote_id FROM itens_lote WHERE tarefa_id=?", (identificador,)).fetchone()
             if item:
                 lote = banco.execute("SELECT status FROM lotes WHERE id=?", (item["lote_id"],)).fetchone()
-                if status != "concluida":
+                recuperada = continuar_lote is True and status in ("falha", "nao_confirmada")
+                if status != "concluida" and not recuperada:
                     banco.execute("UPDATE tarefas SET status='interrompida', motivo='lote_interrompido', atualizado=? WHERE status='pendente' AND id IN (SELECT tarefa_id FROM itens_lote WHERE lote_id=?)", (_agora(), item["lote_id"]))
-                    banco.execute("UPDATE lotes SET status='interrompida', motivo=COALESCE(motivo, 'rotina_nao_concluida'), atualizado=? WHERE id=?", (_agora(), item["lote_id"]))
+                    banco.execute("UPDATE lotes SET status='interrompida', motivo=CASE WHEN status='interrompida' THEN motivo ELSE 'rotina_nao_concluida' END, atualizado=? WHERE id=?", (_agora(), item["lote_id"]))
                 elif lote["status"] != "interrompida":
                     pendente = banco.execute("SELECT 1 FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? AND t.status IN ('pendente','executando')", (item["lote_id"],)).fetchone()
-                    banco.execute("UPDATE lotes SET status=?, atualizado=? WHERE id=?", ("executando" if pendente else "concluida", _agora(), item["lote_id"]))
+                    falhas = banco.execute("SELECT 1 FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? AND t.status IN ('falha','nao_confirmada')", (item["lote_id"],)).fetchone()
+                    final = "executando" if pendente else "concluida_com_falhas" if falhas else "concluida"
+                    banco.execute("UPDATE lotes SET status=?, motivo=?, atualizado=? WHERE id=?",
+                                  (final, "rotinas_com_falhas" if falhas else None, _agora(), item["lote_id"]))
 
     def criar_lote(self, pedido, modo):
         campos = {"request_id", "empresas", "inicio", "fim", "apuracao_confirmada", "plano_hash"}
@@ -436,6 +440,38 @@ class ServicoExecucao:
             with self._controle_lock:
                 self._operacao_ativa = False
 
+    def _recuperar_lote(self, tarefa, pedido, controle):
+        if not tarefa.get("lote_id") or self._parar.is_set():
+            return False
+        eventos = self.repositorio.eventos(tarefa["id"])
+        modelo = painel.EstadoPainel()
+        for evento in eventos:
+            modelo.receber(evento)
+        recuperar = getattr(self.executor, "recuperar_em_lote", None)
+        if not callable(recuperar):
+            return modelo.retorno == "Tela principal confirmada"
+        identidade = eventos[-1] if eventos else {"execution_id": pedido["request_id"].replace("-", ""),
+                                                  "routine_id": pedido["capacidade"], "attempt": 1}
+        def registrar(status, evidencia=None):
+            self.repositorio.registrar_evento(tarefa["id"], {
+                **{k: identidade[k] for k in ("execution_id", "routine_id", "attempt")},
+                "step": "recuperar_interface", "status": status, "elapsed_seconds": 0,
+                "evidence": evidencia})
+        registrar("inicio")
+        try:
+            with controlar_execucao(controle):
+                controle.verificar_interrupcao()
+                recuperada = recuperar(pedido) is True
+                controle.verificar_interrupcao()
+            if self._parar.is_set():
+                recuperada = False
+        except Exception:
+            logging.getLogger(__name__).exception("Recuperação não confirmada na tarefa %s", tarefa["id"])
+            recuperada = False
+        registrar("confirmado" if recuperada else "inconclusivo",
+                  "tela_principal_reconhecida" if recuperada else None)
+        return recuperada
+
     def _executar_pendentes(self):
         while not self._parar.is_set():
             self._acordar.wait(timeout=1)
@@ -475,8 +511,10 @@ class ServicoExecucao:
                 retorno = modelo.retorno == "Tela principal confirmada"
                 concluido = modelo.linhas.get("fim", (None, None, None))[2] == "concluido"
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
+                recuperada = status != "concluida" and self._recuperar_lote(tarefa, pedido, controle)
                 self.repositorio.concluir(identificador, status, resultado, arquivo,
-                                         None if status != "nao_confirmada" else "resultado_ou_retorno_nao_confirmado")
+                                         None if status != "nao_confirmada" else "resultado_ou_retorno_nao_confirmado",
+                                         continuar_lote=recuperada)
             except ExecucaoInterrompida as erro:
                 motivo = str(erro) if str(erro) in ("retomada_nao_confirmada", "servidor_encerrado_durante_pausa", "reinicio_solicitado", "lote_cancelado") else "retomada_nao_confirmada"
                 self.repositorio.concluir(identificador, "interrompida", None, motivo=motivo)
@@ -488,7 +526,9 @@ class ServicoExecucao:
             except Exception:
                 # Sem exceções/capturas/caminhos privados na resposta remota.
                 logging.getLogger(__name__).exception("Falha na tarefa %s", identificador)
-                self.repositorio.concluir(identificador, "falha", False, motivo="erro_execucao_consulte_servidor")
+                recuperada = self._recuperar_lote(tarefa, json.loads(tarefa["pedido"]), controle)
+                self.repositorio.concluir(identificador, "falha", False, motivo="erro_execucao_consulte_servidor",
+                                         continuar_lote=recuperada)
             finally:
                 with self._controle_lock:
                     self._controle, self._tarefa_atual = None, None
