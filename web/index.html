@@ -44,7 +44,7 @@
             <label for="empresa-subpasta">Destino dos livros dentro de FISCAL/mês</label><input id="empresa-subpasta" maxlength="500" placeholder="RELATORIOS_APURAÇÃO\LIVROS_FISCAIS">
             <p class="discreto">Deixe vazio para usar o padrão. O ano e o mês vêm da competência escolhida.</p>
             <button id="salvar-empresa" type="submit">Salvar empresa</button>
-            <label for="empresa-competencia">Competência para conferir o destino</label><input id="empresa-competencia" type="month">
+            <label for="empresa-competencia">Competência para conferir o destino</label><input id="empresa-competencia" type="month"><small class="discreto">Digite a competência ou escolha no calendário.</small>
             <p class="discreto">Ver destino mostra o caminho completo. Testar pasta cria o destino se necessário, grava e remove um temporário. Nenhum relatório é emitido nesse teste.</p>
             <div class="controle"><button id="empresa-ver-destino" type="button" class="secundario">Ver destino</button><button id="empresa-testar-pasta" type="button" class="secundario">Testar pasta</button></div>
             <p id="empresa-destino" role="status" class="discreto"></p>
@@ -53,6 +53,7 @@
         </div>
         <div class="calibracao"><h2>Cadastrar rotina para configurar depois</h2>
           <p class="discreto">Lucro Presumido e Lucro Real serão preparados com Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O primeiro piloto será no Lucro Presumido.</p>
+          <p class="discreto">Livros Fiscais — Entradas, Saídas e ICMS será a rotina conjunta de três PDFs. A emissão conjunta ainda está pendente; Entradas e Saídas estão integradas individualmente e ICMS está cadastrado para configuração.</p>
           <form id="form-cadastro-rotina"><label for="cadastro-rotina-nome">Nome da rotina</label><input id="cadastro-rotina-nome" required maxlength="100"><button id="cadastrar-rotina" type="submit">Cadastrar sem configurar</button></form>
           <p class="discreto">Depois de cadastrar, adicione a rotina à sequência do regime. Uma rotina vinculada a vários regimes compartilha a mesma configuração.</p>
           <div class="tabela-scroll"><table><thead><tr><th>Rotina</th><th>Regimes vinculados</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="rotinas-cadastradas"></tbody></table></div>
@@ -68,6 +69,7 @@
           <label for="lote-tipo-periodo">Período para todas as rotinas do lote</label><select id="lote-tipo-periodo"><option value="competencia">Competência (mês e ano)</option><option value="datas">Intervalo de datas (Livros Fiscais)</option></select>
           <div id="lote-campo-competencia"><label for="lote-competencia">Competência</label><input id="lote-competencia" type="month" required></div>
           <div id="lote-campo-datas" class="datas" hidden><div><label for="lote-inicio">Data inicial</label><input id="lote-inicio" type="date" required disabled></div><div><label for="lote-fim">Data final</label><input id="lote-fim" type="date" required disabled></div></div>
+          <small class="discreto">Digite o período ou escolha no calendário.</small>
           <button id="lote-planejar" type="button" class="secundario">Revisar sequência do lote</button>
           <div id="lote-revisao" hidden><p id="lote-plano-resumo" class="resultado"></p><div class="tabela-scroll"><table><thead><tr><th>Ordem</th><th>Empresa</th><th>Rotina</th></tr></thead><tbody id="lote-plano"></tbody></table></div>
             <label class="confirmacao"><input id="lote-apuracao" type="checkbox" required disabled><span>Conferi a sequência e a apuração desse período está fechada em todas as empresas selecionadas. O lote poderá trocar a empresa pelo código.</span></label>
@@ -86,8 +88,9 @@
             <label for="capacidade">Rotina</label><select id="capacidade" required></select>
             <p id="descricao" class="discreto"></p>
             <label for="empresa">Código da empresa</label><input id="empresa" inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12" required placeholder="Código no Domínio">
-            <div id="campo-competencia"><label for="competencia">Competência (mês e ano)</label><input id="competencia" type="month" required><p id="periodo-competencia" class="discreto">Escolha a competência no calendário.</p></div>
+            <div id="campo-competencia"><label for="competencia">Competência (mês e ano)</label><input id="competencia" type="month" required><p id="periodo-competencia" class="discreto">Digite a competência ou escolha no calendário.</p></div>
             <div id="campo-datas" class="datas" hidden><div><label for="inicio">Data inicial</label><input id="inicio" type="date" required disabled></div><div><label for="fim">Data final</label><input id="fim" type="date" required disabled></div></div>
+            <small class="discreto">Você pode digitar as datas ou usar o calendário.</small>
             <label class="confirmacao"><input id="apuracao" type="checkbox" required><span>Conferi a empresa e a apuração desse período está fechada.</span></label>
             <button id="executar" type="submit" disabled>Executar no servidor</button>
           </form>

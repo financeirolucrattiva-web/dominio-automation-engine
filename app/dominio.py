@@ -275,7 +275,7 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     return imagem, pos, estado == "erro"
 
 
-def _esperar_item_menu(contexto, alvo, nome_erro):
+def _esperar_item_menu(contexto, alvo, nome_erro, menu_completo=False):
     """Reconhece o próximo menu assim que abrir; cache sempre relido por OCR."""
     from .mapa_menus import MapaMenus
     from .controle_execucao import ponto_seguro
@@ -283,7 +283,9 @@ def _esperar_item_menu(contexto, alvo, nome_erro):
     anterior = None
     for tentativa in range(15):
         ponto_seguro()
-        area = tela.recortar_area_menu(tela.capturar_tela())
+        imagem = tela.capturar_tela()
+        # Acompanhamentos tem um submenu longo; o Resumo fica abaixo do recorte legado.
+        area = imagem if menu_completo else tela.recortar_area_menu(imagem)
         pixels = area.tobytes() if hasattr(area, "tobytes") else None
         if tentativa == 0 or pixels is None or pixels != anterior:
             pos = mapa.localizar(area, contexto, alvo, lambda img, texto: tela.achar_texto(img, texto, escala=2))
@@ -1693,18 +1695,24 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     acompanhamento.iniciar("abrir_resumo")
     pos = tela.achar_texto(tela.recortar_topo(imagem), "Relatórios")
     if pos is None:
+        print("Resumo: menu Relatórios não reconhecido na barra superior.")
+        salvar(imagem, f"{prefixo}erro_menu_relatorios_resumo.png")
         return False, None
     interacao.clicar(*pos)
     pos = _esperar_item_menu("relatorios", "Acompanhamentos", f"{prefixo}erro_menu_acompanhamentos.png")
     if pos is None:
+        print("Resumo: item Acompanhamentos não reconhecido após abrir Relatórios.")
         return False, None
     interacao.passar_mouse(*pos)
-    pos = _esperar_item_menu("relatorios/acompanhamentos", "Resumo por Acumulador", f"{prefixo}erro_menu_resumo.png")
+    pos = _esperar_item_menu("relatorios/acompanhamentos", "Resumo por Acumulador",
+                            f"{prefixo}erro_menu_resumo.png", menu_completo=True)
     if pos is None:
+        print("Resumo: item Resumo por Acumulador não reconhecido no submenu completo.")
         return False, None
     interacao.clicar_com_desvio(*pos)
     imagem, pos = _esperar_tela_resumo("Data final", prefixo)
     if pos is None or tela.achar_texto_ou_no_centro(imagem, "Resumo por acumulador", escala=2) is None:
+        print("Resumo: formulário não confirmado após clicar no item do submenu.")
         salvar(tela.capturar_tela(), f"{prefixo}erro_formulario_resumo.png")
         return False, None
     acompanhamento.confirmar("formulario_resumo_reconhecido")

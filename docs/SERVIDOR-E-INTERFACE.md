@@ -163,7 +163,9 @@ verificadas para Python 3.14. Reinicie o executor Windows após atualizar;
 na interface use Ctrl+F5 para carregar os novos controles.
 
 **Período:** SPED e Contribuições pedem mês/ano e derivam o primeiro e
-último dia, inclusive ano bissexto. Livros pedem datas inicial/final.
+último dia, inclusive ano bissexto. Livros e Resumo por Acumulador pedem
+datas inicial/final. É possível digitar ou usar o calendário; atualizações
+do servidor preservam a edição incompleta do dia/mês/ano.
 Os campos começam vazios e são limpos após envio aceito. A API recusa
 período atual, futuro, SPED de mês incompleto e apuração não confirmada.
 Chamadas locais antigas sem datas preservam o mês anterior.

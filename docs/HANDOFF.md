@@ -1,5 +1,34 @@
 # Domínio Automation Engine — handoff
 
+## Digitação de datas e abertura do Resumo revisadas — 09/10/2026
+
+Operador relatou que a data era apagada antes de terminar de escrever e,
+no teste do Resumo, falha na etapa Abrir Resumo por Acumulador. Chromium
+reproduziu o reinício da edição do ano ao reaplicar input.max com o mesmo
+valor. atualizarLimitePeriodo agora escreve somente quando o limite muda;
+individual, lote e competência de destino usam o helper. Calendário nativo,
+validade do período e confirmação de apuração permanecem. Cache web v9.
+
+_esperar_item_menu tinha recorte superior de 300 pixels. O submenu longo
+de Acompanhamentos tem Resumo abaixo dessa região; somente essa busca usa
+menu_completo=True com captura completa. OCR/cache continuam conferidos
+antes do clique; sem offsets novos. Console/capturas distinguem as quatro
+partes da abertura. Não há evidência ainda de que esta fosse a causa exata
+da tentativa Windows, apenas a etapa informada pelo operador.
+
+404 testes passaram, incluindo OCR real de menu sintético abaixo do
+recorte antigo e ausência do item sem clicar em vizinho. Smoke de destinos
+testou teclado/ano vazio/parcial em sete campos, com chamadas reais à API
+durante a edição, além dos cenários de destino já existentes. Fiscal/desktop
+continuam simulados; repetir Resumo individual no Windows após atualizar.
+
+Operador reforçou o nome Livros Fiscais para Entradas/Saídas/ICMS juntos.
+Isso é o fluxo já documentado de três PDFs, ainda não integrado. O painel
+explicita essa pendência; geradores individuais e cadastro ICMS não foram
+apresentados como emissão conjunta. Nenhuma migração de vínculos nesta
+correção. Implementar seletor de pasta/múltiplos arquivos/conferência ICMS
+conforme docs/LIVROS-FISCAIS-CONJUNTOS.md antes de liberar a rotina conjunta.
+
 ## Atualizador sem commit de merge — 09/10/2026
 
 Operador informou fetch bb50f50..868c5be seguido de Committer identity
