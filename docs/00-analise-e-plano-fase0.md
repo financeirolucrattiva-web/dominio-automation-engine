@@ -4313,6 +4313,30 @@ sintaxe/diff conferidos. O diagnóstico Windows real ainda não foi executado.
 
 ---
 
+### 0.99 Raiz compartilhada preenchida e pasta abreviada (13/10/2026)
+
+**Pedido:** raiz local de Presumido/Real preenchida no cadastro, permitindo
+digitar só o restante ou colar o caminho completo da empresa. O caminho
+pessoal recebido permanece fora do Git; a configuração precisa ser
+gravada uma vez no PC servidor em data/destino_livros.json.
+
+**Correção:** API autenticada entrega a base ao painel; campo somente
+leitura preservado ao salvar/editar/limpar. Cadastro normaliza caminho
+completo dentro da base para relativo. Recusa caminhos externos, retorno
+e links que saem da raiz. Prévia aceita caminho completo equivalente.
+Prefixo antigo só é abreviado quando coincide com a raiz, a pasta direta
+não existe e existe uma única pasta abreviada. CSV permanece intacto.
+CLI preserva subpasta configurada ao alterar só a raiz, mesmo se a raiz
+antiga não existe; JSON inválido não é sobrescrito silenciosamente.
+
+**Validação:** 434 testes passaram e os dois testes Chromium passaram.
+Dados sintéticos incluem Windows/unidades, limites de nomes, caminhos
+com aspas, prefixos antigos/ambíguos, links externos, API autenticada,
+gravação da configuração e interface. Não houve configuração no PC nem
+emissão fiscal. Conjunto Livros e confirmação de mês fechado pendentes.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

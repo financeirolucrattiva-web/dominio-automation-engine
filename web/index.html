@@ -39,8 +39,9 @@
           <form id="form-empresa"><h2>Cadastrar ou editar empresa</h2><label for="empresa-codigo">Código no Domínio</label><input id="empresa-codigo" required inputmode="numeric" pattern="[0-9]{1,12}" maxlength="12">
             <label for="empresa-nome">Nome da empresa</label><input id="empresa-nome" required maxlength="100">
             <label for="empresa-regime">Regime</label><select id="empresa-regime" required><option value="">Escolha o regime</option></select>
-            <label for="empresa-pasta">Pasta da empresa dentro da raiz do servidor</label><input id="empresa-pasta" maxlength="500" placeholder="1 LUCRO REAL E LUCRO PRESUMIDO\1.6 EMPRESA EXEMPLO">
-            <p class="discreto">Se deixar vazia, o servidor procura pelo código no mapa local de pastas. Presumido e Real compartilham a raiz; o regime é o escolhido acima.</p>
+            <label for="empresa-raiz">Raiz compartilhada — Presumido e Real</label><input id="empresa-raiz" readonly placeholder="Configure a raiz no PC servidor">
+            <label for="empresa-pasta">Restante do caminho até a pasta da empresa</label><input id="empresa-pasta" maxlength="500" placeholder="1.6 EMPRESA EXEMPLO">
+            <p class="discreto">Escreva somente o restante ou cole o caminho local completo da empresa. A raiz acima já vem da configuração salva no servidor. Se deixar vazio, usa o código no mapa local de pastas.</p>
             <label for="empresa-subpasta">Destino dos livros dentro de FISCAL/mês</label><input id="empresa-subpasta" maxlength="500" placeholder="RELATORIOS_APURAÇÃO\LIVROS_FISCAIS">
             <p class="discreto">Deixe vazio para usar o padrão. O ano e o mês vêm da competência escolhida.</p>
             <button id="salvar-empresa" type="submit">Salvar empresa</button>

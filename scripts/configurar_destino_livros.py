@@ -15,15 +15,24 @@ from app import destinos_livros
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raiz", help="Pasta local que contém as pastas de regimes/empresas.")
-    parser.add_argument("--subpasta", default=destinos_livros.SUBPASTA_PADRAO)
+    parser.add_argument("--subpasta", help="Subpasta dos livros; sem informar, preserva a configuração existente.")
     args = parser.parse_args(argv)
     raiz_texto = args.raiz or input("Cole o caminho LOCAL da raiz das empresas no Dropbox (C:\\...): ")
+    pasta = ROOT / "data"
     try:
         raiz = destinos_livros.validar_raiz(raiz_texto.strip().strip('"'))
-        subpasta = destinos_livros.caminho_relativo(args.subpasta, False)
-    except ValueError as erro:
+        subpasta_texto = args.subpasta
+        existente = pasta / "destino_livros.json"
+        if subpasta_texto is None:
+            subpasta_texto = destinos_livros.SUBPASTA_PADRAO
+            if existente.is_file():
+                dados = json.loads(existente.read_text(encoding="utf-8-sig"))
+                if not isinstance(dados, dict):
+                    raise ValueError("Configuração local inválida; informe --subpasta para substituí-la.")
+                subpasta_texto = dados.get("subpasta_livros", subpasta_texto)
+        subpasta = destinos_livros.caminho_relativo(subpasta_texto, False)
+    except (OSError, ValueError) as erro:
         parser.error(str(erro))
-    pasta = ROOT / "data"
     pasta.mkdir(parents=True, exist_ok=True)
     temporario = None
     try:

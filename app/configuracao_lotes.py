@@ -59,6 +59,7 @@ class ConfiguracaoLotes:
             "regimes": [{"id": r["id"], "nome": r["nome"], "rotinas": json.loads(r["rotinas"])}
                         for r in banco.execute("SELECT * FROM regimes ORDER BY rowid")],
             "empresas": [dict(e) for e in banco.execute("SELECT * FROM empresas_painel ORDER BY rowid")],
+            "destino_livros": destinos_livros.configuracao_para_painel(self.repositorio.caminho.parent),
             "rotinas": [{"id": c.id, "nome": c.nome, "status": "integrada", "quantidade_passos": None}
                         for c in capacidades.listar_capacidades()] +
                        [{"id": r["id"], "nome": r["nome"], "status": r["status"],
@@ -224,7 +225,7 @@ class ConfiguracaoLotes:
             if not banco.execute("SELECT 1 FROM regimes WHERE id=?", (regime_id,)).fetchone():
                 raise ValueError("Escolha um regime cadastrado.")
             atual = banco.execute("SELECT * FROM empresas_painel WHERE codigo=?", (codigo,)).fetchone()
-            pasta = destinos_livros.caminho_relativo(pasta_relativa) if pasta_relativa is not None else (atual["pasta_relativa"] if atual else "")
+            pasta = destinos_livros.pasta_empresa(pasta_relativa, self.repositorio.caminho.parent) if pasta_relativa is not None else (atual["pasta_relativa"] if atual else "")
             subpasta = destinos_livros.caminho_relativo(subpasta_livros) if subpasta_livros is not None else (atual["subpasta_livros"] if atual else "")
             banco.execute("INSERT INTO empresas_painel (codigo,nome,regime_id,pasta_relativa,subpasta_livros) VALUES (?,?,?,?,?) ON CONFLICT(codigo) DO UPDATE SET nome=excluded.nome, regime_id=excluded.regime_id, pasta_relativa=excluded.pasta_relativa, subpasta_livros=excluded.subpasta_livros",
                           (codigo, nome, regime_id, pasta, subpasta))
