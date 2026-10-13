@@ -1,8 +1,39 @@
 # Resumo por Acumulador — implementação para teste individual
 
 Fluxo mapeado nos prints/instruções de 09/10/2026. Integrado no motor e
-painel; **ainda não executado nem homologado no Domínio real nesta sessão**.
+painel; tentativas Windows informadas com falha na abertura e, depois,
+nas datas. **Sem emissão bem-sucedida ou homologação da versão atual.**
 Integração técnica não significa aprovação fiscal.
+
+## Falha nas datas — diagnóstico de 13/10
+
+Operador relatou que o mês 09 permaneceu e a rotina falhou. Ainda não
+há log que diferencie OCR, foco ou seleção/digitação. A estratégia de
+entrada foi preservada até obter essa evidência.
+
+Ao preencher, o terminal imprime linhas RESUMO_PERIODO somente com
+fase, campo, data esperada, valores/posições lidos e tentativa. Nenhum
+nome/CNPJ ou texto OCR livre entra nesse diagnóstico. O painel e o
+relatório distinguem campos não localizados, inicial/final não confirmada
+e divergência na conferência final. A falha continua falha depois de
+recuperar a interface; nenhuma nova tentativa de emissão é criada.
+
+Para ler o formulário sem alterar nada, abrir Relatórios → Acompanhamentos
+→ Resumo por Acumulador e executar na pasta do projeto:
+
+```bat
+python scripts\revisar_periodo_resumo.py
+```
+
+Voltar ao formulário nos próximos cinco segundos. O script mede por
+Tesseract 2x/4x e Windows quando disponível; só imprime rótulos conhecidos,
+datas alinhadas e posições. A captura fica em capturas/ no PC. Não
+troca empresa, digita ou clica OK. PNG local opcional via --imagem.
+
+Enviar as linhas RESUMO_OCR e RESUMO_LEITURA ou o motivo de falha.
+Depois, repetir somente o Resumo em competência fechada e guardar as
+linhas RESUMO_PERIODO. Os testes novos simulam de fato setembro→agosto;
+isso não comprova alteração dos controles da instalação Windows.
 
 ## Fluxo observado
 

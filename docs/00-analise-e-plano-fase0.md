@@ -4371,6 +4371,38 @@ não afirmar execução inteira do Presumido ou homologação no Windows.
 
 ---
 
+### 0.101 Diagnóstico da data não alterada no Resumo (13/10/2026)
+
+**Evidência:** operador informou datas do Resumo permaneceram em setembro
+e falhou no teste que deveria usar agosto fechado. Nenhum log identifica
+motor OCR, clique/seleção, valor lido ou etapa final. Livros apareceu
+pendente porque a emissão conjunta continua sem integração.
+
+**Revisão:** adaptador passa datas pedidas ao gerador; leitura dos dois
+campos precisa bater antes do OK e período/empresa são conferidos na
+prévia/PDF. Causa da falha real não foi demonstrada. O teste feliz antigo
+mockava leitura já em agosto e não exercitava transição setembro→agosto.
+
+**Preparação:** esperado/lido/posições/fase/tentativa em log local limitado;
+quatro motivos fixos persistidos no evento/tarefa e exibidos no painel/
+relatório após falha e recuperação. Nenhum OCR livre/identidade fiscal.
+Diagnóstico do formulário aberto por script, sem ação de mouse/teclado
+ou geração. Não foram inventados offsets ou trocada a digitação sem
+evidência. Interrupção antes do OK mantida para divergência confirmada.
+
+**Validação:** 462 testes passaram na rodada completa e dois casos novos
+do CLI passaram na rodada dirigida (464 ao todo). Casos novos mudam a
+leitura sintética de setembro para agosto, impedem geração quando algum
+campo permanece antigo, esperam leitura transitória e recusam divergência
+final. CLI só lê PNG e descarta texto livre; worker mantém motivo após
+recuperação. Chromium do piloto passou motivo no painel e continuidade
+com falha preservada. Sintaxe/diff conferidos. Sem diagnóstico/emissão
+real desta entrega; próximo dado necessário é log Windows dos campos.
+OCR/título/PNG indisponível retorna mensagem fixa, sem traceback livre;
+CLI aceita leitura do título/campos pelo Windows se Tesseract falhar.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

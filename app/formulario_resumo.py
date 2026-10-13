@@ -2,6 +2,24 @@
 import datetime as dt
 import re
 
+MOTIVOS_PERIODO = {
+    'campos_resumo_nao_localizados', 'data_inicial_resumo_nao_confirmada',
+    'data_final_resumo_nao_confirmada', 'periodo_resumo_divergente',
+}
+
+
+def resumo_leitura(campos):
+    """Somente datas e posições conhecidas para o diagnóstico local."""
+    resumo = {}
+    for papel in ('inicial', 'final'):
+        valor, posicao = campos[papel]['valor'], campos[papel]['posicao']
+        if (not isinstance(valor, str) or not re.fullmatch(r'[0-9]{2}/[0-9]{2}/[0-9]{4}', valor)
+                or len(posicao) != 2 or any(type(c) is not int or c < 0 for c in posicao)):
+            raise ValueError('Leitura do período inválida.')
+        dt.datetime.strptime(valor, '%d/%m/%Y')
+        resumo[papel] = {'valor': valor, 'posicao': list(posicao)}
+    return resumo
+
 
 def campos_periodo(dados, escala=2):
     palavras = []

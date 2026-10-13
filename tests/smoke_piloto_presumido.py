@@ -34,6 +34,11 @@ class LoginSintetico:
 chamadas=[]
 def fiscal(dados,receber):
     chamadas.append((dados['empresa_codigo'],dados['capacidade']))
+    if getattr(fiscal,'falhar_periodo',False) and dados['capacidade']=='resumo_acumulador':
+        base={'execution_id':dados['request_id'].replace('-',''),'routine_id':'resumo_acumulador','attempt':1,'elapsed_seconds':0}
+        for passo in ('preencher_periodo','fim'):
+            receber(base | {'step':passo,'status':'falha','evidence':'data_inicial_resumo_nao_confirmada'})
+        return False
     eventos_confirmados(dados,receber)
     return True
 
@@ -116,6 +121,15 @@ with tempfile.TemporaryDirectory() as pasta:
             expect(pagina.locator('#lote-resultado')).to_contain_text('2 pendências não executadas',timeout=8000)
             assert chamadas[2:]==[('52','resumo_acumulador'),('52','efd_contribuicoes'),('53','resumo_acumulador'),('53','efd_contribuicoes')]
             assert len(repo.listar_lotes())==2
+            fiscal.falhar_periodo=True
+            pagina.locator('#piloto-empresa').select_option('53'); pagina.locator('#piloto-competencia').fill('2024-04')
+            expect(pagina.locator('#piloto-resumo')).to_contain_text('2 rotinas disponíveis')
+            pagina.locator('#piloto-parcial').check(); pagina.locator('#piloto-apuracao').check(); pagina.locator('#piloto-executar').click()
+            expect(pagina.locator('#lote-resultado')).to_contain_text('Finalizada com falhas',timeout=8000)
+            expect(pagina.locator('#lote-tarefas')).to_contain_text('data inicial não confirmou o valor solicitado')
+            linha=pagina.locator('#lote-tarefas tr').filter(has_text='Resumo por Acumulador')
+            linha.get_by_role('button',name='Ver etapas').click()
+            expect(pagina.locator('#motivo-tarefa')).to_contain_text('Não enviei OK')
             for largura in (1440,768,390):
                 pagina.set_viewport_size({'width':largura,'height':900})
                 assert pagina.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')

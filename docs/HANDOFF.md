@@ -1,5 +1,43 @@
 # Domínio Automation Engine — handoff
 
+## Datas do Resumo permaneceram em setembro — 13/10/2026
+
+Operador informou Resumo sem trocar data e Livros como não executado/
+integração pendente. Confirmou datas permaneceram no mês 09 e rotina
+falhou; não há log da etapa nem confirmação se chegou à prévia. Livros
+permanece sem gerador conjunto, pendência registrada corretamente.
+
+Revisão pelo papel automacao-dominio: pedido ISO chega formatado ao
+gerador, que localiza datas, usa Home+Shift+End, oito dígitos e Tab,
+exige releitura exata antes do OK e confere prévia/PDF. Não comprovou
+causa Windows. Falta comprovada: nenhuma informação de esperado/lido/
+campo ao falhar; teste feliz simulava campos já em agosto o tempo todo.
+
+Entrega acrescenta logs locais RESUMO_PERIODO com fase/campo/esperado/
+duas datas/posições/tentativa, sem OCR livre ou identidade fiscal. Motivos
+fechados para campos não localizados, inicial/final não confirmadas ou
+divergência final são mantidos nos eventos, tarefa, painel e relatório,
+inclusive após recuperação. Captura da falha permanece local antes da
+recuperação. A estratégia de digitação não foi alterada por hipótese.
+
+Script revisar_periodo_resumo.py só captura/lê o formulário aberto;
+mostra por motor rótulos conhecidos/datas alinhadas/medidas. PNG local
+opcional; não digita/clica/emite. Próximo passo: operador abrir Resumo,
+rodar diagnóstico, retornar ao formulário nos cinco segundos e enviar
+saída limitada. Depois testar individual em agosto/2026 fechado e copiar
+linhas RESUMO_PERIODO ou o motivo do painel. Não afirmar correção de
+data no Windows sem esse log.
+
+464 testes validados (462 na rodada completa e dois casos novos do CLI
+na rodada dirigida), com troca sintética setembro→agosto, inicial/final
+que não mudam, OCR temporário e alteração da inicial durante digitação
+da final bloqueando OK. Testes de CLI/privacidade/worker preservam motivo
+mesmo após recuperação. Chromium piloto passou a exibição de motivo,
+falha preservada e continuidade da EFD após recuperação. Sintaxe/diff
+conferidos. Não houve novo clique/emissão ou diagnóstico Windows real.
+CLI também trata OCR/título/PNG indisponível com mensagem fixa, sem
+traceback livre, e tenta o título pelo OCR Windows se Tesseract falhar.
+
 ## Teste do Presumido por empresa e diagnóstico dos livros — 13/10/2026
 
 Operador não encontrou botão para executar a conjunta; confirmado que

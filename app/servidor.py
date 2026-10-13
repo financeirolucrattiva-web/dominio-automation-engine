@@ -15,6 +15,7 @@ from app.trava_execucao import TravaExecucao
 from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
 from app.autenticacao import SessaoLogin, LoginRecusado
 from app.configuracao_lotes import ConfiguracaoLotes
+from app.formulario_resumo import MOTIVOS_PERIODO
 
 
 class SessaoOcupada(ValueError):
@@ -309,9 +310,10 @@ class RepositorioTarefas:
         modelo = painel.EstadoPainel()
         if not modelo.receber(evento):
             return
-        # Evidência OCR livre nunca atravessa a API. Marcadores são locais.
+        # OCR livre nunca atravessa a API; só retorno e motivos fechados.
         dados = {k: evento[k] for k in ("execution_id", "routine_id", "attempt", "step", "status", "elapsed_seconds")}
-        dados["evidence"] = "tela_principal_reconhecida" if evento.get("evidence") == "tela_principal_reconhecida" else None
+        evidencia = evento.get('evidence')
+        dados['evidence'] = evidencia if isinstance(evidencia, str) and evidencia in {'tela_principal_reconhecida', *MOTIVOS_PERIODO} else None
         with self.conectar() as banco:
             banco.execute("INSERT INTO eventos (tarefa_id, evento) VALUES (?,?)", (identificador, json.dumps(dados)))
 
@@ -605,6 +607,10 @@ class ServicoExecucao:
                 concluido = modelo.linhas.get("fim", (None, None, None))[2] == "concluido"
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
                 motivo = "resultado_ou_retorno_nao_confirmado" if status == "nao_confirmada" else None
+                if status == 'falha' and pedido['capacidade'] == 'resumo_acumulador':
+                    motivos_periodo = [e['evidence'] for e in self.repositorio.eventos(identificador)
+                                       if e['status'] == 'falha' and e.get('evidence') in MOTIVOS_PERIODO]
+                    motivo = motivos_periodo[-1] if motivos_periodo else None
                 if status == "concluida" and arquivo:
                     try:
                         arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)

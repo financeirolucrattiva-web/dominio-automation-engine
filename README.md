@@ -109,6 +109,12 @@ registra resultados e falhas. O botão **Conferir formulário dos três
 livros** faz a leitura local antes da integração da emissão conjunta.
 Veja [TESTE-PRESUMIDO-POR-EMPRESA.md](docs/TESTE-PRESUMIDO-POR-EMPRESA.md).
 
+Se o Resumo não trocar o período, o painel mostra qual data não confirmou
+ou se os campos não foram localizados. O terminal registra somente as
+datas/posições esperadas e lidas. `python scripts/revisar_periodo_resumo.py`
+lê o formulário aberto sem alterar controles ou emitir; detalhes em
+[RESUMO-POR-ACUMULADOR.md](docs/RESUMO-POR-ACUMULADOR.md).
+
 O esquema recebido está em [ARQUITETURA-SERVIDOR.md](docs/ARQUITETURA-SERVIDOR.md).
 Presumido e Real compartilham a pasta principal; o código e o regime vêm
 do cadastro. No PC com o executor:
