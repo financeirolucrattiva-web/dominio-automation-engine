@@ -25,10 +25,16 @@ testado depois da aceitação desse piloto.
 
 ## Livros Fiscais — emissão conjunta a configurar
 
+Nova captura da aba Geral em 13/10 mostra os três livros desmarcados.
+O [diagnóstico local](DIAGNOSTICO-FORMULARIO-LIVROS.md) lê estados e datas
+sem alterar controles ou emitir. O operador informou setembro ainda não
+fechado; escolher uma competência apurada antes do teste de emissão.
+
 1. Relatórios → Livros → Livros Fiscais, aba Geral.
 2. Conferir Registro de Entradas, Registro de Saídas e Registro de ICMS
    selecionados. Ler o estado antes de clicar: a captura fornecida já
-   mostra os três marcados. Conferir que outros livros não serão emitidos.
+   de 09/10 mostra os três marcados, mas a de 13/10 mostra desmarcados.
+   Conferir que outros livros não serão emitidos.
 3. Preencher Inicial e Final com as datas completas e reler os dois campos.
 4. Clicar OK à direita e aguardar a prévia. A primeira prévia pode ser
    qualquer um dos livros; Processando, Aguarde não comprova conclusão.

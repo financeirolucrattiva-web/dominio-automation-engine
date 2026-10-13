@@ -1,5 +1,38 @@
 # Domínio Automation Engine — handoff
 
+## Leitura do formulário Livros e recuperação confirmada — 13/10/2026
+
+Log Windows confirmou recuperar_instalacao.py concluído em 949a760,
+com backup local do código/Git e preservação de dados/configurações.
+Ainda não há novo log de emissão fiscal. Captura da aba Geral mostra
+Entradas/Saídas/ICMS desmarcados e período setembro/2026. Operador respondeu
+que setembro não está fechado, depois pediu mês passado. Foi explicado
+que mês passado em 13/10 é setembro; confirmação de agosto/outro mês
+apurado nessa empresa está pendente. Não emitir setembro nessa etapa.
+
+formulario_livros lê caixas por quadrados/pixels junto dos rótulos OCR,
+sem offsets novos. Exige 16 caixas em Emitir, rejeita estado desconhecido
+e separa opções do painel direito. Datas por caixas OCR, sem confundir
+inicial do rodapé. Primitiva idempotente para futura seleção dos três
+livros ainda não integrada a gerador/executor; não clica OK nem emite.
+
+scripts/revisar_formulario_livros.py e atalho Revisar Formulario Livros.bat
+são somente leitura. Captura local após cinco segundos para colocar a
+janela em foco; imprime estados/medidas/datas/contagem de outras opções,
+sem texto livre/CNPJ/empresa. PNG local opcional. Dois OCRs Tesseract e
+Windows como segunda opinião. tela importa para leitura de PNG fora de
+Windows sem chamar o setup de DPI; comportamento Windows permanece.
+
+Print inline não foi convertido em arquivo/medido nesta nuvem; algoritmo
+ainda precisa de log Windows. Testes usam pixels/dados sintéticos e OCR
+real. Diagnóstico não comprova emissão, conteúdo ICMS, empresa ou retorno.
+425 testes passaram, incluindo dez casos da leitura/seleção e CLI com PNG
+local sem alteração/emissão. Sintaxe/diff conferidos. Emissão conjunta
+e diagnóstico contra o formulário real ainda não executados nesta nuvem.
+Guia em DIAGNOSTICO-FORMULARIO-LIVROS.md. Não recomendar a conjunta como
+rotina já executável: seletor de pasta, três artefatos e conteúdo ICMS
+continuam pendentes de implementação/confirmação.
+
 ## Revisão dos roteiros e recuperação da instalação — 13/10/2026
 
 Operador pediu continuar a configuração e revisar os passos das rotinas
@@ -35,7 +68,8 @@ executores antes de aplicar. Prepara backup do código e Git; recupera
 versionados e .git no caminho original, preservando data/, saídas,
 capturas/.env/ambientes e arquivos não versionados. Falha tenta rollback.
 Não opera desktop, recria certificados ou instala dependências.
-Passo a passo em RECUPERAR-INSTALACAO.md; script Windows ainda não rodado.
+Passo a passo em RECUPERAR-INSTALACAO.md; execução Windows confirmada no
+registro acima. Emissão fiscal/abertura final do painel ainda não confirmadas.
 
 415 testes passaram, incluindo cadastro/recuperação com SQLite e clones
 Git reais locais; Chromium passou configuração/rascunho/validação da

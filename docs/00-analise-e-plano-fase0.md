@@ -4287,6 +4287,30 @@ passou cadastro conjunto, configuração/rascunho/envio à validação sem
 liberar execução e sequência de três rotinas. Sintaxe/diff conferidos;
 desktop/emissões/autenticação fiscal são simulados. Sem homologação Windows.
 
+### 0.98 Leitura de caixas/datas de Livros e competência do teste (13/10/2026)
+
+**Evidência:** log Windows confirmou recuperação da instalação em 949a760
+com backup. Nova captura Livros Fiscais/Geral mostra Entradas/Saídas/ICMS
+desmarcados; datas 01/09/2026–30/09/2026. Operador informou setembro não
+fechado e pediu mês passado; explicado que em 13/10 o mês passado é
+setembro. Confirmação de agosto/outro mês apurado nessa empresa pendente.
+
+**Preparação:** leitura local por caixas OCR/pixels, sem offsets antigos.
+Recusa checkbox ambíguo/indeterminado, exige o grupo de 16 opções e lê
+datas junto de Inicial/Final, sem usar inicial do rodapé. Seleção
+idempotente dos três livros preparada como primitiva, ainda não conectada
+ao executor ou geradores; exige conferências futuras de foco/empresa.
+Script/atalho de diagnóstico somente captura/lê, não chama a seleção,
+clica OK, altera datas ou emite. Sem texto livre fiscal na saída.
+
+**Validação:** 425 testes passaram. Dez casos novos usam imagens/dados sintéticos com marcações mistas,
+janela movida/ampliada, outras opções marcadas, caixa/estado/rotulação
+ambíguos, data inválida e OCR Tesseract real. Não houve medição de pixels
+do print inline, calibração real ou clique/geração no Windows. O diagnóstico
+local é a próxima evidência necessária; não afirmar que o conjunto está
+integrado/homologado. CLI com PNG local passou sem alteração/emissão;
+sintaxe/diff conferidos. O diagnóstico Windows real ainda não foi executado.
+
 ---
 
 ## 1. Análise do projeto

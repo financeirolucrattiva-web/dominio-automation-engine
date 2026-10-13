@@ -3,6 +3,10 @@
 Os instaladores principais e `Atualizar.bat` ficam na raiz do projeto.
 Aqui estão os atalhos de uso e manutenção. Abra por duplo clique;
 eles usam os mesmos scripts, opções, dependências e dados locais.
+
+O atalho `ferramentas/Revisar Formulario Livros.bat` lê caixas/datas da
+aba Geral, com captura/OCR locais. Não clica nem emite. Veja o
+[diagnóstico do formulário](../docs/DIAGNOSTICO-FORMULARIO-LIVROS.md).
 Mantenha estas pastas dentro do projeto, pois os atalhos precisam de
 `app/`, `scripts/` e dos arquivos da raiz.
 
