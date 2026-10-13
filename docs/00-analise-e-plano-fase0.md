@@ -4250,6 +4250,43 @@ PDFs; permanece não integrada. O painel agora explica que Entradas/Saídas
 estão integradas individualmente e ICMS só cadastrado. Sem alteração de
 regimes/vínculos ou liberação da rotina conjunta neste ajuste.
 
+### 0.97 Revisão de rotinas novas e recuperação de HTML/Git (13/10/2026)
+
+**Evidência:** operador retomou configuração e revisão passo a passo.
+O fluxo conjunto de três PDFs estava documentado, mas os regimes ainda
+vinculavam os três livros separadamente. O nome Demonstrativo EFD
+Contribuições reutiliza um exportador, sem geração/retorno de PDF.
+Resultado esperado EFD e título interno ICMS foram perguntados e ainda
+precisam de resposta antes de alterar esses geradores.
+
+**Cadastro:** marco v5 cria Livros Fiscais — Entradas, Saídas e ICMS como
+pendente, agrupando trio completo em LP/LR no primeiro livro. Preserva
+ordem, sequências parciais, outros regimes, empresas e tarefas; arquiva
+roteiro ICMS anterior só quando nenhum regime o usa. Não restaura edições
+posteriores nem habilita a conjunta no executor. Roteiro e limites em
+REVISAO-ROTINAS-NOVAS.md; não há execução fiscal nova nesta entrega.
+
+**Corrupção diagnosticada no PC em 09/10:** HTML local e HTTPS tinham
+17.171 bytes, início zerado e form-login ausente. Eram arquivos idênticos;
+o 200 OK escondia conteúdo inválido. Git archive HEAD falhou por objeto
+HEAD inválido. Causa da corrupção desconhecida; hipótese de ESET não
+resolveu. Foram fornecidas instruções de clone/restauro da pasta web,
+sem log de recuperação do Git original.
+
+**Recuperação preparada:** recuperar_instalacao.py roda no clone novo
+independente da main, confere Git/HTML e trava execução antes de substituir
+versionados e .git, com backup local e tentativa de rollback. Preserva
+dados privados, configurações/certificados, documentos e arquivos não
+versionados; não usa identidade/HEAD do Git corrompido. Nenhuma reinstalação
+de dependências ou geração de certificados. Windows real ainda pendente.
+
+**Validação:** 415 testes passaram, com migração SQLite e recuperação Git reais locais,
+incluindo histórico/configurações preservados, fluxo pendente não habilitado,
+HTML/HEAD inválidos, exclusão por executor ativo e rollback. Chromium
+passou cadastro conjunto, configuração/rascunho/envio à validação sem
+liberar execução e sequência de três rotinas. Sintaxe/diff conferidos;
+desktop/emissões/autenticação fiscal são simulados. Sem homologação Windows.
+
 ---
 
 ## 1. Análise do projeto

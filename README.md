@@ -32,6 +32,10 @@ divergente interrompem a atualização para revisão. Veja
 [como atualizar e recuperar o atalho antigo](docs/ATUALIZACAO.md), inclusive
 o erro `Committer identity unknown`.
 
+Se a interface estiver branca e o HTML local estiver zerado, ou HEAD for
+inválido, use a [recuperação com backup](docs/RECUPERAR-INSTALACAO.md) a
+partir de um clone novo. Não depende do Git corrompido da instalação.
+
 ## Site conectado ao servidor
 
 O projeto agora inclui uma interface web para enviar tarefas individuais
@@ -78,7 +82,11 @@ podem ser cadastradas pelo nome, configuradas individualmente e enviadas
 Demonstrativo EFD Contribuições reutiliza a rotina integrada existente,
 renomeada e vinculada ao Presumido e Real; a cópia pendente foi arquivada.
 Resumo por Acumulador está integrado para teste individual supervisionado,
-ainda não homologado no Windows. Livro Fiscal de ICMS aguarda integração.
+ainda não homologado no Windows. Livros Fiscais — Entradas, Saídas e ICMS
+tem cadastro conjunto; a emissão dos três PDFs aguarda integração.
+Veja o [roteiro de revisão das rotinas novas](docs/REVISAO-ROTINAS-NOVAS.md).
+O item Demonstrativo EFD Contribuições ainda utiliza o exportador da EFD;
+a geração de um demonstrativo PDF depende da confirmação do roteiro.
 O lote agora preserva a falha da rotina e continua após confirmar a
 recuperação até a tela azul; sem recuperação confirmada, interrompe.
 Conferência e recuperação desta versão precisam da rodada Windows.

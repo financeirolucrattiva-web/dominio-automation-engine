@@ -1,10 +1,10 @@
 # Roadmap de gestão — Domínio Automation Engine
 
-**Referência:** 09/10/2026 · **Empresa:** Lucrattiva Contabilidade
+**Referência:** 13/10/2026 · **Empresa:** Lucrattiva Contabilidade
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-main até `f85cea4` e incremento do Resumo nesta entrega. Implementação preparada
+main até `1fd8084` e revisão de cadastro/roteiros nesta entrega. Implementação preparada
 neste ambiente; instalação, execução e homologação no Windows do escritório
 continuam sendo etapas próprias.
 
@@ -40,18 +40,24 @@ da aceitação do primeiro piloto.
 | Indicador/rotina | Situação de partida | Próximo trabalho |
 | --- | --- | --- |
 | Resumo por Acumulador | Gerador integrado para teste individual; cadastro vinculado aos dois regimes | Testar OCR/exportação no Windows e homologar o documento |
-| Demonstrativo EFD Contribuições | Rotina EFD existente reutilizada e renomeada, vinculada aos dois regimes | Revalidar a versão atual no Windows |
-| Livro Fiscal — Registro de Entradas | Motor integrado | Revalidar empresa, período, documento e retorno |
-| Livro Fiscal — Registro de Saídas | Motor integrado, com pendência na conferência do PDF | Resolver a conferência e validar o fluxo completo |
-| Livro Fiscal de ICMS | Nome cadastrado, vinculado aos dois regimes | Confirmar o relatório/título exato no Domínio e configurar |
+| Demonstrativo EFD Contribuições | Nome vinculado ao exportador da EFD existente | Confirmar se o produto esperado é essa exportação ou um demonstrativo PDF |
+| Livros Fiscais — Entradas, Saídas e ICMS | Cadastro conjunto; substitui o trio nos regimes com sequência completa; ainda pendente | Confirmar seletor de pasta/título ICMS e integrar geração, conferência e download dos três PDFs |
+| Registro de Entradas / Registro de Saídas individuais | Geradores continuam disponíveis; ainda requerem revalidação | Testar individualmente; evitar emissão duplicada no futuro lote conjunto |
 
 O escritório confirmou que Demonstrativo EFD Contribuições é a mesma
 rotina EFD já existente. O motor é reutilizado e o nome de exibição foi
 ajustado; o cadastro pendente duplicado foi substituído nos regimes,
-arquivando sua configuração anterior no banco local. Livro Fiscal de
-ICMS continua distinto de SPED Fiscal e aguarda integração. Resumo tem
+arquivando sua configuração anterior no banco local. A revisão de 13/10
+confirmou que o gerador atual é de exportação, não um demonstrativo PDF;
+o resultado esperado será revisto com o operador. Livro Fiscal de ICMS
+integra o cadastro conjunto e continua distinto de SPED Fiscal. Resumo tem
 implementação baseada nas telas fornecidas; aguarda execução real e
 homologação. Estar integrado não significa aprovação do supervisor.
+
+O [roteiro de revisão](REVISAO-ROTINAS-NOVAS.md) registra os passos
+observados, o fluxo implementado e as confirmações que faltam antes do
+piloto. O lote completo permanece bloqueado enquanto a conjunta estiver
+pendente de configuração/validação.
 
 O preparo inicial acontece uma vez ao iniciar o servidor atualizado.
 Novos cadastros ficam no banco local. Reiniciar não duplica nem restaura
