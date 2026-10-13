@@ -4,7 +4,7 @@
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-main até `1fd8084` e revisão de cadastro/roteiros nesta entrega. Implementação preparada
+main até `46e89d8` e teste por empresa/diagnóstico nesta entrega. Implementação preparada
 neste ambiente; instalação, execução e homologação no Windows do escritório
 continuam sendo etapas próprias.
 
@@ -58,6 +58,14 @@ O [roteiro de revisão](REVISAO-ROTINAS-NOVAS.md) registra os passos
 observados, o fluxo implementado e as confirmações que faltam antes do
 piloto. O lote completo permanece bloqueado enquanto a conjunta estiver
 pendente de configuração/validação.
+
+O painel oferece teste do Presumido por empresa em um envio e teste
+acompanhado das disponíveis em lote. Com a conjunta pendente, o operador
+seleciona explicitamente o teste parcial; ela aparece como não executada,
+sem alteração no regime. O relatório das etapas preserva falhas, tempos,
+retorno e pendências. Isso permite diagnosticar Resumo/EFD enquanto os
+três livros são integrados. Agosto/2026 foi confirmado fechado para o
+primeiro teste, sem estender a confirmação a outras empresas.
 
 O preparo inicial acontece uma vez ao iniciar o servidor atualizado.
 Novos cadastros ficam no banco local. Reiniciar não duplica nem restaura

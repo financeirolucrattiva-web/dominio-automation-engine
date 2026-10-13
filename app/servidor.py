@@ -199,11 +199,18 @@ class RepositorioTarefas:
                     pendente = banco.execute("SELECT 1 FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? AND t.status IN ('pendente','executando')", (item["lote_id"],)).fetchone()
                     falhas = banco.execute("SELECT 1 FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? AND t.status IN ('falha','nao_confirmada')", (item["lote_id"],)).fetchone()
                     final = "executando" if pendente else "concluida_com_falhas" if falhas else "concluida"
+                    if final == 'concluida':
+                        dados_lote = banco.execute('SELECT plano FROM lotes WHERE id=?', (item['lote_id'],)).fetchone()
+                        if json.loads(dados_lote['plano']).get('quantidade_pendencias', 0):
+                            final = 'concluida_com_pendencias'
                     banco.execute("UPDATE lotes SET status=?, motivo=?, atualizado=? WHERE id=?",
-                                  (final, "rotinas_com_falhas" if falhas else None, _agora(), item["lote_id"]))
+                                  (final, "rotinas_com_falhas" if falhas else 'rotinas_nao_integradas' if final == 'concluida_com_pendencias' else None, _agora(), item["lote_id"]))
 
     def criar_lote(self, pedido, modo):
         campos = {"request_id", "empresas", "inicio", "fim", "apuracao_confirmada", "plano_hash"}
+        piloto = isinstance(pedido, dict) and pedido.get('piloto_presumido') is True
+        if piloto:
+            campos.add('piloto_presumido')
         if not isinstance(pedido, dict) or set(pedido) != campos or pedido["apuracao_confirmada"] is not True:
             raise ValueError("Confira empresas, período e apuração de todas as empresas do lote.")
         try:
@@ -221,7 +228,8 @@ class RepositorioTarefas:
                 return self._lote_publico(banco, anterior), False
             if banco.execute("SELECT 1 FROM tarefas WHERE status IN ('pendente','executando')").fetchone():
                 raise SessaoOcupada("Já existe uma execução na sessão.")
-            plano = self.configuracao.planejar({k: pedido[k] for k in ("empresas", "inicio", "fim")}, banco)
+            plano = self.configuracao.planejar({k: pedido[k] for k in ("empresas", "inicio", "fim")}, banco,
+                                              piloto_presumido=piloto)
             if plano["hash"] != pedido["plano_hash"]:
                 raise ValueError("O cadastro ou período mudou. Revise o plano novamente.")
             identificador, agora = uuid.uuid4().hex, _agora()
@@ -258,6 +266,34 @@ class RepositorioTarefas:
         with self.conectar() as banco:
             lote = banco.execute("SELECT * FROM lotes WHERE id=?", (identificador,)).fetchone()
             return self._lote_publico(banco, lote) if lote else None
+
+    def diagnostico_lote(self, identificador):
+        """Relatório autenticado de etapas; sem caminhos, PDF ou OCR livre."""
+        lote = self.obter_lote(identificador)
+        if lote is None:
+            return None
+        empresas = {e['codigo']: e for e in lote['plano']['empresas']}
+        rotinas = []
+        for tarefa in lote['tarefas']:
+            codigo = tarefa['pedido']['empresa_codigo']
+            eventos = self.eventos(tarefa['id'])
+            etapas = [{'etapa': painel.NOMES_ETAPAS[e['step']], 'status': painel.NOMES_STATUS[e['status']],
+                       'segundos': e['elapsed_seconds']} for e in eventos]
+            falhas = [e['step'] for e in eventos if e['status'] == 'falha' and e['step'] not in ('fim', 'recuperar_interface')]
+            modelo = painel.EstadoPainel()
+            for evento in eventos:
+                modelo.receber(evento)
+            retorno = modelo.retorno == 'Tela principal confirmada'
+            rotinas.append({'tarefa_id': tarefa['id'], 'empresa_codigo': codigo,
+                'empresa_nome': empresas[codigo]['nome'], 'rotina': painel.NOMES_ROTINAS[tarefa['pedido']['capacidade']],
+                'modo': tarefa['modo'], 'status': tarefa['status'], 'motivo': tarefa['motivo'],
+                'arquivo_disponivel': tarefa['arquivo_disponivel'], 'retorno_confirmado': retorno,
+                'etapa_com_falha': painel.NOMES_ETAPAS[falhas[-1]] if falhas else None, 'etapas': etapas})
+        return {'lote_id': lote['id'], 'status': lote['status'], 'motivo': lote['motivo'],
+                'inicio': lote['plano']['inicio'], 'fim': lote['plano']['fim'],
+                'homologacao_fiscal': False, 'rotinas': rotinas,
+                'pendencias_nao_executadas': [{k:p[k] for k in ('empresa_codigo', 'nome', 'status', 'motivo')}
+                                             for p in lote['plano'].get('pendencias', [])]}
 
     def cancelar_lote(self, identificador):
         with self.conectar() as banco:
@@ -361,11 +397,13 @@ class ServicoExecucao:
             return self.estado_login()
 
     def solicitar_sessao(self, acao):
-        if acao not in ("calibrar", "capturar"):
+        if acao not in ("calibrar", "capturar", "revisar_livros"):
             raise ValueError("Operação inválida.")
         with self._controle_lock:
             if self.login is None or not self.disponivel:
                 raise PrecondicaoRecusada("login_indisponivel")
+            if acao == 'revisar_livros' and not callable(getattr(self.login, 'revisar_livros', None)):
+                raise PrecondicaoRecusada('diagnostico_livros_indisponivel')
             if self._ocupado():
                 raise SessaoOcupada("A sessão está ocupada.")
             self.sessao_login.iniciar()
@@ -442,6 +480,9 @@ class ServicoExecucao:
                 self.login.calibrar(self.sessao_login)
             elif acao == "capturar":
                 self.login.capturar(self.sessao_login)
+            elif acao == 'revisar_livros':
+                resultado = self.login.revisar_livros(self.sessao_login)
+                self.sessao_login.concluir_livros(resultado)
             else:
                 if acao == "reiniciar":
                     self.login.reiniciar(self.sessao_login)
@@ -449,12 +490,13 @@ class ServicoExecucao:
         except LoginRecusado as erro:
             motivos = {"login_cancelado", "codigo_expirado", "navegador_indisponivel", "destino_nao_permitido",
                        "tela_login_nao_reconhecida", "campos_login_nao_confirmados", "janela_login_nao_confirmada",
-                       "tela_principal_nao_confirmada", "fechamento_nao_confirmado", "calibracao_nao_confirmada"}
+                       "tela_principal_nao_confirmada", "fechamento_nao_confirmado", "calibracao_nao_confirmada",
+                       "formulario_livros_nao_reconhecido"}
             motivo = str(erro) if str(erro) in motivos else "login_nao_confirmado"
             self.sessao_login.fase("cancelado" if motivo == "login_cancelado" else "falha", motivo)
         except Exception:
             # Exceções de navegador podem conter senhas em traces; não registrar.
-            self.sessao_login.fase("falha", "login_nao_confirmado")
+            self.sessao_login.fase("falha", "diagnostico_livros_nao_confirmado" if acao == 'revisar_livros' else "login_nao_confirmado")
         finally:
             if credenciais is not None:
                 credenciais.limpar()

@@ -99,6 +99,16 @@ mouse/teclado; perda de foco bloqueia ações posteriores nessa execução.
 
 ### Onde guardar os Livros Fiscais por empresa
 
+Para o primeiro piloto, use **Lucro Presumido por empresa** no início do
+painel. Escolha empresa e mês fechado, confira a sequência e inicie em um
+envio. Enquanto Livros Fiscais estiver pendente, é necessário escolher
+explicitamente o teste parcial das rotinas disponíveis; a pendência fica
+registrada como não executada. O mesmo teste pode ser usado em lote,
+somente para empresas do Presumido. **Baixar diagnóstico das etapas**
+registra resultados e falhas. O botão **Conferir formulário dos três
+livros** faz a leitura local antes da integração da emissão conjunta.
+Veja [TESTE-PRESUMIDO-POR-EMPRESA.md](docs/TESTE-PRESUMIDO-POR-EMPRESA.md).
+
 O esquema recebido está em [ARQUITETURA-SERVIDOR.md](docs/ARQUITETURA-SERVIDOR.md).
 Presumido e Real compartilham a pasta principal; o código e o regime vêm
 do cadastro. No PC com o executor:

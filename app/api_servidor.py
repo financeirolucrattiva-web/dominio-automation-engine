@@ -231,6 +231,15 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
             raise HTTPException(404, "A captura expirou; solicite outra no painel.")
         return Response(imagem, media_type="image/png")
 
+    @app.post("/api/sessao/livros/conferir", status_code=202, dependencies=[Depends(autorizar)])
+    def conferir_formulario_livros():
+        try:
+            return servico.solicitar_sessao('revisar_livros')
+        except SessaoOcupada:
+            raise HTTPException(409, 'Aguarde a execução ou o login terminar antes de conferir os livros.') from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, 'A conferência do formulário requer o executor Windows atualizado.') from None
+
     @app.get("/api/capacidades", dependencies=[Depends(autorizar)])
     def catalogo():
         return [{"id": item.id, "nome": item.nome, "objetivo": item.objetivo,
@@ -296,6 +305,24 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     def lotes_listar():
         return servico.repositorio.listar_lotes()
 
+    @app.post('/api/piloto-presumido/planejar', dependencies=[Depends(autorizar)])
+    def piloto_planejar(pedido: SelecaoLote):
+        try:
+            return servico.repositorio.configuracao.planejar(pedido.model_dump(), piloto_presumido=True)
+        except ValueError as erro:
+            raise HTTPException(422, str(erro)) from None
+
+    @app.post('/api/piloto-presumido', status_code=202, dependencies=[Depends(autorizar)])
+    def piloto_iniciar(pedido: PedidoLote):
+        try:
+            return servico.solicitar_lote({**pedido.model_dump(), 'piloto_presumido': True})
+        except SessaoOcupada:
+            raise HTTPException(409, 'Aguarde a execução atual. Confira o histórico antes de repetir o teste.') from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, 'O teste requer um executor disponível.') from None
+        except ValueError:
+            raise HTTPException(422, 'Confira empresas do Presumido, competência fechada e plano revisado. O cadastro pode ter mudado.') from None
+
     @app.post("/api/lotes", status_code=202, dependencies=[Depends(autorizar)])
     def lote_iniciar(pedido: PedidoLote):
         try:
@@ -320,6 +347,13 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         if lote is None:
             raise HTTPException(404, "Lote não encontrado.")
         return lote
+
+    @app.get('/api/lotes/{identificador}/diagnostico', dependencies=[Depends(autorizar)])
+    def lote_diagnostico(identificador: str):
+        relatorio = servico.repositorio.diagnostico_lote(identificador)
+        if relatorio is None:
+            raise HTTPException(404, 'Lote não encontrado.')
+        return relatorio
 
     @app.get("/api/rotinas", dependencies=[Depends(autorizar)])
     def rotinas_listar():
