@@ -53,7 +53,8 @@
         </div>
         <div class="calibracao"><h2>Cadastrar rotina para configurar depois</h2>
           <p class="discreto">Lucro Presumido e Lucro Real serão preparados com Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O primeiro piloto será no Lucro Presumido.</p>
-          <p class="discreto">Livros Fiscais — Entradas, Saídas e ICMS será a rotina conjunta de três PDFs. A emissão conjunta ainda está pendente; Entradas e Saídas estão integradas individualmente e ICMS está cadastrado para configuração.</p>
+          <p class="discreto">Livros Fiscais — Entradas, Saídas e ICMS está cadastrado como uma rotina para emitir três PDFs. O roteiro conjunto ainda precisa de configuração e teste; Entradas e Saídas continuam disponíveis individualmente.</p>
+          <p class="discreto">O item Demonstrativo EFD Contribuições usa o exportador existente da EFD. A geração de um demonstrativo em PDF precisa de confirmação do roteiro.</p>
           <form id="form-cadastro-rotina"><label for="cadastro-rotina-nome">Nome da rotina</label><input id="cadastro-rotina-nome" required maxlength="100"><button id="cadastrar-rotina" type="submit">Cadastrar sem configurar</button></form>
           <p class="discreto">Depois de cadastrar, adicione a rotina à sequência do regime. Uma rotina vinculada a vários regimes compartilha a mesma configuração.</p>
           <div class="tabela-scroll"><table><thead><tr><th>Rotina</th><th>Regimes vinculados</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="rotinas-cadastradas"></tbody></table></div>

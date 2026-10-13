@@ -8,6 +8,9 @@ import uuid
 from app import capacidades, configuracao_rotinas, destinos_livros
 
 
+NOME_LIVROS_CONJUNTOS = "Livros Fiscais — Entradas, Saídas e ICMS"
+
+
 def codigo_empresa(valor):
     if not isinstance(valor, str) or not re.fullmatch(r"[0-9]{1,12}", valor):
         raise ValueError("Informe o código numérico da empresa no Domínio.")
@@ -113,6 +116,32 @@ class ConfiguracaoLotes:
                                   (rotina["id"], rotina["nome"], rotina["passos"], rotina["status"]))
                     banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (rotina["id"],))
                 banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_resumo_integrado_v4')")
+            if not banco.execute("SELECT 1 FROM marcos_cadastro WHERE id='piloto_lp_lr_livros_conjuntos_v5'").fetchone():
+                conjunta = self._cadastrar_pendente(banco, NOME_LIVROS_CONJUNTOS)
+                antigas = [r for r in banco.execute("SELECT * FROM rotinas_cadastradas")
+                           if r["nome"].casefold() == "livro fiscal de icms"]
+                ids_icms = {r["id"] for r in antigas}
+                componentes = {"registro_entradas", "registro_saidas"} | ids_icms
+                for regime in self.listar(banco)["regimes"]:
+                    if regime["nome"].casefold() not in ("lucro presumido", "lucro real"):
+                        continue
+                    sequencia = regime["rotinas"]
+                    completa = ({"registro_entradas", "registro_saidas"}.issubset(sequencia)
+                                and bool(ids_icms.intersection(sequencia)))
+                    if completa or conjunta in sequencia:
+                        # Agrupa onde o primeiro livro estava; não acrescenta
+                        # livros que o operador retirou da sequência.
+                        sequencia = list(dict.fromkeys(conjunta if r in componentes else r for r in sequencia))
+                        banco.execute("UPDATE regimes SET rotinas=? WHERE id=?", (json.dumps(sequencia), regime["id"]))
+                usadas = {r for regime in self.listar(banco)["regimes"] for r in regime["rotinas"]}
+                for rotina in antigas:
+                    if rotina["id"] not in usadas:
+                        # Configuração isolada não serve automaticamente para
+                        # três relatórios. Guarda seus passos e seu estado.
+                        banco.execute("INSERT OR IGNORE INTO rotinas_cadastradas_arquivo VALUES (?,?,?,?)",
+                                      (rotina["id"], rotina["nome"], rotina["passos"], rotina["status"]))
+                        banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (rotina["id"],))
+                banco.execute("INSERT INTO marcos_cadastro VALUES ('piloto_lp_lr_livros_conjuntos_v5')")
 
     def _cadastrar_pendente(self, banco, nome):
         existente = next((r for r in self.listar(banco)["rotinas"] if r["nome"].casefold() == nome.casefold()), None)

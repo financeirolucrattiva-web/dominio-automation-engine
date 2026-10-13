@@ -7,6 +7,7 @@ import unittest
 import uuid
 
 from app.servidor import RepositorioTarefas, ServicoExecucao
+from app.configuracao_lotes import NOME_LIVROS_CONJUNTOS
 
 WEB = all(importlib.util.find_spec(n) for n in ("fastapi", "httpx"))
 if WEB:
@@ -22,7 +23,7 @@ class TestCadastroRotinas(unittest.TestCase):
         self.config = self.repo.configuracao
         self.dados = {"nome": "Relatório sintético", "passos": [{"tipo": "clicar", "valor": "Relatórios"}]}
 
-    def test_piloto_prepara_dois_regimes_cinco_indicadores_sem_empresas(self):
+    def test_piloto_prepara_dois_regimes_com_livros_conjuntos_sem_empresas(self):
         self.config.preparar_piloto()
         cad = self.config.listar()
         self.assertEqual([r["nome"] for r in cad["regimes"]], ["Lucro Presumido", "Lucro Real"])
@@ -30,7 +31,7 @@ class TestCadastroRotinas(unittest.TestCase):
         nomes = {r["id"]: r["nome"] for r in cad["rotinas"]}
         for regime in cad["regimes"]:
             self.assertEqual([nomes[r] for r in regime["rotinas"]],
-                             ["Resumo por Acumulador", "Demonstrativo EFD Contribuições", "Registro de Entradas", "Registro de Saídas", "Livro Fiscal de ICMS"])
+                             ["Resumo por Acumulador", "Demonstrativo EFD Contribuições", NOME_LIVROS_CONJUNTOS])
             self.assertEqual(regime["rotinas"].count("efd_contribuicoes"), 1)
             self.assertNotIn("sped_fiscal", regime["rotinas"])
         self.assertEqual([r["status"] for r in cad["rotinas"] if r["status"] != "integrada"],
@@ -58,20 +59,20 @@ class TestCadastroRotinas(unittest.TestCase):
 
     def test_icms_acrescenta_ao_piloto_anterior_sem_recriar_demais_rotinas(self):
         self.config.preparar_piloto()
-        icms = next(r for r in self.config.listar()["rotinas"] if r["nome"] == "Livro Fiscal de ICMS")
         with self.repo.conectar() as banco:
-            banco.execute("DELETE FROM marcos_cadastro WHERE id='piloto_lp_lr_icms_v2'")
+            banco.execute("DELETE FROM marcos_cadastro WHERE id IN ('piloto_lp_lr_icms_v2','piloto_lp_lr_livros_conjuntos_v5')")
             for regime in self.config.listar(banco)["regimes"]:
                 banco.execute("UPDATE regimes SET rotinas=? WHERE id=?",
-                              (json.dumps([r for r in regime["rotinas"] if r != icms["id"]]), regime["id"]))
-            banco.execute("DELETE FROM rotinas_cadastradas WHERE id=?", (icms["id"],))
+                              (json.dumps(["resumo_acumulador", "efd_contribuicoes", "registro_entradas", "registro_saidas"]), regime["id"]))
         anterior = self.config.listar()
         self.config.preparar_piloto()
         atual = self.config.listar()
         self.assertEqual([r["id"] for r in anterior["regimes"]], [r["id"] for r in atual["regimes"]])
-        for antes, depois in zip(anterior["regimes"], atual["regimes"]):
-            self.assertEqual(antes["rotinas"], depois["rotinas"][:-1])
-        self.assertEqual(len(atual["rotinas"]), len(anterior["rotinas"]) + 1)
+        nomes = {r["id"]: r["nome"] for r in atual["rotinas"]}
+        for regime in atual["regimes"]:
+            self.assertEqual([nomes[r] for r in regime["rotinas"]],
+                             ["Resumo por Acumulador", "Demonstrativo EFD Contribuições", NOME_LIVROS_CONJUNTOS])
+        self.assertEqual(len(atual["rotinas"]), len(anterior["rotinas"]))
 
     def test_atualizacao_substitui_efd_duplicada_e_preserva_ordem_e_configuracao(self):
         self.config.preparar_piloto()

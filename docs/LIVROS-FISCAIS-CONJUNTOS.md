@@ -5,6 +5,14 @@ Este documento registra o fluxo para implementação e teste individual.
 A emissão conjunta ainda não está implementada nem homologada no motor.
 Os cadastros existentes e seus estados de validação permanecem vigentes.
 
+Revisão de 13/10/2026: o cadastro conjunto foi acrescentado. Nos regimes
+Presumido/Real com a sequência completa, substitui os três vínculos pelo
+cadastro Livros Fiscais — Entradas, Saídas e ICMS, na posição do primeiro
+livro. Preserva sequências incompletas/outros regimes e não restaura
+edições posteriores. O roteiro antigo de ICMS é arquivado quando deixa
+de ser usado. A conjunta continua pendente; não existe ainda gerador
+conjunto no executor. Passo a passo em REVISAO-ROTINAS-NOVAS.md.
+
 **Escopo confirmado:** esquema recebido de **Lucro Presumido**
 e **Lucro Real**, integrado em [ARQUITETURA-SERVIDOR.md](ARQUITETURA-SERVIDOR.md).
 Destino padrão escolhido: `FISCAL\MM\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`,

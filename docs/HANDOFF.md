@@ -1,5 +1,47 @@
 # Domínio Automation Engine — handoff
 
+## Revisão dos roteiros e recuperação da instalação — 13/10/2026
+
+Operador pediu continuar a configuração e revisar os passos das rotinas
+novas. Main consultada: 1fd8084. Nenhuma mudança de gerador fiscal nesta
+entrega. REVISAO-ROTINAS-NOVAS.md separa Livros, Resumo e o produto EFD.
+
+Cadastro v5 cria Livros Fiscais — Entradas, Saídas e ICMS como pendente.
+Nos regimes LP/LR com trio completo, agrupa no primeiro livro e preserva
+ordem/empresas/histórico. Sequências parciais/outros regimes permanecem;
+cadastro conjunto já configurado é reutilizado. Roteiro ICMS anterior é
+arquivado somente se nenhum regime o usa. Reinício não restaura vínculos
+removidos. Geradores individuais continuam disponíveis; a conjunta ainda
+não existe no executor, não emite três PDFs nem habilita lote remoto.
+
+Conferência: o item Demonstrativo EFD Contribuições usa gerar_efd_contribuicoes
+e o exportador de Relatórios/Informativos/Federais, sem retorno de PDF.
+Perguntado ao operador se deseja essa exportação ou um demonstrativo PDF;
+resposta ainda pendente. Não alterar sem confirmar menu/produto esperado.
+Título interno ICMS também pendente; operador não entendeu a pergunta,
+foi orientado a copiar apenas a frase do topo da primeira página.
+Não definir validação ICMS pelo nome ICMS NORMAL (M) do arquivo.
+
+Diagnóstico real de 09/10: HTML local e resposta HTTPS têm 17.171 bytes,
+início zerado, comparação idêntica e form-login ausente. Site branco não
+foi reproduzido com os arquivos válidos da nuvem. Regra ESET não resolveu.
+Git archive HEAD falhou com not a valid object name; causa da corrupção
+não determinada. Recuperação parcial por clone/web foi instruída, sem
+log que comprove a abertura final ou reparo do Git original.
+
+scripts/recuperar_instalacao.py deve rodar no clone novo da main, fora
+da instalação antiga, com --destino. Confere Git/HTML e trava os dois
+executores antes de aplicar. Prepara backup do código e Git; recupera
+versionados e .git no caminho original, preservando data/, saídas,
+capturas/.env/ambientes e arquivos não versionados. Falha tenta rollback.
+Não opera desktop, recria certificados ou instala dependências.
+Passo a passo em RECUPERAR-INSTALACAO.md; script Windows ainda não rodado.
+
+415 testes passaram, incluindo cadastro/recuperação com SQLite e clones
+Git reais locais; Chromium passou configuração/rascunho/validação da
+conjunta e sequência de três rotinas, sem liberar execução. Sintaxe e
+diff conferidos. Desktop/emissões/autenticação fiscal são simulados.
+
 ## Digitação de datas e abertura do Resumo revisadas — 09/10/2026
 
 Operador relatou que a data era apagada antes de terminar de escrever e,
