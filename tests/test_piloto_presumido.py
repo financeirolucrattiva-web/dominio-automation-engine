@@ -26,6 +26,10 @@ class TestPilotoPresumido(unittest.TestCase):
         self.cadastro = self.repo.configuracao.listar()
         self.regime = next(r for r in self.cadastro['regimes'] if r['nome'] == 'Lucro Presumido')
         self.real = next(r for r in self.cadastro['regimes'] if r['nome'] == 'Lucro Real')
+        # Estes casos exercitam o piloto PARCIAL, mesmo após livros nativos.
+        pendente = self.repo.configuracao.cadastrar_rotina('Rotina sintética ICMS em configuração')
+        self.regime = self.repo.configuracao.salvar_regime(self.regime['id'], self.regime['nome'],
+            ['resumo_acumulador', 'efd_contribuicoes', pendente['id']])
         for codigo in ('52', '53'):
             self.repo.configuracao.salvar_empresa(codigo, 'Empresa Fictícia '+codigo, self.regime['id'])
         self.repo.configuracao.salvar_empresa('54', 'Empresa Fictícia Real', self.real['id'])

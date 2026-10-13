@@ -49,14 +49,18 @@ class ExecutorDominio:
         contexto = SimpleNamespace(janela_dominio=janela)
         # Cada Esc usa a janela já reconhecida e volta a conferir o foco.
         # A tela azul interrompe a limpeza imediatamente, sem fechar Domínio.
-        for tentativa in range(6):
+        for tentativa in range(9):
             ponto_seguro()
             if dominio._verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
                 return interacao.janela_dominio_em_foco(janela)
-            if tentativa == 5:
+            if tentativa == 8:
                 break
-            if not interacao.pressionar_esc_no_dominio(
-                    janela, vezes=1, confirmar_conteudo=dominio._confirmar_conteudo_dominio):
+            if tentativa < 5:
+                if not interacao.pressionar_esc_no_dominio(
+                        janela, vezes=1, confirmar_conteudo=dominio._confirmar_conteudo_dominio):
+                    return False
+            elif not dominio.fechar_aba_ativa(janela):
+                # Esc não bastou: fechar somente a aba, nunca o aplicativo.
                 return False
         return False
 
@@ -90,6 +94,7 @@ class ExecutorDominio:
             "registro_saidas": dominio.gerar_registro_saidas,
             "registro_entradas": dominio.gerar_registro_entradas,
             "resumo_acumulador": dominio.gerar_resumo_acumulador,
+            "livros_fiscais": dominio.gerar_livros_fiscais,
         }
         prefixo = f"servidor_{pedido['request_id'].replace('-', '')}_"
         def preparar_retomada():
@@ -141,7 +146,7 @@ class ExecutorDominio:
                 self._janela_lote = janela
             datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
             geracao_iniciada = True
-            if pedido["capacidade"].startswith("registro_") or pedido["capacidade"] == "resumo_acumulador":
+            if pedido["capacidade"].startswith("registro_") or pedido["capacidade"] in ("resumo_acumulador", "livros_fiscais"):
                 return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],
                                                        data_final=datas["fim"], prefixo=prefixo)
             return geradores[pedido["capacidade"]](prefixo=prefixo, data_inicial=datas["inicio"], data_final=datas["fim"])

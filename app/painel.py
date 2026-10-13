@@ -6,6 +6,7 @@ NOMES_ROTINAS = {
     "sped_fiscal": "SPED Fiscal", "efd_contribuicoes": "Demonstrativo EFD Contribuições",
     "registro_saidas": "Registro de Saídas", "registro_entradas": "Registro de Entradas",
     "resumo_acumulador": "Resumo por Acumulador",
+    "livros_fiscais": "Livros Fiscais — Entradas, Saídas e ICMS",
     "geracao_fiscal": "Geração fiscal",
 }
 NOMES_ETAPAS = {
@@ -76,7 +77,7 @@ class EstadoPainel:
             self.execution_id, self.tentativa = execucao, tentativa
             self.rotina = NOMES_ROTINAS[rotina]
             self.etapas = (tuple("abrir_resumo" if e == "abrir_livros" else e for e in ETAPAS_LIVROS)
-                           if rotina == "resumo_acumulador" else ETAPAS_LIVROS if rotina.startswith("registro_") else ETAPAS_GERACAO)
+                           if rotina == "resumo_acumulador" else ETAPAS_LIVROS if rotina.startswith("registro_") or rotina == "livros_fiscais" else ETAPAS_GERACAO)
         self.etapa = NOMES_ETAPAS[etapa]
         self.linhas[etapa] = (NOMES_STATUS[status], f"{segundos:.1f} s", status)
         evidencia = evento.get("evidence")

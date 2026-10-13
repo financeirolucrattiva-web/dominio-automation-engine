@@ -243,9 +243,9 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     @app.get("/api/capacidades", dependencies=[Depends(autorizar)])
     def catalogo():
         return [{"id": item.id, "nome": item.nome, "objetivo": item.objetivo,
-                 "tipo_periodo": "competencia" if item.id in ("sped_fiscal", "efd_contribuicoes") else "datas",
+                 "tipo_periodo": "competencia" if item.id in ("sped_fiscal", "efd_contribuicoes", "livros_fiscais") else "datas",
                  "periodo": ("Escolha o mês e ano da competência, com a apuração fechada."
-                             if item.id in ("sped_fiscal", "efd_contribuicoes") else
+                             if item.id in ("sped_fiscal", "efd_contribuicoes", "livros_fiscais") else
                              "Usa o período informado nos campos. Confira se a apuração está fechada."),
                  "pendencias": item.pendencias} for item in capacidades.listar_capacidades()]
 
@@ -430,6 +430,12 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
 
     @app.get("/api/tarefas/{identificador}/arquivo", dependencies=[Depends(autorizar)])
     def arquivo(identificador: str):
+        artefatos = servico.repositorio.artefatos(identificador)
+        if artefatos:
+            primeiro = next((a for a in artefatos if a['disponivel']), None)
+            if primeiro is None:
+                raise HTTPException(404, "Arquivo indisponível.")
+            return arquivo_artefato(identificador, primeiro['id'])
         tarefa = servico.repositorio.obter(identificador, privado=True)
         if tarefa is None or not tarefa["arquivo"]:
             raise HTTPException(404, "Arquivo indisponível.")
@@ -439,6 +445,14 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         if not permitido or not caminho.is_file():
             raise HTTPException(404, "Arquivo indisponível.")
         return FileResponse(caminho, filename=caminho.name)
+
+    @app.get("/api/tarefas/{identificador}/artefatos/{artefato_id}/arquivo", dependencies=[Depends(autorizar)])
+    def arquivo_artefato(identificador: str, artefato_id: str):
+        artefato = servico.repositorio.obter_artefato(identificador, artefato_id)
+        if artefato is None or not servico.repositorio.artefato_permitido(artefato):
+            raise HTTPException(404, "Arquivo indisponível.")
+        caminho = Path(artefato['caminho'])
+        return FileResponse(caminho, filename=caminho.name, media_type='application/pdf')
 
     @app.get("/")
     def interface():

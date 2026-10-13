@@ -10,6 +10,7 @@ const etapasGeracao = ["navegar_menu","preencher_periodo","identificar_formulari
 const etapasLivros = ["validar_dados","identificar_empresa","abrir_livros","preencher_periodo","gerar_previa","exportar_pdf","conferir_pdf","encerrar"];
 const motivos = {nome_arquivo_nao_confirmado:"O nome ou destino final do arquivo não foi confirmado; confira a saída e o log no servidor.",calibracao_indisponivel:"Calibre a tela principal no servidor.", dominio_fora_de_foco:"Deixe o Domínio visível na sessão do servidor.", tela_principal_nao_confirmada:"Confira a tela principal do Domínio no servidor.", empresa_nao_confirmada:"A empresa no servidor não corresponde ao código solicitado.", periodo_nao_confirmado:"Confira o período solicitado.", servidor_reiniciado:"O servidor reiniciou; confira o Domínio antes de uma nova execução.", erro_execucao_consulte_servidor:"Consulte o log local do servidor.", resultado_ou_retorno_nao_confirmado:"O resultado ou retorno não foi confirmado; confira o servidor.", executor_requer_windows:"O executor precisa de uma sessão Windows.", precondicao_nao_confirmada:"Confira as condições da sessão do servidor."};
 Object.assign(motivos,{
+  livros_incompletos:"Livros Fiscais: os três PDFs ainda não foram confirmados. Os arquivos confirmados permanecem disponíveis para conferência.",
   campos_resumo_nao_localizados:"Resumo: não consegui localizar as duas datas por OCR. Não enviei OK; confira o diagnóstico do formulário.",
   data_inicial_resumo_nao_confirmada:"Resumo: a data inicial não confirmou o valor solicitado após a digitação. Não enviei OK; confira o log RESUMO_PERIODO no servidor.",
   data_final_resumo_nao_confirmada:"Resumo: a data final não confirmou o valor solicitado após a digitação. Não enviei OK; confira o log RESUMO_PERIODO no servidor.",
@@ -30,7 +31,7 @@ function selecionarTarefa(identificador) {
   $("resultado").className="resultado"; $("tarefa-detalhe").textContent="Selecione uma execução no histórico.";
   $("tarefa-detalhe").dataset.tarefaId=identificador || "";
   $("retorno").textContent="Retorno à tela principal: ainda não observado.";
-  $("estados").replaceChildren(); $("baixar").hidden=true; $("progresso").value=0;
+  $("estados").replaceChildren(); $("arquivos-tarefa").replaceChildren(); $("baixar").hidden=true; $("progresso").value=0;
   $("motivo-tarefa").textContent=""; atualizarControle();
 }
 async function api(caminho, opcoes = {}) {
@@ -169,6 +170,15 @@ $("conferir-livros").addEventListener("click",async()=>{
     $("livros-diagnostico").textContent="Conferência não iniciada. Confira o aviso de conexão e deixe o servidor livre.";
   }
 });
+$("preparar-livros").addEventListener("click",()=>{
+  if (!catalogo.some(c=>c.id==="livros_fiscais")) {aviso("Conecte ao servidor atualizado para preparar os três livros."); return;}
+  $("capacidade").value="livros_fiscais";
+  $("empresa").value=$("piloto-empresa").value || $("empresa").value;
+  $("competencia").value=$("piloto-competencia").value || $("competencia").value;
+  $("apuracao").checked=false; pedidoPendente=null;
+  atualizarCampos(); $("form-tarefa").scrollIntoView({behavior:"smooth",block:"center"});
+  aviso("Teste dos três livros preparado. Confira código, competência fechada e marque a confirmação antes de executar.");
+});
 function ocultarCaptura() {capturaPendente=false; clearTimeout(limiteCaptura); $("captura-servidor").hidden=true; $("captura-servidor").removeAttribute("src"); $("ocultar-captura").hidden=true;}
 $("ocultar-captura").addEventListener("click",ocultarCaptura);
 $("capturar-servidor").addEventListener("click",async()=>{
@@ -225,14 +235,29 @@ async function acompanhar() {
   $("tarefa-detalhe").textContent=`${nome} · Empresa ${tarefa.pedido.empresa_codigo} · ${data(tarefa.pedido.inicio)} a ${data(tarefa.pedido.fim)}${tentativa ? ` · Tentativa ${tentativa}` : ""}`;
   const retorno=[...linhas.values()].some(ev=>["encerrar","recuperar_interface"].includes(ev.step) && ev.status==="confirmado" && ev.evidence==="tela_principal_reconhecida");
   $("retorno").textContent=`Retorno à tela principal: ${retorno ? "confirmado" : "não confirmado"}.`;
-  const etapas=tarefa.pedido.capacidade==="resumo_acumulador" ? etapasLivros.map(e=>e==="abrir_livros" ? "abrir_resumo" : e) : tarefa.pedido.capacidade.startsWith("registro_") ? etapasLivros : etapasGeracao;
+  const etapas=tarefa.pedido.capacidade==="resumo_acumulador" ? etapasLivros.map(e=>e==="abrir_livros" ? "abrir_resumo" : e) : tarefa.pedido.capacidade.startsWith("registro_") || tarefa.pedido.capacidade==="livros_fiscais" ? etapasLivros : etapasGeracao;
   $("progresso").max=etapas.length; $("progresso").value=etapas.filter(etapa=>linhas.get(etapa)?.status==="confirmado").length;
   $("estados").replaceChildren();
   for (const etapa of [...etapas,...["recuperar_interface","fim"].filter(e=>linhas.has(e))]) {
     const ev=linhas.get(etapa), linha=document.createElement("tr"); celula(linha,nomesEtapas[etapa]); celula(linha,ev ? estados[ev.status] : "Aguardando").className=ev?.status || "";
     celula(linha,ev ? `${ev.elapsed_seconds.toFixed(1)} s` : "—"); $("estados").append(linha);
   }
-  $("baixar").hidden=!tarefa.arquivo_disponivel;
+  const artefatos=tarefa.artefatos || [];
+  $("baixar").hidden=artefatos.length>0 || !tarefa.arquivo_disponivel;
+  $("arquivos-tarefa").replaceChildren();
+  for (const artefato of artefatos) {
+    const linha=document.createElement("p"), botao=document.createElement("button");
+    botao.type="button"; botao.className="secundario"; botao.textContent=`Baixar ${artefato.nome}`;
+    botao.disabled=!artefato.disponivel;
+    botao.addEventListener("click",()=>baixarArquivo(artefato.id)); linha.append(botao);
+    if (!artefato.disponivel) linha.append(document.createTextNode(" Arquivo indisponível; confira a saída no servidor."));
+    $("arquivos-tarefa").append(linha);
+  }
+  if (artefatos.length && tarefa.status!=="concluida") {
+    const avisoParcial=document.createElement("p"); avisoParcial.className="discreto";
+    avisoParcial.textContent="Os PDFs confirmados foram preservados. A rotina ainda apresenta falha ou resultado não confirmado.";
+    $("arquivos-tarefa").append(avisoParcial);
+  }
   $("motivo-tarefa").textContent=tarefa.motivo ? motivos[tarefa.motivo] || (tarefa.motivo==="retomada_nao_confirmada" ? "A tela ou o foco mudou durante a pausa. Confira o servidor antes de uma nova tarefa." : tarefa.motivo==="servidor_encerrado_durante_pausa" ? "O servidor foi encerrado durante a pausa; a rotina foi interrompida." : "Confira o resultado no servidor.") : "";
   if (tarefa.motivo) aviso($("motivo-tarefa").textContent);
 }
@@ -349,15 +374,17 @@ $("pausar").addEventListener("click",async()=>{
   } catch (erro) {if (versao===versaoSessao) aviso(erro.message);}
   finally {controlando=false; atualizarControle();}
 });
-$("baixar").addEventListener("click",async()=>{
+async function baixarArquivo(artefatoId=null) {
   const versao=versaoSessao, identificador=tarefaAtual;
-  try {const resposta=await fetch(`/api/tarefas/${identificador}/arquivo`,{headers:{"Authorization":`Bearer ${chave}`},cache:"no-store"}); if (!resposta.ok) throw new Error("Arquivo indisponível.");
+  const caminho=artefatoId ? `/api/tarefas/${identificador}/artefatos/${encodeURIComponent(artefatoId)}/arquivo` : `/api/tarefas/${identificador}/arquivo`;
+  try {const resposta=await fetch(caminho,{headers:{"Authorization":`Bearer ${chave}`},cache:"no-store"}); if (!resposta.ok) throw new Error("Arquivo indisponível.");
     const disposicao=resposta.headers.get("Content-Disposition") || "", unicode=disposicao.match(/filename\*=utf-8''([^;]+)/i), normal=disposicao.match(/filename="([^"]+)"/i);
     const nome=unicode ? decodeURIComponent(unicode[1]) : normal ? normal[1] : `documento_${tarefaAtual}.pdf`;
     const arquivo=await resposta.blob(); if (versao!==versaoSessao || identificador!==tarefaAtual) return;
     const url=URL.createObjectURL(arquivo), link=document.createElement("a"); link.href=url; link.download=nome; link.click(); URL.revokeObjectURL(url);
   } catch (erro) {if (versao===versaoSessao) aviso(erro.message);}
-});
+}
+$("baixar").addEventListener("click",()=>baixarArquivo());
 let instalacao=null;
 window.addEventListener("beforeinstallprompt",(e)=>{e.preventDefault(); instalacao=e; $("instalar").hidden=false;});
 $("instalar").addEventListener("click",async()=>{if (!instalacao) return; await instalacao.prompt(); await instalacao.userChoice; instalacao=null; $("instalar").hidden=true;});

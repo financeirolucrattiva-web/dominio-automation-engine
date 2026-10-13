@@ -4403,6 +4403,53 @@ CLI aceita leitura do título/campos pelo Windows se Tesseract falhar.
 
 ---
 
+### 0.102 Limpeza final publicada pelo Claude e integração dos livros (13/10/2026)
+
+**Evidência:** operador pediu revisar o trabalho do Claude. Branch
+claude/limpeza-final-v2, e73ab29, acrescenta fechamento universal depois
+Esc e limpeza de SPED/livros/Resumo. Branch não estava na main.
+Incorporada com foco e painel conferidos a cada passo; uma confirmação
+anterior de recuperação não dispensa nova leitura. Nunca usa Alt+F4,
+Enter em aviso desconhecido ou considera Esc prova de retorno.
+
+**Evidência de falha:** diagnóstico local do Resumo confirma rótulos no
+OCR4x, mas datas globais incompletas; somente final30/09/2028. Log recebido
+mostra abrir_resumo falhar por não reconhecer Data final no OCR2x e EFD
+falhar com exceção na geração depois de preencher datas. Não há traceback
+EFD para atribuir causa, nem prova de que 2028 seja leitura errada.
+
+**Correção preparada:** abertura exige título/rótulos/bordas, várias
+escalas/motores. Datas são lidas em recortes medidos, com seleção azul
+normalizada na cópia; duas opiniões completas precisam concordar, sem
+usar a data pedida como sugestão. Campos não localizados/divergentes
+continuam bloqueando OK. Não mudou a estratégia Home/ShiftEnd/oito dígitos.
+
+**Livros:** novo app/livros_conjuntos.py segue prints Relatórios→Livros→
+Livros Fiscais/Geral, marca só Entradas/Saídas/ICMS com releitura, período
+completo passado, prévia reconhecida e ícone por template existente.
+Exportação um PDF para cada relatório; app/seletor_pasta.py reconhece
+Procurar Pasta, mede Unidade/árvore/OK e navega por ancestrais conhecidos
+até folha exclusiva local compartilhada via Client C. Não presume campo
+para colar nem offsets dos prints. Cópia final ocorre no Python local.
+
+**Conferência:** três PDFs novos/estáveis, classificados por conteúdo,
+período/CNPJ iguais à prévia, sem reaproveitar arquivos antigos. ICMS exige
+título de registro/apuração de ICMS no cabeçalho, sem entradas/saídas;
+título interno exato precisa de homologação real. Parciais confirmados
+são mantidos e disponibilizados; resultado só completo com três tipos e
+retorno azul. Migração v6 substitui só conjunta LP/LR exata, mantendo ordem
+e configurações retiradas pelo operador. Downloads exatos autenticados
+com hash, sem expor toda a pasta. SQLite usa conexão compartilhada nas
+consultas de artefatos para evitar bloqueio por leitura aninhada.
+
+**Validação:** 512 testes passaram, com pixels/OCR, PDFs, banco e API.
+Chromium do piloto confirmou sequência completa em um envio e três
+downloads, além de falhas/pendências, com fiscal sintético. Não houve emissão real, medição dos prints privados nesta
+nuvem ou homologação. Próximo aceite: três livros da empresa confirmada
+em agosto/2026, depois sequência Presumido, depois lote por regime.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

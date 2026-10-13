@@ -2,21 +2,51 @@
 
 Mapeamento de 09/10/2026 a partir das telas e instruções do operador.
 Este documento registra o fluxo para implementação e teste individual.
-A emissão conjunta ainda não está implementada nem homologada no motor.
-Os cadastros existentes e seus estados de validação permanecem vigentes.
+A emissão conjunta agora está integrada para teste; ainda não homologada
+no Domínio real. O roteiro observado e seu histórico estão abaixo.
 
 Revisão de 13/10/2026: o cadastro conjunto foi acrescentado. Nos regimes
 Presumido/Real com a sequência completa, substitui os três vínculos pelo
 cadastro Livros Fiscais — Entradas, Saídas e ICMS, na posição do primeiro
 livro. Preserva sequências incompletas/outros regimes e não restaura
 edições posteriores. O roteiro antigo de ICMS é arquivado quando deixa
-de ser usado. A conjunta continua pendente; não existe ainda gerador
-conjunto no executor. Passo a passo em REVISAO-ROTINAS-NOVAS.md.
+de ser usado. Essa era a situação antes da integração nativa de 13/10/2026.
+Agora a migração v6 substitui o vínculo exato pelo gerador livros_fiscais. Passo a passo em REVISAO-ROTINAS-NOVAS.md.
 
 Captura de 13/10 mostra três caixas desmarcadas; o estado inicial muda
 entre tentativas. Diagnóstico local de caixas/datas preparado em
 DIAGNOSTICO-FORMULARIO-LIVROS.md, sem cliques/geração. Setembro exibido
 foi informado ainda aberto; não usá-lo para emissão sem nova confirmação.
+
+## Integração disponível para teste — 13/10/2026
+
+**Preparar teste dos três Livros Fiscais** no painel direciona a Nova
+execução. Só depois da revisão de código/competência/apuração e do botão
+Executar no servidor ocorre emissão. Guia TESTE-PRESUMIDO-POR-EMPRESA.md.
+
+O gerador marca/reconfere somente Entradas, Saídas e ICMS, mede campos de
+data e exige releitura exata antes OK. A prévia pode ser qualquer um dos
+livros. Exporta pela opção um PDF para cada relatório em Procurar Pasta.
+O seletor nativo não tem campo de endereço comprovado: navega pela árvore
+na unidade Client C configurada até pasta nova exclusiva em saida/.
+Nome da folha, seleção e arquivos locais novos precisam ser confirmados.
+Ambiguidade impede confirmação, sem inventar coordenada ou colar caminho.
+
+O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
+publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.
+Nome final usa tipo, nome cadastrado e competência; arquivos anteriores
+não são substituídos. Sem raiz configurada, saída continua local em saida/.
+
+A tarefa oferece três downloads autenticados e mantém PDFs confirmados
+mesmo em resultado parcial. Sucesso exige três tipos distintos e retorno
+azul confirmado. Cabeçalho interno exato do ICMS ainda não foi fornecido;
+a validação conservadora exige registro/apuração de ICMS no cabeçalho,
+período e CNPJ, recusando Entradas/Saídas/Resumo. Nomes automáticos não
+servem de comprovação. Conferência fiscal pelo supervisor continua pendente.
+
+Script isolado scripts/testar_livros_fiscais.py requer servidor parado,
+pergunta empresa/competência/apuração e usa o mesmo worker. Nenhuma
+execução real desta integração foi observada na sessão de nuvem.
 
 **Escopo confirmado:** esquema recebido de **Lucro Presumido**
 e **Lucro Real**, integrado em [ARQUITETURA-SERVIDOR.md](ARQUITETURA-SERVIDOR.md).

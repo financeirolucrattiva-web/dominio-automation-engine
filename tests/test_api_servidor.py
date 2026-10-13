@@ -104,7 +104,7 @@ class TestApiServidor(unittest.TestCase):
         self.assertEqual(resposta.status_code, 201)
         self.assertEqual(resposta.json()["status"], "rascunho")
         self.assertEqual(len(self.client.get("/api/rotinas", headers=self.headers).json()), 1)
-        self.assertEqual(len(self.client.get("/api/capacidades", headers=self.headers).json()), 5)
+        self.assertEqual(len(self.client.get("/api/capacidades", headers=self.headers).json()), 6)
 
     def test_calibracao_exige_confirmacao_humana_e_captura_expira(self):
         self.assertEqual(self.client.post("/api/sessao/calibrar", json={"tela_principal_confirmada": False}, headers=self.headers).status_code, 422)

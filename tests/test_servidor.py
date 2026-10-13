@@ -63,6 +63,15 @@ class TestValidacaoServidor(unittest.TestCase):
         dados = {**pedido(), "capacidade": "registro_saidas", "inicio": "2026-08-01", "fim": "2026-08-31"}
         self.assertEqual(validar_pedido(dados, hoje=dt.date(2026, 10, 7)), dados)
 
+    def test_livros_conjuntos_exigem_competencia_completa_passada(self):
+        dados = {**pedido(), 'capacidade': 'livros_fiscais',
+                 'inicio': '2024-02-01', 'fim': '2024-02-29'}
+        self.assertEqual(validar_pedido(dados, hoje=dt.date(2026, 10, 7)), dados)
+        for alteracao in ({'inicio': '2024-02-02'}, {'fim': '2024-02-28'},
+                          {'fim': '2024-03-31'}, {'inicio': '2026-10-01', 'fim': '2026-10-31'}):
+            with self.subTest(alteracao=alteracao), self.assertRaises(ValueError):
+                validar_pedido(dados | alteracao, hoje=dt.date(2026, 10, 7))
+
 
 class BaseRepositorio:
     def setUp(self):

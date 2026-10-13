@@ -1,5 +1,65 @@
 # Domínio Automation Engine — handoff
 
+## Integração dos três livros e leitura de datas — 13/10/2026
+
+Prioridade do operador: finalizar Presumido por empresa antes dos lotes.
+Git remoto revisado: Claude publicou limpeza final em limpeza-final-v2,
+commit e73ab29, derivado da main 3b780c9. Incorporados fechamento por
+Esc/Fechar/Ctrl+F4 e recuperação do executor, com releitura do painel e
+foco a cada passo; confirmação antiga não substitui nova leitura.
+
+Evidência Windows nova: diagnóstico Resumo encontrou Data inicial/final
+no OCR4x, nenhuma data inicial completa e apenas final30/09/2028. Não
+corrigir o ano por suposição. Log local também mostrou abrir_resumo falhar
+por Data final ausente no OCR2x; a EFD preencheu período e falhou com
+exceção na geração, sem traceback fornecido. Sua causa ainda é desconhecida.
+
+Leitor novo mede bordas dos campos a partir dos rótulos, recorta só datas,
+normaliza seleção azul numa cópia e exige duas leituras completas concordantes.
+Nunca recebe período esperado nem completa/corrige dígitos. Abertura Resumo
+usa título e campos, duas escalas/OCRWindows, antes da leitura dos valores.
+Livros reutiliza leitor para Inicial/Final e ignora o rodapé Conforme período inicial.
+
+livros_fiscais é capacidade nativa. Migração v6 troca só cadastro conjunto
+exato nas sequências LP/LR, preservando ordem/edições e arquivando roteiro
+antigo sem uso. Gerador conjunto marca só as três caixas conhecidas,
+relê período e seleção antes OK, valida empresa/prévia e escolhe menu
+Gerar um arquivo PDF para cada relatório. Seletor Procurar Pasta mede
+combo/árvore, escolhe Client C da unidade configurada e navega até staging
+exclusivo em saida/LIVROS+12dígitos. Não presume campo de endereço nem
+caminho pessoal. Ausência/ambiguidade impede OK e salva captura local.
+
+Três arquivos novos estáveis são classificados pelo conteúdo; exigem tipo,
+período completo e CNPJ da prévia. Título interno ICMS ainda não fornecido:
+verificador conservador exige registro/apuração de ICMS no cabeçalho,
+recusa Entradas/Saídas/Resumo; não classifica pelo nome ICMS NORMAL(M).
+Nenhuma homologação fiscal decorre dessa família de título.
+
+Worker publica cada PDF no destino cadastrado ao final, nomes por empresa/
+competência e sem sobrescrever. Artefatos públicos têm id/tipo/nome/disponível,
+sem caminhos; download autenticado exige tarefa/id/caminho/SHA256 exatos.
+Falha preserva arquivos confirmados; sucesso exige três tipos únicos, fim
+concluído e retorno azul. Consultas compartilham a conexão SQLite existente
+para não bloquear commit entre leitor externo e leitor aninhado.
+
+Botão Preparar teste dos três Livros Fiscais direciona a Nova execução,
+copia empresa/mês escolhidos e exige confirmação nova antes de emitir.
+Presumido por empresa e lote comum podem executar a sequência inicial
+Resumo/EFD/Livros sem a antiga pendência de integração. Custom pendente
+continua bloqueado ou explicitamente parcial. EFD continua exportador,
+não demonstrativo PDF. Guia LIVROS-FISCAIS-CONJUNTOS.md e script
+scripts/testar_livros_fiscais.py (servidor parado, mesmo worker/trava).
+
+Validação: 512 testes passaram; Chromium do piloto passou sequência nativa
+completa em um envio e três downloads, além dos casos de pendência/falha.
+Chromium geral e destino também passaram. Sintaxe Python/JS e diff
+conferidos. Fiscal/desktop são sintéticos.
+
+Status: integrado para teste; ainda não executado/homologado no Windows.
+Agosto/2026 fechado só para a empresa confirmada pelo operador. Primeiro
+conferir os três livros individualmente, depois sequência Presumido nessa
+empresa, só então lote. Caminhos, CSV, capturas e PDFs continuam locais.
+
 ## Datas do Resumo permaneceram em setembro — 13/10/2026
 
 Operador informou Resumo sem trocar data e Livros como não executado/
