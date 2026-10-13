@@ -4,6 +4,15 @@ const painelLotes=(()=>{
   const selecionadas=new Set();
   const nomeRotina=id=>(cadastro.rotinas || catalogo).find(r=>r.id===id)?.nome || "Rotina indisponível";
   const statusRotinas={integrada:"Integrada · revalidar no Windows",pendente_configuracao:"Pendente de configuração",rascunho:"Rascunho · revisar e testar",aguardando_validacao:"Enviada para validação · execução bloqueada"};
+  function pastaInformada() {
+    let valor=$("empresa-pasta").value.trim().replace(/^"(.*)"$/, "$1").replaceAll("\\","/").replace(/\/$/,"");
+    const raiz=(cadastro.destino_livros?.raiz || "").replaceAll("\\","/").replace(/\/$/,"");
+    if (/^[a-zA-Z]:/.test(valor) || valor.startsWith("/")) {
+      if (!raiz || !valor.toLowerCase().startsWith(raiz.toLowerCase()+"/")) return null;
+      valor=valor.slice(raiz.length+1);
+    }
+    return valor;
+  }
   function opcoes(select, itens, inicial) {
     const valor=select.value; select.replaceChildren();
     if (inicial!==null) {const o=document.createElement("option"); o.value=""; o.textContent=inicial; select.append(o);}
@@ -89,13 +98,13 @@ const painelLotes=(()=>{
   $("regime-editar").addEventListener("change",()=>{const r=cadastro.regimes.find(r=>r.id===$("regime-editar").value); $("regime-nome").value=r?.nome || ""; sequencia=[...(r?.rotinas || [])]; exibirSequencia();});
   $("regime-adicionar").addEventListener("click",()=>{const id=$("regime-rotina").value; if (id && !sequencia.includes(id)) {sequencia.push(id); exibirSequencia();}});
   $("form-regime").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-regime").reportValidity()) return; await salvarCadastro("regimes",{id:$("regime-editar").value || null,nome:$("regime-nome").value,rotinas:sequencia});});
-  $("form-empresa").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-empresa").reportValidity()) return; if (await salvarCadastro("empresas",{codigo:$("empresa-codigo").value,nome:$("empresa-nome").value,regime_id:$("empresa-regime").value,pasta_relativa:$("empresa-pasta").value,subpasta_livros:$("empresa-subpasta").value})) {$("empresa-destino").textContent="Empresa salva. Use Editar na lista e confira o destino antes do teste."; $("form-empresa").reset();}});
+  $("form-empresa").addEventListener("submit",async e=>{e.preventDefault(); if (!$("form-empresa").reportValidity()) return; if (await salvarCadastro("empresas",{codigo:$("empresa-codigo").value,nome:$("empresa-nome").value,regime_id:$("empresa-regime").value,pasta_relativa:$("empresa-pasta").value,subpasta_livros:$("empresa-subpasta").value})) {$("empresa-destino").textContent="Empresa salva. Use Editar na lista e confira o destino antes do teste."; $("form-empresa").reset(); $("empresa-raiz").value=cadastro.destino_livros?.raiz || "";}});
   async function conferirDestino(testar) {
     const codigo=$("empresa-codigo").value, competencia=$("empresa-competencia").value;
     if (!codigo || !competencia) {$("empresa-destino").textContent="Use Editar numa empresa salva e informe a competência para conferir o destino."; return;}
     if (ocupado || !chave || !estadoServidor) return;
     const empresa=cadastro.empresas.find(e=>e.codigo===String(Number(codigo)));
-    if (!empresa || empresa.pasta_relativa!==$("empresa-pasta").value.replaceAll("\\","/").trim() || empresa.subpasta_livros!==$("empresa-subpasta").value.replaceAll("\\","/").trim() || empresa.regime_id!==$("empresa-regime").value || empresa.nome!==$("empresa-nome").value.trim()) {$("empresa-destino").textContent="Salve as alterações da empresa e use Editar antes de conferir o destino."; return;}
+    if (!empresa || empresa.pasta_relativa!==pastaInformada() || empresa.subpasta_livros!==$("empresa-subpasta").value.replaceAll("\\","/").trim() || empresa.regime_id!==$("empresa-regime").value || empresa.nome!==$("empresa-nome").value.trim()) {$("empresa-destino").textContent="Salve as alterações da empresa e use Editar antes de conferir o destino."; return;}
     ocupado=true; controles(); const versao=versaoSessao;
     try {const destino=await api(`empresas/${encodeURIComponent(codigo)}/destino-livros`,{method:"POST",body:JSON.stringify({competencia,testar_gravacao:testar})});
       if (versao!==versaoSessao) return;
@@ -158,6 +167,8 @@ const painelLotes=(()=>{
   $("lote-cancelar").addEventListener("click",()=>controlarLote("cancelar"));
   $("lote-pausar").addEventListener("click",()=>controlarLote(estadoServidor?.controle_execucao?.estado==="pausada" ? "continuar" : "pausar"));
   async function atualizarPainel(novoCadastro,lotes) {
+    const raiz=novoCadastro.destino_livros?.raiz || "";
+    if ($("empresa-raiz").value!==raiz) $("empresa-raiz").value=raiz;
     const texto=JSON.stringify(novoCadastro);
     if (texto!==cadastroTexto) {
       invalidar(); cadastro=novoCadastro; cadastroTexto=texto;
@@ -184,7 +195,7 @@ const painelLotes=(()=>{
     controles();
   }
   function limpar() {
-    cadastro={empresas:[],regimes:[]}; cadastroTexto=""; sequencia=[]; plano=null; pedidoLote=null; loteAtual=null; detalhe=null; selecionadas.clear();
+    cadastro={empresas:[],regimes:[]}; cadastroTexto=""; sequencia=[]; plano=null; pedidoLote=null; loteAtual=null; detalhe=null; selecionadas.clear(); $("empresa-raiz").value="";
     for (const id of ["form-regime","form-empresa","form-lote"]) $(id).reset();
     for (const id of ["lote-empresas","lote-plano","lote-tarefas","regime-sequencia"]) $(id).replaceChildren();
     for (const [id,nome] of [["regime-editar","Criar regime"],["empresa-regime","Escolha o regime"],["lote-filtro","Todos os regimes"],["lote-historico","Nenhum lote"]]) opcoes($(id),[],nome);

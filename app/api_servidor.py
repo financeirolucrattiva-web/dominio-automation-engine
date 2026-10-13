@@ -260,7 +260,7 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         try:
             return servico.repositorio.configuracao.salvar_empresa(**pedido.model_dump())
         except ValueError:
-            raise HTTPException(422, "Confira código, nome, regime e pastas relativas da empresa.") from None
+            raise HTTPException(422, "Confira código, nome e regime. Use o restante da pasta ou um caminho completo dentro da raiz compartilhada.") from None
 
     @app.post("/api/empresas/{codigo}/destino-livros", dependencies=[Depends(autorizar)])
     def destino_livros(codigo: str, pedido: PedidoDestinoLivros):

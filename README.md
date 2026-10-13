@@ -104,10 +104,14 @@ Presumido e Real compartilham a pasta principal; o código e o regime vêm
 do cadastro. No PC com o executor:
 
 1. Execute `atalhos/servidor/Configurar Destino Livros.bat` e informe a
-   raiz **local em C:** do servidor Dropbox, até a pasta que contém os
-   regimes. A configuração fica somente em `data/destino_livros.json`.
-2. Em **Cadastrar ou editar empresa**, informe a pasta relativa da empresa,
-   por exemplo `1 LUCRO REAL E LUCRO PRESUMIDO\1.6 EMPRESA EXEMPLO`.
+   raiz **local em C:** do servidor Dropbox, até a pasta compartilhada
+   de Presumido e Real. A configuração fica somente em `data/destino_livros.json`.
+   Também pode usar `python scripts/configurar_destino_livros.py --raiz "<RAIZ LOCAL>"`.
+   Alterar só a raiz preserva uma subpasta de livros já configurada.
+2. Em **Cadastrar ou editar empresa**, a raiz aparece preenchida.
+   Informe só o restante, por exemplo `1.6 EMPRESA EXEMPLO`, ou cole
+   o caminho completo da empresa dentro dessa raiz. O cadastro guarda
+   a parte relativa; caminhos fora da raiz são recusados.
    Vazia, ela usa o código no CSV local `data/mapa_pastas_empresas.csv`.
 3. O destino padrão dentro de `FISCAL/mês` é
    `RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`. Pode escolher outra subpasta nessa

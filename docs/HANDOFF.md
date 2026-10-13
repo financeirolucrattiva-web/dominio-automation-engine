@@ -1,5 +1,26 @@
 # Domínio Automation Engine — handoff
 
+## Raiz compartilhada no cadastro de empresas — 13/10/2026
+
+Operador pediu usar a raiz local compartilhada de Presumido/Real como
+base preenchida e aceitar só o restante da empresa ou um caminho inteiro.
+A raiz pessoal não foi versionada: configurar uma vez no PC por
+configurar_destino_livros.py --raiz, em data/destino_livros.json ignorado.
+O painel autenticado mostra essa raiz somente leitura e normaliza o
+caminho inteiro para relativo. Recusa unidade/pasta externa, retorno e
+links externos. Salvar, editar, prévia e limpar preservam a base correta.
+
+Ao estreitar uma raiz antiga, prefixo do mapa/cadastro só é retirado se
+coincide exatamente com o final da raiz, o destino direto não existe
+e a alternativa abreviada existe de modo único. Não altera o CSV nem
+adivinha nomes. CLI preserva subpasta anterior ao mudar apenas a raiz.
+Prévia não cria nada; Testar pasta continua sem emissão fiscal.
+
+434 testes de lógica/API passaram; Chromium geral e destinos passaram
+com base preenchida, caminho completo/relativo e edição de datas.
+Configuração da raiz no PC e conferência do destino real ainda pendentes.
+Nenhuma nova emissão ou integração do conjunto de três livros nesta entrega.
+
 ## Leitura do formulário Livros e recuperação confirmada — 13/10/2026
 
 Log Windows confirmou recuperar_instalacao.py concluído em 949a760,
