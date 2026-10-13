@@ -376,6 +376,25 @@ class LoginWindows:
                 return None
             return imagem
 
+    def revisar_livros(self, sessao):
+        """Lê o formulário aberto; não navega, seleciona caixas ou emite."""
+        from app import interacao, tela
+        from app.formulario_livros import ler_com_ocr
+        import uuid
+        sessao.fase('lendo_formulario_livros')
+        candidatas = [j for j in self._janelas_visiveis() if interacao._titulo_dominio(j['titulo'])]
+        if len(candidatas) != 1:
+            raise LoginRecusado('janela_login_nao_confirmada')
+        sessao.verificar()
+        imagem, _ = self._capturar(candidatas[0])
+        tela.salvar(imagem, ROOT / 'capturas' / f'revisao_livros_{uuid.uuid4().hex[:10]}.png')
+        try:
+            resultado = ler_com_ocr(imagem)
+        except ValueError:
+            raise LoginRecusado('formulario_livros_nao_reconhecido') from None
+        sessao.verificar()
+        return resultado
+
     def reiniciar(self, sessao):
         from app import interacao
         sessao.fase("fechando_ciclo")

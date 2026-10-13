@@ -17,7 +17,7 @@ def main(argv=None):
         parser.error('Captura ao vivo requer Windows; use --imagem para diagnóstico local de PNG.')
     from PIL import Image
     from app import tela
-    from app.formulario_livros import ler_formulario, ROTULOS
+    from app.formulario_livros import ler_com_ocr, ROTULOS
     if args.imagem:
         with Image.open(args.imagem) as arquivo:
             imagem = arquivo.convert('RGB')
@@ -28,23 +28,12 @@ def main(argv=None):
         destino = ROOT/'capturas'/f'revisao_livros_{uuid.uuid4().hex[:10]}.png'
         tela.salvar(imagem,destino)
         print(f'Captura guardada somente neste PC: {destino}')
-    erros = []
-    for escala in (2,4):
-        try:
-            resultado = ler_formulario(imagem,tela._ler_dados_ocr(imagem,escala),escala)
-            break
-        except ValueError as erro:
-            erros.append(str(erro))
-    else:
-        dados = tela.ler_dados_ocr_windows(imagem,2)
-        try:
-            if dados is None:
-                raise ValueError(erros[-1])
-            resultado = ler_formulario(imagem,dados,2)
-        except ValueError as erro:
-            print(f'Leitura não confirmada: {erro}')
-            print('Nenhuma caixa foi alterada e nenhum relatório foi emitido.')
-            return 1
+    try:
+        resultado = ler_com_ocr(imagem)
+    except ValueError as erro:
+        print(f'Leitura não confirmada: {erro}')
+        print('Nenhuma caixa foi alterada e nenhum relatório foi emitido.')
+        return 1
     for tipo,livro in resultado['livros'].items():
         estado = 'marcada' if livro['marcada'] else 'desmarcada'
         print(f"{ROTULOS[tipo]}: {estado}; caixa medida: {livro['retangulo']}.")

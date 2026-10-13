@@ -1,5 +1,48 @@
 # Domínio Automation Engine — handoff
 
+## Teste do Presumido por empresa e diagnóstico dos livros — 13/10/2026
+
+Operador não encontrou botão para executar a conjunta; confirmado que
+não existe gerador conjunto no executor. Agosto/2026 foi informado fechado
+para a empresa do teste. Solicitou toda a sequência em um clique por
+empresa, com prioridade individual, depois em lote. Pediu o comando do
+diagnóstico; foi entregue cd /d da instalação + revisar_formulario_livros.py.
+Ainda não chegou o resultado Windows dessa leitura.
+
+Painel agora tem Lucro Presumido por empresa: consulta a sequência ao
+escolher empresa/mês, exige apuração, aceita um envio e usa o worker/lote
+comum. Com pendências, execução exige opção explícita de testar somente
+disponíveis. Na sequência inicial roda Resumo/EFD, registra Livros como
+não executado, preserva cadastro e termina concluida_com_pendencias,
+sem alegar sucesso completo. API desse modo recusa outros regimes,
+competência incompleta/atual, hash desatualizado e repetição divergente.
+Lote comum continua estrito. Lote parcial agrupa por empresa, mantém
+falha recuperada e interrompe quando não confirma retorno.
+
+Relatório JSON autenticado/exportável agrega motivos, etapa com falha,
+tempos, último estado de recuperação e pendências. Não inclui caminhos,
+PDF ou OCR livre; nomes/códigos de empresas são do cadastro revisado e
+ficam no relatório local do operador. Nunca equivale à homologação.
+
+Botão Conferir formulário dos três livros usa a operação exclusiva do
+worker/login; identifica/foca janela conhecida, captura local e reaproveita
+leitura em duas escalas + OCR Windows. Não altera caixas/datas nem clica
+OK. API publica apenas estados/datas/medidas; cancelamento, falha e nova
+operação limpam resultado anterior. Nenhuma promoção automática.
+
+Script explorar_presumido.py usa mesmo banco/trava/worker para teste
+individual com servidor parado. Sem --somente-disponiveis recusa
+sequência pendente; CLI devolve 2 quando o teste é parcial, não sucesso
+completo. Sintaxe, 452 testes e Chromium geral/destinos/piloto passaram
+(451 na rodada geral e o caso adicional do relatório na rodada dirigida).
+Fiscal/desktop nos testes são sintéticos, sem emissão Windows real.
+
+Próxima evidência: log local da aba Geral. Depois confirmar o seletor
+Procurar Pasta e título interno de ICMS, implementar exportação conjunta,
+três arquivos/publicação/download e testar individualmente antes do lote
+inteiro. Não executar custom pendente nem usar exportador de EFD como
+demonstrativo PDF. Guia TESTE-PRESUMIDO-POR-EMPRESA.md.
+
 ## Raiz compartilhada no cadastro de empresas — 13/10/2026
 
 Operador pediu usar a raiz local compartilhada de Presumido/Real como

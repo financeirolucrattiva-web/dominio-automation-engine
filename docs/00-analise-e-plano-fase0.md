@@ -4337,6 +4337,40 @@ emissão fiscal. Conjunto Livros e confirmação de mês fechado pendentes.
 
 ---
 
+### 0.100 Teste do Presumido por empresa com pendências explícitas (13/10/2026)
+
+**Evidência:** operador não encontrou botão da conjunta; cadastro existe
+sem gerador no executor. Confirmou agosto/2026 fechado para a empresa
+do primeiro teste. Solicitou execução completa por empresa em um clique,
+depois lote. Comando de leitura local entregue; log Windows pendente.
+
+**Preparação executável:** painel específico por empresa com revisão da
+sequência, competência completa, confirmação da apuração e um envio.
+Reutiliza fila/troca/F8/pausa/recuperação dos lotes. Enquanto a conjunta
+não estiver integrada, somente teste parcial explicitamente selecionado:
+executa as disponíveis, inclui pendências no plano/histórico/relatório,
+não altera regime nem chama custom sem executor. Final parcial separado
+de concluído; falhas mantidas. Lote comum não mudou sua restrição.
+Hash inclui a pendência; edição após revisão recusa o início. Repetição
+do mesmo pedido não repete emissão; reinício não retoma pendentes.
+
+**Diagnóstico:** botão dos livros na API autenticada/worker exclusivo
+lê formulário aberto, sem seleção de caixas/datas/OK. Captura fica local;
+retorno limitado a estados/datas/medidas. Cancelamento e pedido novo
+invalidam resultado antigo. Relatório das etapas exporta somente
+cadastro revisado, motivo/status/tempo/último retorno e pendências,
+sem caminhos ou conteúdo fiscal. CLI do Presumido usa mesma trava/banco.
+
+**Validação:** 451 testes passaram na rodada completa, mais o novo caso
+de relatório na rodada dirigida (452 ao todo). Chromium geral, destinos
+e piloto passaram, incluindo diagnóstico/falha, envio único, repetição,
+lote por empresa, exportação JSON, digitação parcial e telas estreitas.
+Imagem, empresas e fiscal são sintéticos. Sintaxe/diff conferidos.
+Emissão conjunta, seletor real e conferência de ICMS ainda não integrados;
+não afirmar execução inteira do Presumido ou homologação no Windows.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

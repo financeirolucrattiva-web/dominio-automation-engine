@@ -231,7 +231,7 @@ class ConfiguracaoLotes:
                           (codigo, nome, regime_id, pasta, subpasta))
         return {"codigo": codigo, "nome": nome, "regime_id": regime_id, "pasta_relativa": pasta, "subpasta_livros": subpasta}
 
-    def planejar(self, selecao, banco=None):
+    def planejar(self, selecao, banco=None, piloto_presumido=False):
         from app.servidor import validar_pedido
         if not isinstance(selecao, dict) or set(selecao) != {"empresas", "inicio", "fim"}:
             raise ValueError("Selecione empresas e período para o lote.")
@@ -245,6 +245,10 @@ class ConfiguracaoLotes:
         empresas = {e["codigo"]: e for e in cadastro["empresas"]}
         regimes = {r["id"]: r for r in cadastro["regimes"]}
         plano = {"inicio": selecao["inicio"], "fim": selecao["fim"], "empresas": [], "quantidade_rotinas": 0}
+        if piloto_presumido:
+            plano.update(piloto_presumido=True, pendencias=[], quantidade_pendencias=0)
+        integradas = {c.id for c in capacidades.listar_capacidades()}
+        rotinas_cadastradas = {r['id']: r for r in cadastro['rotinas']}
         for codigo in codigos:
             empresa = empresas.get(codigo)
             regime = regimes.get(empresa["regime_id"]) if empresa else None
@@ -252,13 +256,33 @@ class ConfiguracaoLotes:
                 raise ValueError("Uma empresa não está cadastrada com um regime válido.")
             if not regime["rotinas"]:
                 raise ValueError("Configure as rotinas de todos os regimes selecionados antes de iniciar.")
+            if piloto_presumido:
+                if regime['nome'].strip().casefold() != 'lucro presumido':
+                    raise ValueError('O piloto aceita somente empresas de Lucro Presumido.')
+                # Competência completa, mesmo quando o cadastro só contém PDFs.
+                validar_pedido({'request_id': str(uuid.uuid4()), 'capacidade': 'efd_contribuicoes',
+                    'empresa_codigo': codigo, 'inicio': selecao['inicio'], 'fim': selecao['fim'], 'apuracao_confirmada': True})
+            executaveis = []
             for rotina in regime["rotinas"]:
-                if rotina not in {c.id for c in capacidades.listar_capacidades()}:
+                if rotina not in integradas:
+                    if piloto_presumido:
+                        cadastrada = rotinas_cadastradas.get(rotina)
+                        if cadastrada is None:
+                            raise ValueError('Uma rotina do regime não existe no cadastro.')
+                        plano['pendencias'].append({'empresa_codigo': codigo, 'rotina_id': rotina,
+                            'nome': cadastrada['nome'], 'status': cadastrada['status'], 'motivo': 'rotina_nao_integrada'})
+                        continue
                     raise ValueError("O regime contém rotinas em configuração/validação, ainda não liberadas no executor.")
                 validar_pedido({"request_id": str(uuid.uuid4()), "capacidade": rotina, "empresa_codigo": codigo,
                                 "inicio": selecao["inicio"], "fim": selecao["fim"], "apuracao_confirmada": True})
-            plano["empresas"].append({**empresa, "regime": regime["nome"], "rotinas": list(regime["rotinas"])})
-            plano["quantidade_rotinas"] += len(regime["rotinas"])
+                executaveis.append(rotina)
+            if piloto_presumido and not executaveis:
+                raise ValueError('A empresa não tem nenhuma rotina integrada disponível para teste.')
+            plano["empresas"].append({**empresa, "regime": regime["nome"], "rotinas": executaveis,
+                                      **({'sequencia_cadastrada': list(regime['rotinas'])} if piloto_presumido else {})})
+            plano["quantidade_rotinas"] += len(executaveis)
+        if piloto_presumido:
+            plano['quantidade_pendencias'] = len(plano['pendencias'])
         # O cliente aprova exatamente o cadastro, período e ordem vistos.
         plano["hash"] = hashlib.sha256(json.dumps(plano, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         return plano

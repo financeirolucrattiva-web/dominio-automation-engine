@@ -64,6 +64,13 @@ Será necessário adaptar o gerador, persistência e downloads para os três
 arquivos antes do teste automatizado completo. Não executar o lote inteiro
 para testar um cadastro pendente. Detalhes em LIVROS-FISCAIS-CONJUNTOS.md.
 
+O painel agora permite um **teste parcial explícito do Presumido por
+empresa**: roda somente as integradas, registra a conjunta como não
+executada e não muda a sequência do regime. Isso permite diagnosticar
+Resumo/EFD enquanto a conjunta é concluída; não representa o lote inteiro.
+Guia em TESTE-PRESUMIDO-POR-EMPRESA.md. Agosto/2026 foi confirmado fechado
+para a empresa do primeiro teste; diagnóstico/emissão real ainda pendentes.
+
 ## Resumo por Acumulador — roteiro implementado para revalidar
 
 1. Relatórios → Acompanhamentos → Resumo por Acumulador.

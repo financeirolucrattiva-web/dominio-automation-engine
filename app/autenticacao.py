@@ -1,6 +1,7 @@
 """Estado do login e entrega única do código humano; sem navegador/desktop."""
 
 from dataclasses import dataclass, field
+import copy
 import threading
 import time
 import uuid
@@ -31,17 +32,23 @@ class SessaoLogin:
         self._codigo = None
         self._cancelado = False
         self._limite = None
+        self._livros = None
+        self._operacao_id = None
 
     def publico(self):
         with self._condicao:
             return {"estado": self._estado, "etapa": self._etapa, "motivo": self._motivo,
                     "solicitacao_id": self._solicitacao,
+                    "livros": copy.deepcopy(self._livros),
+                    "operacao_id": self._operacao_id,
                     "segundos_restantes": max(0, int(self._limite - time.monotonic())) if self._limite else None}
 
     def iniciar(self):
         with self._condicao:
             self._cancelado = False
             self._codigo = self._solicitacao = self._limite = self._motivo = None
+            self._livros = None
+            self._operacao_id = uuid.uuid4().hex
             self._estado = "na_fila"
             self._etapa = "na_fila"
 
@@ -64,7 +71,18 @@ class SessaoLogin:
             self._codigo = None
             self._solicitacao = self._limite = None
             self._estado, self._motivo = "cancelado", "login_cancelado"
+            self._livros = None
             self._condicao.notify_all()
+
+    def concluir_livros(self, resultado):
+        from app.formulario_livros import resumo_diagnostico
+        resumo = resumo_diagnostico(resultado)
+        with self._condicao:
+            if self._cancelado:
+                raise LoginRecusado('login_cancelado')
+            self._livros = resumo
+            self._estado = self._etapa = 'livros_conferidos'
+            self._motivo = None
 
     def aguardar_codigo(self, timeout=300):
         with self._condicao:

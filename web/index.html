@@ -26,6 +26,28 @@
       <p class="discreto">A chave permanece nesta sessão do aplicativo.</p>
     </section>
     <div id="conteudo" hidden>
+      <section class="bloco"><h2>Lucro Presumido por empresa</h2>
+        <p>Escolha uma empresa e uma competência fechada. Um clique inicia as rotinas disponíveis na ordem cadastrada.</p>
+        <form id="form-piloto"><label for="piloto-empresa">Empresa do Lucro Presumido</label><select id="piloto-empresa" required><option value="">Escolha uma empresa cadastrada</option></select>
+          <label for="piloto-competencia">Competência fechada</label><input id="piloto-competencia" type="month" required>
+          <small class="discreto">Digite o mês e o ano ou use o calendário.</small>
+          <button id="piloto-revisar" type="button" class="secundario">Revisar sequência</button>
+          <p id="piloto-resumo" class="resultado" role="status">Escolha empresa e competência para conferir a sequência.</p>
+          <ol id="piloto-rotinas"></ol>
+          <label class="confirmacao"><input id="piloto-parcial" type="checkbox"><span>Se houver rotinas pendentes, testar somente as disponíveis. As pendentes continuarão registradas como não executadas.</span></label>
+          <label class="confirmacao"><input id="piloto-apuracao" type="checkbox" required><span>Conferi a empresa e a apuração dessa competência está fechada.</span></label>
+          <button id="piloto-executar" type="submit" disabled>Executar sequência nesta empresa</button>
+        </form>
+        <p id="piloto-aviso" class="discreto" role="status"></p>
+        <p class="discreto">Acompanhe cada rotina nos resultados do lote. Falha permanece no histórico; a próxima só começa após confirmar o retorno ao painel azul. Uma rotina pendente não é considerada emitida.</p>
+      </section>
+      <section class="bloco"><h2>Testar Livros Fiscais</h2>
+        <p>A emissão conjunta de Entradas, Saídas e ICMS está em preparação. Comece pela conferência do formulário.</p>
+        <p class="discreto">No Domínio do servidor, abra Relatórios → Livros → Livros Fiscais, aba Geral. O botão abaixo lê as três caixas e as datas; não marca opções nem emite PDFs.</p>
+        <button id="conferir-livros" type="button" class="secundario" disabled>Conferir formulário dos três livros</button>
+        <p id="livros-diagnostico" class="resultado" role="status">Aguardando conferência do formulário.</p>
+        <p id="livros-medidas" class="discreto"></p>
+      </section>
       <div class="resumo"><div class="bloco"><span>SERVIDOR</span><strong id="modo">—</strong></div><div class="bloco"><span>SESSÃO</span><strong id="sessao">—</strong></div><div class="bloco"><span>ÚLTIMO RESULTADO</span><strong id="ultimo">Nenhuma execução</strong></div></div>
       <section class="bloco configuracao"><details id="config-empresas"><summary>Empresas, regimes e rotinas do lote</summary>
         <p class="discreto">Você define as rotinas e sua ordem em cada regime. Cada empresa executa todas as rotinas do seu regime antes de passar à próxima. Alterações valem para novos lotes.</p>
@@ -73,13 +95,14 @@
           <div id="lote-campo-datas" class="datas" hidden><div><label for="lote-inicio">Data inicial</label><input id="lote-inicio" type="date" required disabled></div><div><label for="lote-fim">Data final</label><input id="lote-fim" type="date" required disabled></div></div>
           <small class="discreto">Digite o período ou escolha no calendário.</small>
           <button id="lote-planejar" type="button" class="secundario">Revisar sequência do lote</button>
+          <label class="confirmacao"><input id="lote-piloto" type="checkbox"><span>Teste acompanhado somente do Presumido: executar as rotinas disponíveis e registrar as pendentes como não executadas.</span></label>
           <div id="lote-revisao" hidden><p id="lote-plano-resumo" class="resultado"></p><div class="tabela-scroll"><table><thead><tr><th>Ordem</th><th>Empresa</th><th>Rotina</th></tr></thead><tbody id="lote-plano"></tbody></table></div>
             <label class="confirmacao"><input id="lote-apuracao" type="checkbox" required disabled><span>Conferi a sequência e a apuração desse período está fechada em todas as empresas selecionadas. O lote poderá trocar a empresa pelo código.</span></label>
             <button id="lote-executar" type="submit" disabled>Executar lote no servidor</button>
           </div>
         </form><p id="lote-aviso" role="status" class="discreto"></p>
         <div class="calibracao"><label for="lote-historico">Acompanhar lote</label><select id="lote-historico"><option value="">Nenhum lote</option></select>
-          <p id="lote-resultado" class="resultado" role="status">Aguardando seleção</p><div class="controle"><button id="lote-pausar" class="secundario" type="button" hidden>Pausar execução</button><button id="lote-cancelar" class="secundario" type="button" hidden>Interromper lote</button></div>
+          <p id="lote-resultado" class="resultado" role="status">Aguardando seleção</p><div class="controle"><button id="lote-pausar" class="secundario" type="button" hidden>Pausar execução</button><button id="lote-cancelar" class="secundario" type="button" hidden>Interromper lote</button><button id="lote-diagnostico" class="secundario" type="button" hidden>Baixar diagnóstico das etapas</button></div>
           <div class="tabela-scroll"><table><thead><tr><th>Empresa</th><th>Rotina</th><th>Resultado</th><th></th></tr></thead><tbody id="lote-tarefas"></tbody></table></div>
           <p class="discreto">Após uma falha, o executor tenta voltar à tela azul e continua na próxima rotina quando confirma a recuperação. A falha permanece no histórico. Sem recuperação confirmada, interrompe a sequência. Reiniciar o servidor não repete o lote.</p>
         </div>

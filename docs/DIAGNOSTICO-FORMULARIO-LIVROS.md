@@ -8,6 +8,13 @@ empresa. Em 13/10, "mês passado" significa setembro, não agosto.
 
 ## Diagnóstico local
 
+No painel atualizado, também pode usar **Testar Livros Fiscais → Conferir
+formulário dos três livros**, com a aba Geral aberta no Domínio do servidor.
+O worker identifica/foca a janela do Domínio, captura e lê os controles.
+Recusa enquanto há emissão/login ativo. Não modifica caixas/datas, não
+clica OK e não emite. Mostra resumo de estados/datas/medidas; a captura
+fica local. Detalhes em [TESTE-PRESUMIDO-POR-EMPRESA.md](TESTE-PRESUMIDO-POR-EMPRESA.md).
+
 1. Atualizar para a main publicada. A recuperação da instalação em
    949a760 foi confirmada pelo log do operador, com backup local.
 2. Abrir Relatórios → Livros → Livros Fiscais, aba Geral. Deixar a janela

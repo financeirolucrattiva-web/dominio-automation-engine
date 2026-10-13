@@ -173,3 +173,46 @@ def marcar_tres_livros(ler, clicar):
     if not all(l['marcada'] for l in final['livros'].values()) or any(c['marcada'] for c in final['outros']):
         raise ValueError('Seleção final dos três livros não confirmada.')
     return final
+
+
+def ler_com_ocr(imagem):
+    """Mesma leitura local usada pelo atalho e pelo diagnóstico no servidor."""
+    from app import tela
+    ultimo = None
+    for escala in (2, 4):
+        try:
+            return ler_formulario(imagem, tela._ler_dados_ocr(imagem, escala), escala)
+        except ValueError as erro:
+            ultimo = erro
+    dados = tela.ler_dados_ocr_windows(imagem, 2)
+    if dados is not None:
+        return ler_formulario(imagem, dados, 2)
+    raise ultimo
+
+
+def resumo_diagnostico(resultado):
+    """Somente estados, datas e medidas; nunca texto OCR/captura/caminho."""
+    if set(resultado['livros']) != set(ROTULOS):
+        raise ValueError('Leitura dos três livros incompleta.')
+    livros = {}
+    for tipo in ROTULOS:
+        livro = resultado['livros'][tipo]
+        caixa = livro['retangulo']
+        if (type(livro['marcada']) is not bool or len(caixa) != 4
+                or any(type(c) is not int or c < 0 for c in caixa)
+                or caixa[2] == 0 or caixa[3] == 0):
+            raise ValueError('Estado ou caixa do livro inválido.')
+        livros[tipo] = {'marcada': livro['marcada'], 'retangulo': list(caixa)}
+    periodo = {papel: resultado['periodo'][papel]['valor'] for papel in ('inicial', 'final')}
+    for valor in periodo.values():
+        if not isinstance(valor, str) or not re.fullmatch(r'\d{2}/\d{2}/\d{4}', valor):
+            raise ValueError('Data não confirmada.')
+        dt.datetime.strptime(valor, '%d/%m/%Y')
+    if dt.datetime.strptime(periodo['inicial'], '%d/%m/%Y') > dt.datetime.strptime(periodo['final'], '%d/%m/%Y'):
+        raise ValueError('Período invertido.')
+    outros = resultado['outros']
+    if len(outros) != 13 or any(type(c['marcada']) is not bool for c in outros):
+        raise ValueError('Outras opções não confirmadas.')
+    return {'livros': livros, 'periodo': periodo,
+            'outras_opcoes_marcadas': sum(c['marcada'] for c in outros),
+            'emissao_realizada': False}

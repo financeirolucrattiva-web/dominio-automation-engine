@@ -2,6 +2,7 @@
 const $ = (id) => document.getElementById(id);
 let chave = "", estadoServidor = null, catalogo = [], tarefaAtual = null, pedidoPendente = null, enviando = false, versaoSessao = 0, atualizando = false, leituraAtual = 0, conectando = false, controlando = false, configurando = false, solicitacaoCodigo = null, capturaPendente = false, limiteCaptura = null;
 const nomesStatus = {pendente:"Aguardando executor", executando:"Em execução", concluida:"Concluída pela rotina", concluida_com_falhas:"Finalizada com falhas · revisar pendências", falha:"Falhou", recusada:"Pré-condição recusada", nao_confirmada:"Resultado não confirmado", interrompida:"Interrompida"};
+nomesStatus.concluida_com_pendencias="Teste parcial finalizado · rotinas pendentes não executadas";
 const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preencher período", identificar_formulario:"Identificar formulário", gerar_documento:"Gerar documento", encerrar:"Encerrar e conferir retorno", validar_dados:"Validar dados", identificar_empresa:"Identificar empresa", abrir_livros:"Abrir Livros Fiscais", abrir_resumo:"Abrir Resumo por Acumulador", gerar_previa:"Gerar prévia", exportar_pdf:"Exportar PDF", conferir_pdf:"Conferir PDF", recuperar_interface:"Recuperar interface", fim:"Resultado da rotina"};
 const estados = {inicio:"Em andamento", confirmado:"Confirmado", acao_executada:"Ação enviada", resultado_nao_verificado:"Não verificado", inconclusivo:"Inconclusivo", falha:"Falhou", concluido:"Concluído pela rotina"};
 let rotinaCadastroAtual=null;
@@ -82,12 +83,14 @@ const fasesLogin={nao_iniciado:"Login não iniciado",na_fila:"Aguardando a açã
 const motivosLogin={navegador_indisponivel:"Instale Edge ou Chrome no servidor.",destino_nao_permitido:"A página mudou para um endereço que não está configurado.",tela_login_nao_reconhecida:"A tela esperada não foi reconhecida. Confira a etapa indicada e a sessão do servidor.",campos_login_nao_confirmados:"Os campos do login Fiscal não foram reconhecidos com segurança.",janela_login_nao_confirmada:"Não reconheci uma janela do cliente Domínio em foco.",calibracao_nao_confirmada:"Deixe a tela principal azul, maximizada e sem menus, e use Calibrar tela principal.",fechamento_nao_confirmado:"Uma janela não confirmou o fechamento. O RPA não iniciou outro ciclo.",codigo_expirado:"O código não foi informado no prazo. Inicie uma nova tentativa.",login_nao_confirmado:"O acesso não foi confirmado. A rotina fiscal não será iniciada automaticamente.",login_cancelado:"A tentativa foi cancelada."};
 function atualizarLogin() {
   const login=estadoServidor?.login, permitido=!!chave && navigator.onLine && login?.disponivel;
-  const ativo=login && !["nao_iniciado","tela_principal_confirmada","calibracao_confirmada","captura_pronta","falha","cancelado"].includes(login.estado);
+  const ativo=login && !["nao_iniciado","tela_principal_confirmada","calibracao_confirmada","captura_pronta","livros_conferidos","falha","cancelado"].includes(login.estado);
   $("entrar-dominio").disabled=!permitido || configurando || !!estadoServidor?.ocupado;
   $("reiniciar-ciclo").disabled=!permitido || configurando || !!ativo;
   $("cancelar-login").hidden=!permitido || !ativo; $("cancelar-login").disabled=configurando;
   $("calibrar-servidor").disabled=!permitido || configurando || !!estadoServidor?.ocupado;
   $("capturar-servidor").disabled=!permitido || configurando || !!estadoServidor?.ocupado;
+  $("conferir-livros").disabled=!permitido || configurando || !!estadoServidor?.ocupado;
+  atualizarDiagnosticoLivros(login);
   $("login-estado").textContent=login ? (fasesLogin[login.estado] || "Estado não reconhecido")+(login.estado==="falha" ? ` · Etapa: ${fasesLogin[login.etapa] || "não reconhecida"}` : "")+(login.motivo ? ` · ${motivosLogin[login.motivo] || "Confira o servidor."}` : "") : "Conecte ao servidor para configurar o acesso.";
   const codigo=permitido && login.estado==="aguardando_codigo" && !!login.solicitacao_id;
   if (solicitacaoCodigo!==login?.solicitacao_id) {$("codigo").value=""; solicitacaoCodigo=login?.solicitacao_id || null;}
@@ -133,6 +136,33 @@ $("calibrar-servidor").addEventListener("click",()=>{
   configurar("sessao/calibrar",{tela_principal_confirmada:true});
 });
 fasesLogin.capturando_tela="Capturando a janela do Domínio"; fasesLogin.captura_pronta="Captura disponível para conferência";
+fasesLogin.lendo_formulario_livros="Lendo caixas e datas de Livros Fiscais";
+fasesLogin.livros_conferidos="Formulário dos livros conferido; emissão não realizada";
+motivosLogin.formulario_livros_nao_reconhecido="Não reconheci todas as caixas e datas. Deixe a aba Geral inteira visível e use o atalho Revisar Formulario Livros para obter o diagnóstico detalhado.";
+motivosLogin.diagnostico_livros_nao_confirmado="Não concluí a leitura local. Confira o formulário e o OCR no servidor; nenhum relatório foi emitido.";
+let livrosDiagnosticoPendente=false, livrosOperacaoAnterior=null;
+function atualizarDiagnosticoLivros(login) {
+  if (!chave) {livrosDiagnosticoPendente=false; $("livros-diagnostico").textContent="Aguardando conferência do formulário."; $("livros-medidas").textContent=""; return;}
+  if (login?.estado==="livros_conferidos" && login.livros && (!livrosDiagnosticoPendente || login.operacao_id!==livrosOperacaoAnterior)) {
+    const dados=login.livros, nomes={registro_entradas:"Entradas",registro_saidas:"Saídas",registro_icms:"ICMS"};
+    const selecao=Object.entries(nomes).map(([id,nome])=>`${nome}: ${dados.livros[id].marcada ? "marcado" : "desmarcado"}`).join(" · ");
+    $("livros-diagnostico").textContent=`Leitura confirmada. ${selecao}. Período: ${dados.periodo.inicial} a ${dados.periodo.final}. Outras opções marcadas: ${dados.outras_opcoes_marcadas}. Nenhum PDF foi emitido. Esta leitura não confirma empresa, apuração ou emissão.`;
+    $("livros-medidas").textContent="Caixas medidas na janela: "+Object.entries(nomes).map(([id,nome])=>`${nome} [${dados.livros[id].retangulo.join(", ")}]`).join(" · ");
+    livrosDiagnosticoPendente=false;
+  } else if (livrosDiagnosticoPendente && login?.operacao_id!==livrosOperacaoAnterior && ["falha","cancelado"].includes(login?.estado)) {
+    $("livros-diagnostico").textContent=motivosLogin[login.motivo] || "Leitura não confirmada; confira o formulário no servidor. Nenhum PDF foi emitido.";
+    livrosDiagnosticoPendente=false;
+  }
+}
+$("conferir-livros").addEventListener("click",async()=>{
+  livrosOperacaoAnterior=estadoServidor?.login?.operacao_id;
+  livrosDiagnosticoPendente=true; $("livros-medidas").textContent="";
+  $("livros-diagnostico").textContent="Conferindo o formulário aberto no Domínio do servidor. Nenhum relatório será emitido.";
+  if (!await configurar("sessao/livros/conferir")) {
+    livrosDiagnosticoPendente=false;
+    $("livros-diagnostico").textContent="Conferência não iniciada. Confira o aviso de conexão e deixe o servidor livre.";
+  }
+});
 function ocultarCaptura() {capturaPendente=false; clearTimeout(limiteCaptura); $("captura-servidor").hidden=true; $("captura-servidor").removeAttribute("src"); $("ocultar-captura").hidden=true;}
 $("ocultar-captura").addEventListener("click",ocultarCaptura);
 $("capturar-servidor").addEventListener("click",async()=>{
