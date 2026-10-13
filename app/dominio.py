@@ -14,6 +14,7 @@ isolado por empresa, roadmap seção 6).
 """
 
 import datetime
+import json
 import time
 import uuid
 from pathlib import Path
@@ -1630,7 +1631,7 @@ def gerar_resumo_acumulador(pasta_destino, data_inicial=None, data_final=None, p
                                                 prefixo, cnpj_esperado, acompanhamento)
         if not resultado[0]:
             _recuperar_interface_livro(acompanhamento)
-        acompanhamento.concluir(resultado[0])
+        acompanhamento.concluir(resultado[0], evidencia=getattr(acompanhamento, 'motivo_periodo', 'retorno_falha'))
         return resultado
     except Exception:
         _recuperar_interface_livro(acompanhamento)
@@ -1665,11 +1666,29 @@ def _ler_campos_resumo():
         try:
             return campos_periodo(tela._ler_dados_ocr(imagem, escala), escala)
         except ValueError:
-            pass
+            print(f'Resumo: OCR Tesseract {escala}x não confirmou os dois campos de data.')
     dados = tela.ler_dados_ocr_windows(imagem, 2)
     if dados is not None:
         return campos_periodo(dados, 2)
     raise ValueError("Não consegui identificar as duas datas pelos motores locais de OCR.")
+
+
+def _diagnosticar_periodo_resumo(fase, campo, esperado, campos=None, tentativa=0):
+    from app.formulario_resumo import resumo_leitura
+    leitura = resumo_leitura(campos) if campos is not None else None
+    # JSON limitado: nenhum OCR livre, identificação fiscal ou caminho.
+    print('RESUMO_PERIODO '+json.dumps({'fase': fase, 'campo': campo, 'esperado': esperado,
+        'tentativa': tentativa, 'leitura': leitura}, ensure_ascii=False), flush=True)
+
+
+def _falhar_periodo_resumo(acompanhamento, motivo, prefixo):
+    from app.formulario_resumo import MOTIVOS_PERIODO
+    if motivo not in MOTIVOS_PERIODO:
+        raise ValueError('Motivo do período não reconhecido.')
+    acompanhamento.motivo_periodo = motivo
+    print('Resumo: preenchimento interrompido — '+motivo+'. Não foi enviado OK.', flush=True)
+    salvar(tela.capturar_tela(), f'{prefixo}erro_periodo_resumo.png')
+    return False, None
 
 
 def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo, cnpj_esperado, acompanhamento):
@@ -1717,6 +1736,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         return False, None
     acompanhamento.confirmar("formulario_resumo_reconhecido")
     acompanhamento.iniciar("preencher_periodo")
+    print(f'Resumo: período solicitado {data_inicial} a {data_final}.', flush=True)
     # Tab apenas retira a seleção azul inicial para OCR; a posição do
     # campo seguinte não é presumida. Cada data é localizada novamente.
     interacao.pressionar_tecla("tab")
@@ -1725,8 +1745,9 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
             campos = _ler_campos_resumo()
         except ValueError:
             print("Resumo: datas não localizadas por OCR; nenhum offset foi presumido.")
-            salvar(tela.capturar_tela(), f"{prefixo}erro_campos_resumo.png")
-            return False, None
+            _diagnosticar_periodo_resumo('antes_digitacao', papel, valor)
+            return _falhar_periodo_resumo(acompanhamento, 'campos_resumo_nao_localizados', prefixo)
+        _diagnosticar_periodo_resumo('antes_digitacao', papel, valor, campos)
         interacao.clicar(*campos[papel]["posicao"])
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace("/", ""))
@@ -1734,16 +1755,16 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         for tentativa in range(5):
             try:
                 campos = _ler_campos_resumo()
+                _diagnosticar_periodo_resumo('apos_digitacao', papel, valor, campos, tentativa+1)
                 if campos[papel]["valor"] == valor:
                     break
             except ValueError:
-                pass
+                _diagnosticar_periodo_resumo('leitura_nao_confirmada', papel, valor, tentativa=tentativa+1)
             time.sleep(.3)
         else:
-            salvar(tela.capturar_tela(), f"{prefixo}erro_periodo_resumo.png")
-            return False, None
+            return _falhar_periodo_resumo(acompanhamento, f'data_{papel}_resumo_nao_confirmada', prefixo)
     if campos["inicial"]["valor"] != data_inicial or campos["final"]["valor"] != data_final:
-        return False, None
+        return _falhar_periodo_resumo(acompanhamento, 'periodo_resumo_divergente', prefixo)
     acompanhamento.confirmar("campos_periodo_confirmados")
     acompanhamento.iniciar("gerar_previa")
     imagem = tela.capturar_tela()

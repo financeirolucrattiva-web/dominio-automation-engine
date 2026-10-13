@@ -9,6 +9,12 @@ let rotinaCadastroAtual=null;
 const etapasGeracao = ["navegar_menu","preencher_periodo","identificar_formulario","gerar_documento","encerrar"];
 const etapasLivros = ["validar_dados","identificar_empresa","abrir_livros","preencher_periodo","gerar_previa","exportar_pdf","conferir_pdf","encerrar"];
 const motivos = {nome_arquivo_nao_confirmado:"O nome ou destino final do arquivo não foi confirmado; confira a saída e o log no servidor.",calibracao_indisponivel:"Calibre a tela principal no servidor.", dominio_fora_de_foco:"Deixe o Domínio visível na sessão do servidor.", tela_principal_nao_confirmada:"Confira a tela principal do Domínio no servidor.", empresa_nao_confirmada:"A empresa no servidor não corresponde ao código solicitado.", periodo_nao_confirmado:"Confira o período solicitado.", servidor_reiniciado:"O servidor reiniciou; confira o Domínio antes de uma nova execução.", erro_execucao_consulte_servidor:"Consulte o log local do servidor.", resultado_ou_retorno_nao_confirmado:"O resultado ou retorno não foi confirmado; confira o servidor.", executor_requer_windows:"O executor precisa de uma sessão Windows.", precondicao_nao_confirmada:"Confira as condições da sessão do servidor."};
+Object.assign(motivos,{
+  campos_resumo_nao_localizados:"Resumo: não consegui localizar as duas datas por OCR. Não enviei OK; confira o diagnóstico do formulário.",
+  data_inicial_resumo_nao_confirmada:"Resumo: a data inicial não confirmou o valor solicitado após a digitação. Não enviei OK; confira o log RESUMO_PERIODO no servidor.",
+  data_final_resumo_nao_confirmada:"Resumo: a data final não confirmou o valor solicitado após a digitação. Não enviei OK; confira o log RESUMO_PERIODO no servidor.",
+  periodo_resumo_divergente:"Resumo: a conferência final encontrou uma data diferente da solicitada. Não enviei OK; confira o log RESUMO_PERIODO no servidor."
+});
 
 function aviso(texto) { $("aviso").textContent = texto; }
 function atualizarLimitePeriodo(id, limite) {

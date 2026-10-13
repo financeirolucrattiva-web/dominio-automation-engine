@@ -29,6 +29,7 @@ from contextvars import ContextVar
 
 from . import tela
 from .controle_execucao import ponto_seguro
+from .formulario_resumo import MOTIVOS_PERIODO
 
 
 _OBSERVADOR = ContextVar("observador_estados_da_execucao", default=None)
@@ -57,6 +58,7 @@ class AcompanhamentoRotina:
         "conferir_pdf", "encerrar",
     )
     EVIDENCIAS = {
+        *MOTIVOS_PERIODO,
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
         "campos_periodo_confirmados", "ancora_registro_lida", "arquivo_novo_estavel",
         "pdf_tipo_periodo_cnpj_confirmados", "esc_enviado_fechamento_nao_verificado",

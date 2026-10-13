@@ -1,5 +1,6 @@
 """OCR/desktop substituídos; PDFs e persistência reais, todos sintéticos."""
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -12,7 +13,7 @@ from unittest.mock import Mock, patch
 from PIL import Image, ImageDraw, ImageFont
 
 from app import arquivos
-from app.formulario_resumo import campos_periodo
+from app.formulario_resumo import campos_periodo, resumo_leitura
 from app.servidor import RepositorioTarefas
 from test_arquivos import criar_pdf, CNPJ
 
@@ -27,6 +28,13 @@ def dados_ocr(dx=0, dy=0):
 
 
 class TestResumoDados(unittest.TestCase):
+    def test_resumo_leitura_descarta_texto_livre_e_recusa_valores_privados(self):
+        campos=campos_periodo(dados_ocr()); campos['texto_ocr']='PRIVADO'
+        campos['inicial']['cnpj']='PRIVADO'; resumo=resumo_leitura(campos)
+        self.assertNotIn('PRIVADO',json.dumps(resumo))
+        campos['inicial']['valor']='PRIVADO'
+        with self.assertRaises(ValueError):resumo_leitura(campos)
+
     def test_campos_medidos_acompanham_janela_e_datas_iguais_nao_confundem_campos(self):
         origem = campos_periodo(dados_ocr())
         movidos = dados_ocr(310, 210)
@@ -151,6 +159,65 @@ class TestResumoFluxo(unittest.TestCase):
     def executar(self, inicio="01/08/2026", fim="31/08/2026"):
         return self.d.gerar_resumo_acumulador(self.pasta.name, inicio, fim)
 
+    def simular_setembro(self, alterar_inicial=True, alterar_final=True, divergir_inicial=False):
+        atual=campos_periodo(dados_ocr())
+        atual['inicial']['valor']='01/09/2026'; atual['final']['valor']='30/09/2026'
+        atual['texto_ocr']='PRIVADO'
+        self.campos.side_effect=lambda:copy.deepcopy(atual)
+        digitacoes=[]
+        def digitar(valor):
+            digitacoes.append(valor)
+            if valor=='01082026' and alterar_inicial:atual['inicial']['valor']='01/08/2026'
+            elif valor=='31082026':
+                if alterar_final:atual['final']['valor']='31/08/2026'
+                if divergir_inicial:atual['inicial']['valor']='01/07/2026'
+            elif valor.endswith('.pdf'):self.caminho=Path(valor)
+        self.d.interacao.digitar.side_effect=digitar
+        return atual,digitacoes
+
+    def test_troca_setembro_por_agosto_e_registra_datas_antes_e_depois(self):
+        atual,digitacoes=self.simular_setembro(); saida=io.StringIO()
+        with contextlib.redirect_stdout(saida):ok,arquivo=self.executar()
+        self.assertTrue(ok); self.assertTrue(Path(arquivo).exists())
+        self.assertEqual(digitacoes[:2],['01082026','31082026'])
+        registros=[json.loads(linha.removeprefix('RESUMO_PERIODO ')) for linha in saida.getvalue().splitlines() if linha.startswith('RESUMO_PERIODO ')]
+        self.assertEqual(registros[0]['leitura']['inicial']['valor'],'01/09/2026')
+        self.assertEqual(registros[1]['leitura']['inicial']['valor'],'01/08/2026')
+        self.assertEqual(registros[-1]['leitura']['final']['valor'],'31/08/2026')
+        self.assertNotIn('PRIVADO',saida.getvalue())
+
+    def test_inicial_permanece_setembro_nao_digita_final_e_nao_gera(self):
+        _,digitacoes=self.simular_setembro(alterar_inicial=False)
+        self.assertEqual(self.executar(),(False,None))
+        self.assertEqual(digitacoes,['01082026'])
+        self.d.estados.esperar_por_estado.assert_not_called(); self.icone.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'data_inicial_resumo_nao_confirmada')
+
+    def test_final_permanece_setembro_registra_motivo_e_nao_gera(self):
+        _,digitacoes=self.simular_setembro(alterar_final=False)
+        self.assertEqual(self.executar(),(False,None))
+        self.assertEqual(digitacoes,['01082026','31082026'])
+        self.d.estados.esperar_por_estado.assert_not_called(); self.icone.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'data_final_resumo_nao_confirmada')
+
+    def test_ocr_transitorio_apos_digitacao_e_releitura_confirma_sem_redigitar(self):
+        atual,digitacoes=self.simular_setembro()
+        numero=[0]
+        def ler():
+            numero[0]+=1
+            if numero[0]==2:raise ValueError('Leitura sintética indisponível')
+            return copy.deepcopy(atual)
+        self.campos.side_effect=ler
+        self.assertTrue(self.executar()[0])
+        self.assertEqual(digitacoes[:2],['01082026','31082026'])
+        self.assertEqual(numero[0],5)
+
+    def test_inicial_diverge_ao_digitar_final_bloqueia_ok(self):
+        self.simular_setembro(divergir_inicial=True)
+        self.assertEqual(self.executar(),(False,None))
+        self.d.estados.esperar_por_estado.assert_not_called(); self.icone.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'periodo_resumo_divergente')
+
     def test_fluxo_publica_pdf_real_nomeado_e_exige_retorno_visual(self):
         ok, arquivo = self.executar()
         self.assertTrue(ok)
@@ -201,6 +268,7 @@ class TestResumoFluxo(unittest.TestCase):
         self.assertEqual(self.executar(), (False, None))
         self.d.estados.esperar_por_estado.assert_not_called()
         self.icone.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'campos_resumo_nao_localizados')
 
     def test_digitacao_nao_confirmada_nao_clica_ok(self):
         campos = campos_periodo(dados_ocr())

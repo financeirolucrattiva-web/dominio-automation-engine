@@ -266,7 +266,8 @@ const painelLotes=(()=>{
       $("lote-tarefas").replaceChildren();
       for (const tarefa of detalhe.tarefas) {
         const empresa=detalhe.plano.empresas.find(e=>e.codigo===tarefa.pedido.empresa_codigo), linha=document.createElement("tr");
-        celula(linha,`${empresa.codigo} · ${empresa.nome}`); celula(linha,nomeRotina(tarefa.pedido.capacidade)+(tarefa.modo==="simulacao" ? " (simulada)" : "")); celula(linha,nomesStatus[tarefa.status] || "Não confirmado").className=tarefa.status;
+        celula(linha,`${empresa.codigo} · ${empresa.nome}`); celula(linha,nomeRotina(tarefa.pedido.capacidade)+(tarefa.modo==="simulacao" ? " (simulada)" : ""));
+        celula(linha,(nomesStatus[tarefa.status] || "Não confirmado")+(tarefa.motivo && motivos[tarefa.motivo] ? " · "+motivos[tarefa.motivo] : "")).className=tarefa.status;
         const b=document.createElement("button"); b.type="button"; b.className="secundario"; b.textContent="Ver etapas"; b.addEventListener("click",()=>{selecionarTarefa(tarefa.id); acompanhar().catch(erro=>aviso(erro.message)); $("resultado").scrollIntoView({behavior:"smooth",block:"center"});}); celula(linha,"").append(b); $("lote-tarefas").append(linha);
       }
       for (const pendente of detalhe.plano.pendencias || []) {
