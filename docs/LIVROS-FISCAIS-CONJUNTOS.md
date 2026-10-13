@@ -13,6 +13,11 @@ edições posteriores. O roteiro antigo de ICMS é arquivado quando deixa
 de ser usado. A conjunta continua pendente; não existe ainda gerador
 conjunto no executor. Passo a passo em REVISAO-ROTINAS-NOVAS.md.
 
+Captura de 13/10 mostra três caixas desmarcadas; o estado inicial muda
+entre tentativas. Diagnóstico local de caixas/datas preparado em
+DIAGNOSTICO-FORMULARIO-LIVROS.md, sem cliques/geração. Setembro exibido
+foi informado ainda aberto; não usá-lo para emissão sem nova confirmação.
+
 **Escopo confirmado:** esquema recebido de **Lucro Presumido**
 e **Lucro Real**, integrado em [ARQUITETURA-SERVIDOR.md](ARQUITETURA-SERVIDOR.md).
 Destino padrão escolhido: `FISCAL\MM\RELATORIOS_APURAÇÃO\LIVROS_FISCAIS`,

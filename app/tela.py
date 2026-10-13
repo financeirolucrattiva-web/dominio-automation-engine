@@ -120,7 +120,8 @@ if shutil.which("tesseract") is None:
             "tesseract.exe."
         )
 
-ctypes.windll.user32.SetProcessDPIAware()
+if hasattr(ctypes, "windll"):
+    ctypes.windll.user32.SetProcessDPIAware()
 
 
 def capturar_tela():
