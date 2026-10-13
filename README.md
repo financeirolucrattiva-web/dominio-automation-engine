@@ -83,7 +83,7 @@ Demonstrativo EFD Contribuições reutiliza a rotina integrada existente,
 renomeada e vinculada ao Presumido e Real; a cópia pendente foi arquivada.
 Resumo por Acumulador está integrado para teste individual supervisionado,
 ainda não homologado no Windows. Livros Fiscais — Entradas, Saídas e ICMS
-tem cadastro conjunto; a emissão dos três PDFs aguarda integração.
+está integrado para teste, com três PDFs separados e conferência de conteúdo.
 Veja o [roteiro de revisão das rotinas novas](docs/REVISAO-ROTINAS-NOVAS.md).
 O item Demonstrativo EFD Contribuições ainda utiliza o exportador da EFD;
 a geração de um demonstrativo PDF depende da confirmação do roteiro.
@@ -94,19 +94,20 @@ Conferência e recuperação desta versão precisam da rodada Windows.
 O código da tarefa determina a empresa no Domínio. Execução individual e
 lote usam F8 quando necessário e conferem novamente código/painel azul
 antes de emitir. Tela presa no início tenta recuperação calibrada, até
-cinco Esc, parando no painel azul. Foco é conferido nos checkpoints de
+cinco Esc e até três tentativas de fechar a aba, parando no painel azul. Foco é conferido nos checkpoints de
 mouse/teclado; perda de foco bloqueia ações posteriores nessa execução.
 
 ### Onde guardar os Livros Fiscais por empresa
 
 Para o primeiro piloto, use **Lucro Presumido por empresa** no início do
 painel. Escolha empresa e mês fechado, confira a sequência e inicie em um
-envio. Enquanto Livros Fiscais estiver pendente, é necessário escolher
-explicitamente o teste parcial das rotinas disponíveis; a pendência fica
-registrada como não executada. O mesmo teste pode ser usado em lote,
+envio. A sequência inicial integra Resumo, exportação EFD e os três Livros
+Fiscais juntos. Rotinas custom pendentes continuam exigindo teste parcial
+explícito e ficam registradas como não executadas. Pode ser usado em lote,
 somente para empresas do Presumido. **Baixar diagnóstico das etapas**
 registra resultados e falhas. O botão **Conferir formulário dos três
-livros** faz a leitura local antes da integração da emissão conjunta.
+livros** faz uma leitura sem emitir. **Preparar teste dos três Livros Fiscais**
+seleciona a rotina conjunta em Nova execução e exige confirmação antes de emitir.
 Veja [TESTE-PRESUMIDO-POR-EMPRESA.md](docs/TESTE-PRESUMIDO-POR-EMPRESA.md).
 
 Se o Resumo não trocar o período, o painel mostra qual data não confirmou
@@ -140,16 +141,17 @@ Exemplo final: `<RAIZ>\<PASTA EMPRESA>\2026\FISCAL\08\RELATORIOS_APURAÇÃO\LIVR
 Empresas sem pasta de ano usam a estrutura `FISCAL` existente. A raiz,
 a empresa e a estrutura fiscal precisam existir e ser conferidas.
 
-Com essa configuração, os geradores integrados de Entradas e Saídas
-guardam o PDF confirmado nessa pasta **ao final**, com nome cadastrado e
+Com essa configuração, Entradas/Saídas individuais e os três livros conjuntos
+guardam cada PDF confirmado nessa pasta **ao final**, com nome cadastrado e
 competência, preservando anteriores. O download do painel continua disponível.
 Falha na cópia mantém a origem e exige conferência. Use um mês por execução
 para o destino mensal. Sem configurar a raiz, a saída existente continua
 em `saida/`. Os caminhos reais e o CSV ficam locais, ignorados pelo Git.
 
-O teste de pasta não homologa emissão fiscal. A exportação conjunta dos
-três livros ainda depende da navegação verificada em **Procurar Pasta**,
-da validação do PDF de ICMS e de múltiplos arquivos por tarefa; veja
+O teste de pasta não homologa emissão fiscal. A conjunta exporta por
+**Procurar Pasta** para uma pasta exclusiva local compartilhada e publica
+os três PDFs conferidos no destino da empresa. Ainda precisa de teste
+Windows e homologação do livro ICMS; veja
 [LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
 O Resumo segue **Relatórios → Acompanhamentos → Resumo por Acumulador**,
 preenche as duas datas e exporta o PDF para `saida/`, como nos prints.
@@ -209,7 +211,7 @@ Essas mudanças passaram por testes simulados e precisam de revalidação
 Windows. O Adobe pode continuar instalado e aberto.
 
 Consulte [docs/RETOMADA.md](docs/RETOMADA.md) para o próximo teste.
-`atalhos/ferramentas/Listar Funcoes.bat` mostra o catálogo preparatório das cinco rotinas,
+`atalhos/ferramentas/Listar Funcoes.bat` mostra o catálogo preparatório das seis rotinas,
 sem executar nada ou habilitar agentes. A conferência de período/nome
 do PDF continua pendente e pausada pelo usuário.
 

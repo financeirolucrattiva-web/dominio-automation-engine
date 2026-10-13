@@ -46,6 +46,7 @@ def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
     prefixos = {"Resumo por Acumulador": "acumulador",
                 "resumo_acumulador": "acumulador",
                 "Livro Fiscal de ICMS": "livro_icms",
+                "registro_icms": "livro_icms",
                 "Demonstrativo EFD Contribuições": "efd_contribuicoes"}
     prefixo = nome_empresa_seguro(prefixos.get(tipo, tipo)).lower()
     empresa = nome_empresa_seguro(nome_empresa).lower()
@@ -102,15 +103,26 @@ def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
     Não consulta serviços externos nem infere identidade por OCR.
     """
     titulos = {"registro_saidas": "REGISTRODESAIDAS", "registro_entradas": "REGISTRODEENTRADAS"}
-    if tipo not in titulos:
+    if tipo not in (*titulos, "registro_icms"):
         raise ValueError("Tipo de livro não reconhecido.")
     compacto = _compactar(texto)
-    titulo = titulos[tipo]
-    if titulo not in compacto:
-        raise ValueError("O PDF não contém o título do livro solicitado.")
+    if tipo == "registro_icms":
+        # O título exato ainda precisa de homologação no Windows. Não basta
+        # ICMS nas colunas de Entradas/Saídas ou no nome escolhido pelo Domínio.
+        # Exige título de registro/apuração com ICMS antes da identificação.
+        limites_titulo = [compacto.find(m) for m in ("EMPRESA", "CNPJ", "INSCRICAO") if m in compacto]
+        titulo = compacto[:min(limites_titulo)] if limites_titulo else compacto[:200]
+        if ("ICMS" not in titulo or not any(m in titulo for m in ("REGISTRO", "APURACAO"))
+                or any(m in compacto for m in ("REGISTRODEENTRADAS", "REGISTRODESAIDAS", "RESUMOPORACUMULADOR"))):
+            raise ValueError("O cabeçalho não confirma um livro de registro/apuração de ICMS.")
+        cabecalho = compacto
+    else:
+        titulo = titulos[tipo]
+        if titulo not in compacto:
+            raise ValueError("O PDF não contém o título do livro solicitado.")
+        cabecalho = compacto[compacto.index(titulo):]
     # O período precisa estar no cabeçalho, antes das linhas de movimentos.
-    cabecalho = compacto[compacto.index(titulo):]
-    limites = [cabecalho.find(m) for m in ("CODIFICACAO", "VALORESFISCAIS") if m in cabecalho]
+    limites = [cabecalho.find(m) for m in ("CODIFICACAO", "VALORESFISCAIS", "DEBITODOIMPOSTO", "CREDITODOIMPOSTO") if m in cabecalho]
     if limites:
         cabecalho = cabecalho[:min(limites)]
     else:
@@ -138,7 +150,7 @@ def nome_livro(tipo, cnpj, inicio, fim, nome_empresa=None):
     final = datetime.datetime.strptime(fim, "%d/%m/%Y").date()
     if final < inicial:
         raise ValueError("Período final anterior ao inicial.")
-    if tipo not in ("registro_saidas", "registro_entradas") or not re.fullmatch(r"\d{14}", cnpj):
+    if tipo not in ("registro_saidas", "registro_entradas", "registro_icms") or not re.fullmatch(r"\d{14}", cnpj):
         raise ValueError("Tipo ou CNPJ inválido para nomear o PDF.")
     # A competência no nome vem do mês/ano informado na UI, mesmo
     # quando o usuário pede apenas parte desse mês. As datas completas

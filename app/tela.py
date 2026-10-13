@@ -184,6 +184,13 @@ def _ler_dados_ocr(imagem, escala):
     return dados
 
 
+def ler_dados_ocr_linha_data(imagem, escala=4):
+    """Recorte de campo: uma linha/dígitos, sem reutilizar o cache geral."""
+    imagem_ocr = _preparar_para_ocr(imagem, escala)
+    return pytesseract.image_to_data(imagem_ocr, lang='por',
+        config='--psm 7 -c tessedit_char_whitelist=0123456789/', output_type=Output.DICT)
+
+
 def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
     """Procura `alvo` (uma ou mais palavras, sem diferenciar maiúscula de
     minúscula) no texto lido por OCR em `imagem`.

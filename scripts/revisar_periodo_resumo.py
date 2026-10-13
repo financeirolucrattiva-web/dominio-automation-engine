@@ -54,17 +54,17 @@ def main(argv=None):
     except Exception:
         print('Imagem/captura indisponível. Confira o arquivo local, a sessão e as permissões. Não houve alteração ou emissão.')
         return 1
-    try:
-        titulo=tela.achar_texto_ou_no_centro(imagem,'Resumo por acumulador',escala=2)
-    except Exception:
-        titulo=None
-    if titulo is None:
-        try:titulo=tela.achar_texto_windows(imagem,'Resumo por acumulador',escala=2)
+    titulo=None
+    for escala in (2,4):
+        try:titulo=tela.achar_texto_ou_no_centro(imagem,'Resumo por acumulador',escala=escala)
         except Exception:titulo=None
+        if titulo is not None:break
+        try:titulo=tela.achar_texto_windows(imagem,'Resumo por acumulador',escala=escala)
+        except Exception:titulo=None
+        if titulo is not None:break
     if titulo is None:
         print('Formulário do Resumo não reconhecido. Não houve alteração ou emissão.')
         return 1
-    confirmado=False
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2)):
         try:
             dados=tela._ler_dados_ocr(imagem,escala) if motor=='tesseract' else tela.ler_dados_ocr_windows(imagem,escala)
@@ -78,11 +78,17 @@ def main(argv=None):
                 print(f'{motor} {escala}x: não confirmou rótulos e duas datas completas.')
                 continue
             print('RESUMO_LEITURA '+json.dumps({'motor':motor,'escala':escala,'campos':campos},ensure_ascii=False))
-            confirmado=True
         except Exception:
             print(f'{motor} {escala}x: leitura indisponível. Confira a instalação local do OCR.')
     print('Nenhum campo foi alterado e nenhum relatório foi emitido.')
-    return 0 if confirmado else 1
+    try:
+        from app.leitura_resumo import ler_campos
+        campos=ler_campos(imagem,registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False)))
+        print('RESUMO_LEITURA_CAMPOS '+json.dumps(resumo_leitura(campos),ensure_ascii=False))
+        return 0
+    except Exception:
+        print('Leitura dos campos não confirmada por recortes/concordância. Não houve alteração ou emissão.')
+        return 1
 
 
 if __name__=='__main__':raise SystemExit(main())

@@ -445,8 +445,14 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data
     try:
         resultado = _executar_sped(item_menu, texto_confirmacao, prefixo=prefixo, acompanhamento=acompanhamento,
                                   data_inicial=data_inicial, data_final=data_final)
+        if not resultado:
+            _limpar_ao_encerrar(acompanhamento)
         acompanhamento.concluir(resultado)
         return resultado
+    except Exception:
+        _limpar_ao_encerrar(acompanhamento)
+        acompanhamento.concluir(False, evidencia="excecao")
+        raise
     except BaseException:
         acompanhamento.concluir(False, evidencia="excecao")
         raise
@@ -1098,6 +1104,77 @@ def _recuperar_interface_livro(acompanhamento):
             print("Retorno à tela principal inconclusivo. Confira a tela do Domínio antes de uma nova execução.")
 
 
+def fechar_aba_ativa(janela):
+    """Escalada depois do Esc: clica em 'Fechar' se visível, senão Ctrl+F4.
+
+    Ctrl+F4 fecha só a janela filha ativa (MDI); Alt+F4 nunca é usado, pois
+    fecharia o próprio Domínio. Exige o foco do Domínio e envia uma única
+    ação; quem chama confere a tela principal depois.
+    """
+    try:
+        if not interacao.janela_dominio_em_foco(janela):
+            return False
+        pos = tela.achar_texto(tela.capturar_tela(), "Fechar", escala=2)
+        if pos is not None:
+            print(f"Esc não bastou; clicando em 'Fechar': {pos}")
+            interacao.clicar(*pos)
+        else:
+            print("Esc não bastou e não vi 'Fechar'; enviando Ctrl+F4 (fecha só a janela filha ativa).")
+            interacao.pressionar_atalho("ctrl", "f4")
+        time.sleep(1)
+        return True
+    except Exception:
+        return False
+
+
+def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
+    """Fecha o que estiver aberto até reconhecer a tela principal calibrada.
+
+    Só age se a tela principal NÃO estiver reconhecida (nunca envia tecla
+    na tela azul) e sem referência calibrada não envia nada às cegas.
+    Escalada: Esc (um por vez) e depois fechar a aba/janela, conferindo a
+    tela principal a cada passo. Devolve True só com a tela confirmada.
+    """
+    try:
+        if tela_principal.carregar_referencia() is None:
+            print("Sem referência calibrada da tela principal; não envio teclas às cegas para fechar telas.")
+            return False
+        janela = janela or interacao.identificar_janela_dominio_atual()
+        if janela is None:
+            print("Não identifiquei a janela do Domínio em foco; não fecho nada.")
+            return False
+        from types import SimpleNamespace
+        contexto = SimpleNamespace(janela_dominio=janela)
+        for passo in range(max_esc + max_fechar + 1):
+            if not interacao.janela_dominio_em_foco(janela):
+                return False
+            if _verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
+                return True
+            if passo < max_esc:
+                if not interacao.pressionar_esc_no_dominio(
+                        janela, vezes=1, confirmar_conteudo=_confirmar_conteudo_dominio):
+                    return False
+            elif passo < max_esc + max_fechar:
+                if not fechar_aba_ativa(janela):
+                    return False
+        return False
+    except Exception:
+        return False
+
+
+def _limpar_ao_encerrar(acompanhamento=None):
+    """Depois de sucesso ou falha, deixa o Domínio na tela principal.
+
+    Idempotente: se a tela principal já foi reconhecida não faz nada. Uma
+    falha aqui nunca troca o resultado da rotina nem esconde a exceção.
+    """
+    janela = getattr(acompanhamento, "janela_dominio", None)
+    if voltar_ao_inicio(janela):
+        return True
+    print("Não consegui deixar o Domínio na tela principal; confira a tela antes de seguir.")
+    return False
+
+
 def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
     """Acompanha uma execução sem alterar navegação, validação ou retorno."""
     acompanhamento = estados.AcompanhamentoRotina(prefixo_arquivo)
@@ -1109,10 +1186,12 @@ def _gerar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data_in
         )
         if not resultado[0]:
             _recuperar_interface_livro(acompanhamento)
+            _limpar_ao_encerrar(acompanhamento)
         acompanhamento.concluir(resultado[0])
         return resultado
     except Exception:
         _recuperar_interface_livro(acompanhamento)
+        _limpar_ao_encerrar(acompanhamento)
         acompanhamento.concluir(False, evidencia="excecao")
         raise
     except BaseException:
@@ -1631,10 +1710,12 @@ def gerar_resumo_acumulador(pasta_destino, data_inicial=None, data_final=None, p
                                                 prefixo, cnpj_esperado, acompanhamento)
         if not resultado[0]:
             _recuperar_interface_livro(acompanhamento)
+            _limpar_ao_encerrar(acompanhamento)
         acompanhamento.concluir(resultado[0], evidencia=getattr(acompanhamento, 'motivo_periodo', 'retorno_falha'))
         return resultado
     except Exception:
         _recuperar_interface_livro(acompanhamento)
+        _limpar_ao_encerrar(acompanhamento)
         acompanhamento.concluir(False, evidencia="excecao")
         raise
     except BaseException:
@@ -1650,6 +1731,19 @@ def _esperar_tela_resumo(alvo, prefixo):
     return imagem, pos
 
 
+def _esperar_formulario_resumo(prefixo):
+    from app.leitura_resumo import formulario_resumo_reconhecido
+    detectores = [(titulo, lambda img, t=titulo:
+                   tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in TITULOS_ERRO]
+    imagem, estado, pos = estados.esperar_por_estado(
+        detectores + [('formulario', formulario_resumo_reconhecido)],
+        espera_minima=.3, tentativas=20, intervalo=1)
+    if estado in TITULOS_ERRO:
+        _tratar_aviso_resumo(imagem, pos, prefixo)
+        return imagem, None
+    return imagem, pos if estado == 'formulario' else None
+
+
 def _tratar_aviso_resumo(imagem, pos, prefixo):
     texto = _ler_texto_caixa(imagem, pos)
     acao = erros.decidir(texto, documento="Resumo por Acumulador")
@@ -1661,16 +1755,9 @@ def _tratar_aviso_resumo(imagem, pos, prefixo):
 
 
 def _ler_campos_resumo():
+    from app.leitura_resumo import ler_campos
     imagem = tela.capturar_tela()
-    for escala in (2, 4):
-        try:
-            return campos_periodo(tela._ler_dados_ocr(imagem, escala), escala)
-        except ValueError:
-            print(f'Resumo: OCR Tesseract {escala}x não confirmou os dois campos de data.')
-    dados = tela.ler_dados_ocr_windows(imagem, 2)
-    if dados is not None:
-        return campos_periodo(dados, 2)
-    raise ValueError("Não consegui identificar as duas datas pelos motores locais de OCR.")
+    return ler_campos(imagem, registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False),flush=True))
 
 
 def _diagnosticar_periodo_resumo(fase, campo, esperado, campos=None, tentativa=0):
@@ -1729,8 +1816,8 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("Resumo: item Resumo por Acumulador não reconhecido no submenu completo.")
         return False, None
     interacao.clicar_com_desvio(*pos)
-    imagem, pos = _esperar_tela_resumo("Data final", prefixo)
-    if pos is None or tela.achar_texto_ou_no_centro(imagem, "Resumo por acumulador", escala=2) is None:
+    imagem, pos = _esperar_formulario_resumo(prefixo)
+    if pos is None:
         print("Resumo: formulário não confirmado após clicar no item do submenu.")
         salvar(tela.capturar_tela(), f"{prefixo}erro_formulario_resumo.png")
         return False, None
@@ -1864,6 +1951,12 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         return False, str(arquivo)
     acompanhamento.confirmar(evidencia)
     return True, str(arquivo)
+
+
+def gerar_livros_fiscais(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
+    """Emite Entradas, Saídas e ICMS juntos, com três artefatos conferidos."""
+    from app.livros_conjuntos import gerar_livros_fiscais as gerar
+    return gerar(pasta_destino, data_inicial, data_final, prefixo, cnpj_esperado)
 
 
 def gerar_registro_saidas(pasta_destino, data_inicial=None, data_final=None, prefixo="", cnpj_esperado=None):
@@ -2026,6 +2119,10 @@ def _processar_empresa(e, prefixo_empresa, contexto_lote=None, documentos_person
                 status_documentos[documento] = "erro inesperado na geração"
                 raise
             status_documentos[documento] = "sucesso" if resultado else "falha na geração"
+            # Sucesso ou falha: fecha o que sobrou e segue ao próximo documento;
+            # só interrompe o lote se a tela principal não voltar.
+            if tela_principal.ARQUIVO_REFERENCIA.exists():
+                voltar_ao_inicio()
             _exigir_tela_principal_lote(contexto_lote, status_documentos)
         return status_documentos
     except Exception as erro:

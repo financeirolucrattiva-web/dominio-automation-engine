@@ -137,6 +137,7 @@ class TestResumoFluxo(unittest.TestCase):
         self.stack.enter_context(patch.object(self.d, "salvar"))
         self.menu = self.stack.enter_context(patch.object(self.d, "_esperar_item_menu", return_value=(12, 34)))
         self.stack.enter_context(patch.object(self.d, "_esperar_tela_resumo", return_value=("frame", (10, 20))))
+        self.stack.enter_context(patch.object(self.d, "_esperar_formulario_resumo", return_value=("frame", (10, 20))))
         self.stack.enter_context(patch.object(self.d.estados, "esperar_por_estado", return_value=("frame", "previa", (30, 40))))
         self.stack.enter_context(patch.object(self.d.tela, "capturar_tela", return_value="frame"))
         self.stack.enter_context(patch.object(self.d.tela, "recortar_topo", return_value="frame"))

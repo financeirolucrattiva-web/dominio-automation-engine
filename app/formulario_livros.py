@@ -115,7 +115,7 @@ def _periodo(palavras):
     return resultado
 
 
-def ler_formulario(imagem, dados, escala=2):
+def ler_formulario(imagem, dados, escala=2, periodo_confirmado=None):
     palavras = _palavras(dados, escala)
     _rotulo(palavras, 'Livros Fiscais')
     rotulos = {tipo:_rotulo(palavras, frase) for tipo,frase in ROTULOS.items()}
@@ -144,7 +144,25 @@ def ler_formulario(imagem, dados, escala=2):
         raise ValueError(f'Identifiquei {len(grupo)} de 16 caixas do grupo Emitir; revisão visual necessária.')
     principais = {l['retangulo'] for l in livros.values()}
     outros = [{'retangulo':c,'marcada':_estado(imagem,c)} for c in grupo if c not in principais]
-    return {'livros':livros, 'periodo':_periodo(palavras), 'outros':outros}
+    periodo = _periodo(palavras) if periodo_confirmado is None else _validar_periodo_confirmado(periodo_confirmado)
+    return {'livros':livros, 'periodo':periodo, 'outros':outros}
+
+
+def _validar_periodo_confirmado(periodo):
+    if not isinstance(periodo, dict) or set(periodo) != {'inicial', 'final'}:
+        raise ValueError('Leitura do período incompleta.')
+    resultado = {}
+    for papel in ('inicial', 'final'):
+        campo = periodo[papel]
+        valor, posicao = campo['valor'], campo['posicao']
+        if (not isinstance(valor, str) or not re.fullmatch(r'\d{2}/\d{2}/\d{4}',valor)
+                or len(posicao) != 2 or any(type(p) is not int or p < 0 for p in posicao)):
+            raise ValueError('Data ou posição não confirmada.')
+        dt.datetime.strptime(valor,'%d/%m/%Y')
+        resultado[papel] = {'valor':valor,'posicao':tuple(posicao)}
+    if resultado['inicial']['posicao'][1] >= resultado['final']['posicao'][1]:
+        raise ValueError('Ordem dos campos não confirmada.')
+    return resultado
 
 
 def marcar_tres_livros(ler, clicar):
@@ -175,18 +193,18 @@ def marcar_tres_livros(ler, clicar):
     return final
 
 
-def ler_com_ocr(imagem):
+def ler_com_ocr(imagem, periodo_confirmado=None):
     """Mesma leitura local usada pelo atalho e pelo diagnóstico no servidor."""
     from app import tela
     ultimo = None
     for escala in (2, 4):
         try:
-            return ler_formulario(imagem, tela._ler_dados_ocr(imagem, escala), escala)
+            return ler_formulario(imagem, tela._ler_dados_ocr(imagem, escala), escala, periodo_confirmado)
         except ValueError as erro:
             ultimo = erro
     dados = tela.ler_dados_ocr_windows(imagem, 2)
     if dados is not None:
-        return ler_formulario(imagem, dados, 2)
+        return ler_formulario(imagem, dados, 2, periodo_confirmado)
     raise ultimo
 
 

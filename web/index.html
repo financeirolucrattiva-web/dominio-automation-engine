@@ -42,7 +42,8 @@
         <p class="discreto">Acompanhe cada rotina nos resultados do lote. Falha permanece no histórico; a próxima só começa após confirmar o retorno ao painel azul. Uma rotina pendente não é considerada emitida.</p>
       </section>
       <section class="bloco"><h2>Testar Livros Fiscais</h2>
-        <p>A emissão conjunta de Entradas, Saídas e ICMS está em preparação. Comece pela conferência do formulário.</p>
+        <p>Emita Entradas, Saídas e ICMS juntos, com um PDF para cada livro. No primeiro teste, confira os três documentos antes de rodar a sequência completa.</p>
+        <button id="preparar-livros" type="button" class="secundario">Preparar teste dos três Livros Fiscais</button>
         <p class="discreto">No Domínio do servidor, abra Relatórios → Livros → Livros Fiscais, aba Geral. O botão abaixo lê as três caixas e as datas; não marca opções nem emite PDFs.</p>
         <button id="conferir-livros" type="button" class="secundario" disabled>Conferir formulário dos três livros</button>
         <p id="livros-diagnostico" class="resultado" role="status">Aguardando conferência do formulário.</p>
@@ -76,7 +77,7 @@
         </div>
         <div class="calibracao"><h2>Cadastrar rotina para configurar depois</h2>
           <p class="discreto">Lucro Presumido e Lucro Real serão preparados com Resumo por Acumulador, Demonstrativo EFD Contribuições e Livros Fiscais de Entradas, Saídas e ICMS. O primeiro piloto será no Lucro Presumido.</p>
-          <p class="discreto">Livros Fiscais — Entradas, Saídas e ICMS está cadastrado como uma rotina para emitir três PDFs. O roteiro conjunto ainda precisa de configuração e teste; Entradas e Saídas continuam disponíveis individualmente.</p>
+          <p class="discreto">Livros Fiscais — Entradas, Saídas e ICMS está integrado ao executor e gera três PDFs. A execução precisa ser conferida no Domínio antes de homologar; Entradas e Saídas continuam disponíveis individualmente.</p>
           <p class="discreto">O item Demonstrativo EFD Contribuições usa o exportador existente da EFD. A geração de um demonstrativo em PDF precisa de confirmação do roteiro.</p>
           <form id="form-cadastro-rotina"><label for="cadastro-rotina-nome">Nome da rotina</label><input id="cadastro-rotina-nome" required maxlength="100"><button id="cadastrar-rotina" type="submit">Cadastrar sem configurar</button></form>
           <p class="discreto">Depois de cadastrar, adicione a rotina à sequência do regime. Uma rotina vinculada a vários regimes compartilha a mesma configuração.</p>
@@ -125,6 +126,7 @@
           <div id="resultado" class="resultado">Aguardando seleção</div>
           <div class="controle"><button id="pausar" class="secundario" type="button" hidden>Pausar execução</button><span id="controle-aviso" class="discreto" role="status"></span></div>
           <p id="motivo-tarefa" class="discreto" role="status"></p>
+          <div id="arquivos-tarefa" aria-label="PDFs confirmados desta execução"></div>
           <p id="retorno" class="discreto">Retorno à tela principal: ainda não observado.</p>
           <progress id="progresso" value="0" max="1" aria-label="Etapas confirmadas"></progress>
           <div class="tabela-scroll"><table><thead><tr><th>Etapa</th><th>Situação</th><th>Tempo</th></tr></thead><tbody id="estados"></tbody></table></div>

@@ -244,7 +244,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.carregar_referencia.return_value = {"referencia": "sintetica"}
         self.finalizar.side_effect = ValueError("período não confirmado")
         self.assertEqual(self.executar(), (False, None))
-        self.assertEqual(self.corresponde.call_count, 2)
+        self.assertEqual(self.corresponde.call_count, 4)  # Recuperação e limpeza final releem o painel.
         self.assertTrue(any(e["step"] == "recuperar_interface" and e["status"] == "confirmado" and e["evidence"] == "tela_principal_reconhecida" for e in self.rotina.eventos))
         self.assertEqual(self.rotina.eventos[-2]["step"], "conferir_pdf")
 
@@ -254,7 +254,9 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         sucesso, caminho = self.executar()
         self.assertFalse(sucesso)
         self.assertTrue(Path(caminho).exists())
-        self.assertEqual(self.corresponde.call_count, 5)
+        # Além das 5 conferências do encerramento, a limpeza final tenta Esc e fechar a aba.
+        self.assertGreater(self.corresponde.call_count, 5)
+        self.assertEqual(self.dominio.interacao.pressionar_esc_no_dominio.call_count, 6)  # 1 do encerramento + 5 da limpeza
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "inconclusivo" and e["evidence"] == "tela_principal_nao_reconhecida" for e in self.rotina.eventos))
 
     def test_sem_referencia_nao_alega_reconhecimento_visual(self):
@@ -352,7 +354,8 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertFalse(self.executar_sped())
         self.assertEqual(self.rotina.eventos[-2]["step"], "encerrar")
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "inconclusivo" for e in self.rotina.eventos))
-        self.dominio.interacao.pressionar_esc_no_dominio.assert_not_called()
+        # A limpeza final tenta voltar à tela principal com Esc, um por vez.
+        self.assertEqual(self.dominio.interacao.pressionar_esc_no_dominio.call_count, 5)
 
     def test_sped_erro_aviso_nao_avanca_para_encerramento_sucesso(self):
         self.preparar_sped()

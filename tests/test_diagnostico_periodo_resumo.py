@@ -26,7 +26,11 @@ class TestDiagnosticoPeriodoResumo(unittest.TestCase):
         self.assertIn('01/08/2026',texto)
 
     def test_cli_png_tenta_motores_sem_alterar_arquivo_ou_operar_desktop(self):
-        tela=Mock(); tela._ler_dados_ocr.return_value=dados_ocr()
+        def dados_na_escala(imagem,escala):
+            dados=dados_ocr()
+            for chave in ('left','top','width','height'):dados[chave]=[v*escala/2 for v in dados[chave]]
+            return dados
+        tela=Mock(); tela._ler_dados_ocr.side_effect=dados_na_escala
         tela.ler_dados_ocr_windows.return_value=None
         with tempfile.TemporaryDirectory() as pasta:
             caminho=Path(pasta)/'formulario.png'; Image.new('RGB',(400,300)).save(caminho)
@@ -66,7 +70,11 @@ class TestDiagnosticoPeriodoResumo(unittest.TestCase):
         tela=Mock(); tela.achar_texto_ou_no_centro.side_effect=RuntimeError('PRIVADO')
         tela.achar_texto_windows.return_value=(10,20)
         tela._ler_dados_ocr.side_effect=RuntimeError('PRIVADO')
-        tela.ler_dados_ocr_windows.return_value=dados_ocr()
+        def dados_windows(imagem,escala):
+            dados=dados_ocr()
+            for chave in ('left','top','width','height'):dados[chave]=[v*escala/2 for v in dados[chave]]
+            return dados
+        tela.ler_dados_ocr_windows.side_effect=dados_windows
         with tempfile.TemporaryDirectory() as pasta:
             caminho=Path(pasta)/'formulario.png'; Image.new('RGB',(400,300)).save(caminho)
             saida=io.StringIO()
@@ -79,6 +87,7 @@ class TestMotivoPeriodoWorker(BaseRepositorio,unittest.TestCase):
     def test_motivo_fixo_sobrevive_recuperacao_ao_painel_e_relatorio(self):
         self.repo.configuracao.preparar_piloto()
         regime=next(r for r in self.repo.configuracao.listar()['regimes'] if r['nome']=='Lucro Presumido')
+        self.repo.configuracao.salvar_regime(regime['id'],regime['nome'],['resumo_acumulador','efd_contribuicoes'])
         self.repo.configuracao.salvar_empresa('52','Empresa Fictícia',regime['id'])
         chamadas=[]
         def executar(pedido,receber):

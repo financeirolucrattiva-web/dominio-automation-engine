@@ -4,32 +4,33 @@
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-main até `46e89d8` e teste por empresa/diagnóstico nesta entrega. Implementação preparada
+main até `3b780c9`, branch Claude `e73ab29` e integração dos três livros nesta entrega. Implementação preparada
 neste ambiente; instalação, execução e homologação no Windows do escritório
 continuam sendo etapas próprias.
 
 ## Situação atual
 
-O projeto já tem um motor que opera o Domínio pela interface, painel web,
-cadastro de empresas com código e regime, sequência de rotinas por regime,
-execução individual e em lote, histórico, acompanhamento por etapas,
-pausa/continuação, login com código humano e instaladores para servidor e
-interface cliente. A fila permite uma execução por sessão Windows.
+A base técnica está implementada: cadastro empresa/código/regime, painel,
+execução individual/lote, fila exclusiva, histórico, etapas, pausa e
+recuperação. A prioridade é homologar **Lucro Presumido por empresa** e
+só depois ampliar para lotes e Lucro Real. Não há percentual confiável:
+código entregue e documento fiscal aprovado têm critérios diferentes.
 
-A etapa atual é **consolidar a execução, a recuperação e a validação
-das rotinas**. O projeto está preparado para testes supervisionados.
-A existência do painel e os testes simulados não comprovam a qualidade
-dos documentos fiscais da versão atual.
+Na atualização de 13/10/2026, os três Livros Fiscais foram integrados numa
+única emissão com três arquivos/downloads. A limpeza final publicada pelo
+Claude foi incorporada. Falhas reais de leitura do Resumo motivaram leitura
+por recortes e novas verificações. A EFD falhou na geração no último log;
+o traceback local ainda é necessário para atribuir a causa. Os testes em
+nuvem não operam o Domínio do escritório nem homologam valores fiscais.
 
-Geração de SPED Fiscal e EFD Contribuições foi observada no Windows em
-versões anteriores. Ainda falta comparar o conteúdo com obrigações já
-entregues e revalidar o retorno à tela principal. Entradas e Saídas já têm
-motor integrado; a conferência atual de período do PDF de Saídas recusou
-um resultado real, e a revisão dessa pendência permanece necessária.
-
-Não há percentual de conclusão confiável: recursos técnicos entregues e
-homologação fiscal têm critérios diferentes. Agendamento e agentes de IA
-operadores continuam no roadmap ampliado.
+| Ordem | Entrega | Estado | Critério para avançar |
+| --- | --- | --- | --- |
+| 1 | Livros juntos: Entradas, Saídas e ICMS | Código integrado para teste individual | Três PDFs corretos de agosto/2026 na empresa confirmada, destino e retorno azul conferidos |
+| 2 | Resumo por Acumulador | Leitura corrigida a partir do diagnóstico; precisa de novo teste Windows | Datas mudam para a competência pedida e PDF confirma empresa/período/valores |
+| 3 | EFD Contribuições | Exportador existente; última geração falhou | Identificar exceção no log local, revalidar emissão e definir aceite do produto esperado |
+| 4 | Presumido inteiro por empresa | Um envio executa a sequência nativa cadastrada | Supervisor aprova cada documento e uma falha controlada mantém histórico/continuidade segura |
+| 5 | Lote do Presumido | Mesmo worker, uma empresa por vez | Repetir em poucas empresas fechadas, sem troca incorreta, duplicação ou arquivo no destino errado |
+| 6 | Operação assistida e Lucro Real | Depois do aceite do Presumido | Procedimento/backup/responsáveis definidos e novo aceite para Real |
 
 ## Escopo decidido para o piloto
 
@@ -41,7 +42,7 @@ da aceitação do primeiro piloto.
 | --- | --- | --- |
 | Resumo por Acumulador | Gerador integrado para teste individual; cadastro vinculado aos dois regimes | Testar OCR/exportação no Windows e homologar o documento |
 | Demonstrativo EFD Contribuições | Nome vinculado ao exportador da EFD existente | Confirmar se o produto esperado é essa exportação ou um demonstrativo PDF |
-| Livros Fiscais — Entradas, Saídas e ICMS | Cadastro conjunto; substitui o trio nos regimes com sequência completa; ainda pendente | Confirmar seletor de pasta/título ICMS e integrar geração, conferência e download dos três PDFs |
+| Livros Fiscais — Entradas, Saídas e ICMS | Gerador conjunto integrado; três PDFs/downloads | Testar seletor, conteúdo ICMS, destino e recuperação no Windows |
 | Registro de Entradas / Registro de Saídas individuais | Geradores continuam disponíveis; ainda requerem revalidação | Testar individualmente; evitar emissão duplicada no futuro lote conjunto |
 
 O escritório confirmou que Demonstrativo EFD Contribuições é a mesma
@@ -56,16 +57,14 @@ homologação. Estar integrado não significa aprovação do supervisor.
 
 O [roteiro de revisão](REVISAO-ROTINAS-NOVAS.md) registra os passos
 observados, o fluxo implementado e as confirmações que faltam antes do
-piloto. O lote completo permanece bloqueado enquanto a conjunta estiver
-pendente de configuração/validação.
+piloto. A conjunta inicial já é executável; rotinas custom ainda pendentes
+continuam bloqueando o lote completo.
 
-O painel oferece teste do Presumido por empresa em um envio e teste
-acompanhado das disponíveis em lote. Com a conjunta pendente, o operador
-seleciona explicitamente o teste parcial; ela aparece como não executada,
-sem alteração no regime. O relatório das etapas preserva falhas, tempos,
-retorno e pendências. Isso permite diagnosticar Resumo/EFD enquanto os
-três livros são integrados. Agosto/2026 foi confirmado fechado para o
-primeiro teste, sem estender a confirmação a outras empresas.
+O painel oferece teste dos três livros sozinho e sequência Presumido por
+empresa em um envio. O relatório preserva falhas, tempos, retorno e
+arquivos confirmados. Com roteiros custom pendentes, só é permitido teste
+parcial explícito. Agosto/2026 foi confirmado fechado para a primeira
+empresa; não estender essa confirmação a outras empresas.
 
 O preparo inicial acontece uma vez ao iniciar o servidor atualizado.
 Novos cadastros ficam no banco local. Reiniciar não duplica nem restaura
@@ -92,11 +91,11 @@ dos livros. A raiz do Dropbox fica configurada somente no PC executor.
 confere gravação com um temporário removido em seguida. O teste de pasta
 não emite documento nem substitui a homologação fiscal.
 
-Entradas/Saídas confirmados pelos geradores individuais são guardados
-nesse destino ao final, preservando arquivos anteriores. O download
-continua vinculado ao documento daquela tarefa. A emissão dos três
-livros juntos ainda depende da integração da árvore de pastas, conferência
-do PDF de ICMS e múltiplos arquivos por execução. O menu do Resumo foi
+Entradas/Saídas individuais e os três livros conjuntos são guardados
+nesse destino ao final quando confirmados, preservando anteriores. Cada
+download é vinculado ao arquivo exato daquela tarefa. A emissão conjunta
+está integrada, com validação/download por livro; o seletor e o cabeçalho
+ICMS ainda precisam do teste/homologação no Windows. O menu do Resumo foi
 identificado como **Relatórios → Acompanhamentos → Resumo por Acumulador**;
 formulário/período/OK/prévia/Salvar em PDF agora estão implementados para
 teste individual. O executor confere datas/empresa/PDF e retorno à tela
@@ -187,8 +186,8 @@ por papel e autoria verificável de aprovação são trabalho pendente.
 
 ## Quando consideraremos concluído
 
-O piloto de Lucro Presumido estará concluído quando as cinco rotinas
-estiverem homologadas, o lote cumprir a ordem prevista, os arquivos forem
+O piloto de Lucro Presumido estará concluído quando Resumo, EFD e os
+três livros estiverem homologados, o lote cumprir a ordem prevista, os arquivos forem
 conferidos e uma falha controlada mostrar recuperação e continuação
 corretas. A equipe deverá conseguir executar, acompanhar e resolver as
 pendências, com aprovação do supervisor e procedimento de backup/restauração.
@@ -215,10 +214,8 @@ Os testes desta entrega são de lógica/API e navegador com fiscal/login
 simulados. Eles não operam a sessão Windows do escritório, não configuram
 as telas das rotinas novas e não conferem documentos fiscais reais.
 
-Verificação desta entrega: **388 testes de lógica/API passaram**. O teste
-Chromium verifica cadastro, configuração, envio para validação, lotes,
-falha com recuperação simulada, continuidade, controles, três larguras,
-logout e offline. O teste de navegador específico do destino verifica
-cadastro, edição, prévia sem criação, gravação/limpeza e três larguras.
-A homologação dos cinco indicadores no Windows continua
-pendente.
+Verificação técnica: testes de lógica, PDFs sintéticos, persistência, API e
+navegador. O painel foi exercitado com sequência completa em um envio e
+três downloads separados, além de falha com recuperação, modo parcial,
+cadastro/destino, idempotência, três larguras e logout. A homologação
+fiscal no Windows continua pendente e exige aceite do supervisor.

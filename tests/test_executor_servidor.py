@@ -25,8 +25,9 @@ class TestExecutorServidor(unittest.TestCase):
         dominio.trocar_empresa = Mock(return_value=True)
         dominio._verificar_retorno_tela_principal = Mock(return_value="tela_principal_reconhecida")
         dominio._confirmar_conteudo_dominio = Mock(return_value=True)
+        dominio.fechar_aba_ativa = Mock(return_value=True)
         dominio.competencia_anterior = Mock(return_value=tuple(__import__("datetime").date.fromisoformat(self.dados[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")))
-        for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas", "gerar_resumo_acumulador"):
+        for nome in ("gerar_sped_fiscal", "gerar_efd_contribuicoes", "gerar_registro_saidas", "gerar_registro_entradas", "gerar_resumo_acumulador", "gerar_livros_fiscais"):
             setattr(dominio, nome, Mock(return_value=True))
         self.desktop["estados"].observar_eventos = lambda callback: contextlib.nullcontext()
         interacao = self.desktop["interacao"]
@@ -74,6 +75,17 @@ class TestExecutorServidor(unittest.TestCase):
             self.executar()
         self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
         self.desktop["dominio"].trocar_empresa.assert_called_once()
+
+    def test_conjunta_devolve_tres_artefatos_sem_perder_tipo_e_pasta(self):
+        self.dados.update(capacidade='livros_fiscais', inicio='2024-02-01', fim='2024-02-29')
+        resultado = (True, [{'tipo': tipo, 'caminho': tipo + '.pdf'}
+                            for tipo in ('registro_entradas', 'registro_saidas', 'registro_icms')])
+        gerador = self.desktop['dominio'].gerar_livros_fiscais
+        gerador.return_value = resultado
+        self.assertEqual(self.executar(), resultado)
+        self.assertEqual(gerador.call_args.args, (executor_servidor.ROOT / 'saida',))
+        self.assertEqual(gerador.call_args.kwargs['data_inicial'], '01/02/2024')
+        self.assertEqual(gerador.call_args.kwargs['data_final'], '29/02/2024')
 
     def test_individual_troca_empresa_divergente_e_confere_antes_de_gerar(self):
         self.desktop["tela"].ler_empresa_selecionada.side_effect = [("SINTÉTICA", "99"), ("SINTÉTICA", "52")]
@@ -275,6 +287,7 @@ class TestExecutorServidor(unittest.TestCase):
         esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
         self.assertFalse(self.recuperar())
         self.assertEqual(esc.call_count, 5)
+        self.assertEqual(self.desktop['dominio'].fechar_aba_ativa.call_count, 3)
         esc.reset_mock(); esc.return_value = False
         self.assertFalse(self.recuperar())
         self.assertEqual(esc.call_count, 1)

@@ -86,7 +86,7 @@ class AcompanhamentoRotina:
     }
 
     def __init__(self, rotina, pasta_logs=None):
-        if rotina not in ("registro_saidas", "registro_entradas", "resumo_acumulador", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
+        if rotina not in ("registro_saidas", "registro_entradas", "livros_fiscais", "resumo_acumulador", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
             raise ValueError("Rotina sem acompanhamento configurado.")
         self.rotina = rotina
         if rotina in ("sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):

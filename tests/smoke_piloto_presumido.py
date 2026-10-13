@@ -19,6 +19,7 @@ from app.servidor import RepositorioTarefas, ServicoExecucao
 from app.formulario_livros import ler_formulario
 from test_formulario_livros import formulario
 from test_servidor import eventos_confirmados
+from test_arquivos import criar_pdf
 
 
 class LoginSintetico:
@@ -40,6 +41,14 @@ def fiscal(dados,receber):
             receber(base | {'step':passo,'status':'falha','evidence':'data_inicial_resumo_nao_confirmada'})
         return False
     eventos_confirmados(dados,receber)
+    if dados['capacidade']=='livros_fiscais':
+        saida=root/'saida';saida.mkdir(exist_ok=True)
+        artefatos=[]
+        for tipo,titulo in (('registro_entradas','REGISTRO DE ENTRADAS'),('registro_saidas','REGISTRO DE SAIDAS'),('registro_icms','REGISTRO DE APURACAO DO ICMS')):
+            caminho=saida/(tipo+'_'+dados['request_id']+'.pdf')
+            criar_pdf(caminho,titulo+' EMPRESA FICTICIA CNPJ: 12.345.678/0001-95 '+dados['inicio'].split('-')[2]+'/'+dados['inicio'].split('-')[1]+'/'+dados['inicio'].split('-')[0]+' a '+dados['fim'].split('-')[2]+'/'+dados['fim'].split('-')[1]+'/'+dados['fim'].split('-')[0])
+            artefatos.append({'tipo':tipo,'caminho':str(caminho)})
+        return True,artefatos
     return True
 
 
@@ -50,6 +59,9 @@ with tempfile.TemporaryDirectory() as pasta:
     repo.configuracao.preparar_piloto(); cadastro=repo.configuracao.listar()
     presumido=next(r for r in cadastro['regimes'] if r['nome']=='Lucro Presumido')
     real=next(r for r in cadastro['regimes'] if r['nome']=='Lucro Real')
+    # Mantém a cobertura de teste parcial com uma rotina custom realmente pendente.
+    pendente=repo.configuracao.cadastrar_rotina('ICMS extra em configuração')
+    repo.configuracao.salvar_regime(presumido['id'],presumido['nome'],['resumo_acumulador','efd_contribuicoes',pendente['id']])
     for codigo in ('52','53'):repo.configuracao.salvar_empresa(codigo,'Empresa Fictícia '+codigo,presumido['id'])
     repo.configuracao.salvar_empresa('54','Empresa Fictícia Real',real['id'])
     login=LoginSintetico(); servico=ServicoExecucao(repo,fiscal,'windows',login=login)
@@ -88,7 +100,7 @@ with tempfile.TemporaryDirectory() as pasta:
             pagina.locator('#piloto-competencia').fill('2024-02')
             expect(pagina.locator('#piloto-resumo')).to_contain_text('2 rotinas disponíveis; 1 pendentes')
             expect(pagina.locator('#piloto-executar')).to_be_disabled()
-            expect(pagina.locator('#piloto-rotinas')).to_contain_text('ICMS · Pendente')
+            expect(pagina.locator('#piloto-rotinas')).to_contain_text('ICMS extra em configuração · Pendente')
             pagina.locator('#piloto-parcial').check(); pagina.locator('#piloto-apuracao').check()
             with pagina.expect_response(lambda r:r.url.endswith('/api/piloto-presumido') and r.request.method=='POST') as resposta:
                 pagina.locator('#piloto-executar').click()
@@ -130,6 +142,30 @@ with tempfile.TemporaryDirectory() as pasta:
             linha=pagina.locator('#lote-tarefas tr').filter(has_text='Resumo por Acumulador')
             linha.get_by_role('button',name='Ver etapas').click()
             expect(pagina.locator('#motivo-tarefa')).to_contain_text('Não enviei OK')
+            # Sequência nativa completa: um envio por empresa, 3 tarefas e 3 PDFs.
+            fiscal.falhar_periodo=False
+            repo.configuracao.salvar_regime(presumido['id'],presumido['nome'],['resumo_acumulador','efd_contribuicoes','livros_fiscais'])
+            pagina.evaluate('atualizar()')
+            pagina.locator('#piloto-empresa').select_option('52');pagina.locator('#piloto-competencia').fill('2024-05')
+            expect(pagina.locator('#piloto-resumo')).to_contain_text('3 rotinas disponíveis; 0 pendentes')
+            pagina.locator('#preparar-livros').click()
+            expect(pagina.locator('#capacidade')).to_have_value('livros_fiscais')
+            expect(pagina.locator('#empresa')).to_have_value('52')
+            expect(pagina.locator('#competencia')).to_have_value('2024-05')
+            expect(pagina.locator('#apuracao')).not_to_be_checked()
+            pagina.locator('#piloto-parcial').uncheck();pagina.locator('#piloto-apuracao').check()
+            pagina.locator('#piloto-executar').click()
+            expect(pagina.locator('#lote-resultado')).to_contain_text('3/3 rotinas concluídas',timeout=10000)
+            expect(pagina.locator('#lote-tarefas tr')).to_have_count(3)
+            livros=pagina.locator('#lote-tarefas tr').filter(has_text='Livros Fiscais')
+            livros.get_by_role('button',name='Ver etapas').click()
+            expect(pagina.locator('#arquivos-tarefa button')).to_have_count(3)
+            for tipo in ('registro_entradas','registro_saidas','livro_icms'):
+                with pagina.expect_download() as download:
+                    pagina.locator('#arquivos-tarefa button').filter(has_text=tipo).click()
+                assert download.value.suggested_filename.startswith(tipo+'_empresa_ficticia_52_2024-05')
+                assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
+            assert chamadas[-3:]==[('52','resumo_acumulador'),('52','efd_contribuicoes'),('52','livros_fiscais')]
             for largura in (1440,768,390):
                 pagina.set_viewport_size({'width':largura,'height':900})
                 assert pagina.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')

@@ -1,96 +1,81 @@
 # Testar o Presumido por empresa e depois em lote
 
-Referência: 13/10/2026. O operador confirmou agosto/2026 fechado para a
-empresa do primeiro teste. Essa confirmação não vale automaticamente para
-outras empresas. Setembro/2026 foi informado aberto e não deve ser usado
-nesse piloto sem nova confirmação.
+Atualização: 13/10/2026. Agosto/2026 foi confirmado fechado pelo operador
+somente para a empresa do primeiro teste. Setembro/2026 foi informado
+aberto. A confirmação precisa ser feita para cada empresa/competência.
 
-## O que já pode ser testado
+## Primeiro: os três Livros Fiscais
 
-O painel tem **Lucro Presumido por empresa** no início da página. A
-execução usa o mesmo worker, troca por F8, histórico, pausa e recuperação
-dos lotes. Um pedido cria as rotinas disponíveis dessa empresa na ordem
-cadastrada. Não altera o regime nem habilita roteiros pendentes.
+1. Atualizar a main, fechar/reabrir o servidor e recarregar o painel com Ctrl+F5.
+2. Em **Lucro Presumido por empresa**, escolher empresa e agosto/2026.
+3. Clicar **Preparar teste dos três Livros Fiscais**. Isso só prepara o
+   formulário **Nova execução**; não emite nada.
+4. Conferir rotina **Livros Fiscais — Entradas, Saídas e ICMS**, código e
+   competência. Confirmar apuração fechada e clicar **Executar no servidor**.
+5. Deixar Domínio visível no servidor e não usar mouse/teclado durante a
+   execução. O executor usa F8 se necessário e confirma código/painel azul.
+6. Em **Acompanhar execução**, conferir as etapas e os três botões de
+   download. Abrir os três PDFs: Entradas, Saídas e ICMS; conferir empresa,
+   período e valores com o supervisor. Só então testar a sequência inteira.
 
-Na configuração inicial, são executáveis Resumo por Acumulador e a
-exportação existente da EFD Contribuições. Livros Fiscais — Entradas,
-Saídas e ICMS permanece pendente de integração. Enquanto essa pendência
-existir, o teste é **parcial**; não é execução das três rotinas completas.
-A EFD atual não entrega um demonstrativo PDF validado.
+**Conferir formulário dos três livros** é um diagnóstico sem emissão;
+requer a aba Geral aberta. É diferente do botão para preparar a execução.
+Se faltar caixa/data/unidade/pasta ou houver ambiguidade, não confirma OK.
+Consulte a etapa com falha e a captura local em capturas/.
 
-1. Atualizar a main, reiniciar o servidor Windows e usar Ctrl+F5.
-2. Escolher a empresa cadastrada no Presumido e a competência fechada.
-3. Conferir a sequência exibida. A consulta acontece ao preencher os
-   campos; Revisar sequência permite renovar a revisão.
-4. Havendo pendências, marcar **testar somente as disponíveis** para
-   testar a parte integrada. Sem essa opção, o botão não emite.
-5. Confirmar apuração fechada, deixar o Domínio disponível no servidor
-   e clicar **Executar sequência nesta empresa** uma vez.
-6. Acompanhar os resultados do lote, **Ver etapas** e os arquivos locais.
-   **Baixar diagnóstico das etapas** salva um JSON com resultados,
-   motivos, tempos e retorno, sem caminhos, PDF ou texto livre de OCR.
-7. Conferir valores fiscais com o supervisor. O relatório não é homologação.
+## Depois: sequência completa da empresa
 
-Rotinas pendentes aparecem como **Não executada · integração pendente**.
-Se todas as disponíveis terminarem, o teste parcial fica
-concluida_com_pendencias, nunca concluida. Falhas têm prioridade no estado
-final e mantêm as pendências no relatório. A próxima rotina só começa
-quando a recuperação até o painel azul estiver confirmada. Sem isso,
-o restante é interrompido. Repetir o mesmo pedido não emite novamente;
-reiniciar o servidor não retoma tarefas interrompidas.
+No início do painel, escolher empresa e competência em **Lucro Presumido
+por empresa**. Conferir a lista e confirmar a apuração; clicar
+**Executar sequência nesta empresa** uma vez. A sequência inicial agora
+contém três rotinas integradas:
 
-## Primeiro passo para completar os três livros
+1. Resumo por Acumulador, PDF.
+2. EFD Contribuições, exportador existente. Ainda não é um demonstrativo PDF.
+3. Livros Fiscais, três PDFs separados de Entradas, Saídas e ICMS.
 
-O painel também tem **Testar Livros Fiscais → Conferir formulário dos
-três livros**. Abrir no servidor Relatórios → Livros → Livros Fiscais,
-aba Geral, e usar esse botão. A leitura recebe a mesma exclusividade
-do worker: não roda durante emissão, login ou outro diagnóstico.
+A migração substitui o vínculo antigo da conjunta pelo gerador nativo,
+preservando a ordem e escolhas do regime. Não repõe rotinas retiradas.
+Se o operador acrescentou rotinas custom pendentes, elas continuam
+bloqueadas; teste parcial só com a opção explícita. Pendência não é emissão.
 
-Mostra estados, datas, medidas e outras opções marcadas. Não seleciona
-caixas, preenche datas ou clica OK. A captura permanece no PC em capturas/;
-a API entrega somente o resumo limitado. Falha/cancelamento/novo pedido
-limpam resultados antigos. Não habilita automaticamente a emissão.
+Os resultados ficam na tabela do lote por empresa. **Ver etapas** abre o
+histórico da rotina e seus arquivos. **Baixar diagnóstico das etapas**
+guarda JSON local com resultados, motivos, tempos e retorno, sem caminhos,
+PDF ou texto livre de OCR. Não é homologação fiscal.
 
-Alternativa no CMD da pasta do projeto:
+Falhas permanecem no histórico. A próxima rotina só começa após retorno
+confirmado ao painel azul; sem retorno, a sequência é interrompida.
+Reenvio do mesmo pedido não repete emissão. Reiniciar não retoma tarefas.
 
-```bat
-python scripts\revisar_formulario_livros.py
-```
+## Onde ficam os arquivos
 
-Voltar ao formulário nos cinco segundos seguintes e enviar só o resumo
-do terminal. O log real dessa leitura é necessário antes de ligar os
-cliques. Ainda faltam navegação confirmada em Procurar Pasta, título de
-ICMS e geração/conferência/publicação de três arquivos na mesma tarefa.
+Livros são exportados primeiro para staging exclusivo em saida/. Ao final,
+cada PDF confirmado vai ao destino cadastrado da empresa, com nome e
+competência. Configuração padrão: FISCAL/mês/RELATORIOS_APURAÇÃO/LIVROS_FISCAIS.
+Sem raiz configurada, permanecem na saída local. **Ver destino** mostra a
+previsão sem gravar; **Testar pasta** testa gravação sem emitir documento.
 
-## Testar mais empresas depois
+Os três downloads usam os arquivos exatos registrados pela tarefa. Um
+livro recusado não é disponibilizado como válido. PDFs confirmados podem
+continuar disponíveis mesmo quando outro livro ou o retorno falhar.
+Não sobrescreve arquivos de execuções anteriores.
 
-Em **Executar lote por empresas**, filtrar Lucro Presumido, selecionar
-as empresas e o período. Para testar somente as disponíveis sem mudar
-o regime, marcar a opção de teste acompanhado do Presumido e revisar.
-A revisão mostra explicitamente as pendências que não serão executadas.
-Confirmar apuração em todas as empresas e iniciar. A fila termina a
-sequência de uma empresa antes da próxima. Outros regimes são recusados
-nesse modo. O lote comum permanece estrito e bloqueia rotinas pendentes.
-
-## Teste individual pelo terminal
-
-Com o servidor parado, empresa cadastrada e Domínio visível:
+## Alternativa pelo CMD, com servidor parado
 
 ```bat
-python scripts\explorar_presumido.py --empresa CODIGO_CADASTRADO --competencia 2026-08 --apuracao-confirmada --somente-disponiveis
+cd /d C:\Users\darto\dominio-automation-engine
+python scripts\testar_livros_fiscais.py
 ```
 
-Use apenas quando a competência estiver fechada nessa empresa. O script
-usa o banco e a trava reais, mostra as pendências e aguarda cinco segundos
-para colocar o Domínio no painel azul. Quando o teste chega ao fim, código de saída 0 = sequência
-cadastrada concluída, 2 = disponíveis concluídas com pendências,
-1 = falha/interrupção. Sem --somente-disponiveis, recusa um teste completo
-que contenha rotinas sem executor. Não substitui emissão por sucesso.
+O script pede código, competência e confirmação de apuração, usa o mesmo
+worker/trava e troca empresa. O atalho Testar Livros Fiscais faz o mesmo.
+Não rodar junto com o servidor. Para a sequência completa:
 
-## Validação desta entrega
+```bat
+python scripts\explorar_presumido.py
+```
 
-Worker/SQLite/API e navegador foram testados com empresas, imagens e
-geradores sintéticos. Cobrem leitura/cancelamento, isolamento de dados,
-identificador repetido, cadastro modificado após revisão, execução por
-empresa e lote, falha com/sem recuperação, relatório e digitação de datas.
-Ainda não há log de diagnóstico/emissão dessa versão no Windows real.
+Sem --somente-disponiveis, sequência custom pendente fica bloqueada.
+Somente competências fechadas, escolhidas pelo operador; o calendário
+sozinho não confirma apuração. Primeiro individual, depois lote do Presumido.

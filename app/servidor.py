@@ -3,6 +3,7 @@
 import datetime as dt
 from contextlib import contextmanager
 import json
+import hashlib
 import logging
 from pathlib import Path
 import re
@@ -52,7 +53,7 @@ def validar_pedido(pedido, hoje=None):
         inicio, fim = (dt.date.fromisoformat(pedido[chave]) for chave in ("inicio", "fim"))
         if inicio > fim or fim >= hoje.replace(day=1):
             raise ValueError
-        if pedido["capacidade"] in ("sped_fiscal", "efd_contribuicoes"):
+        if pedido["capacidade"] in ("sped_fiscal", "efd_contribuicoes", "livros_fiscais"):
             proximo_mes = (inicio.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
             if inicio.day != 1 or fim != proximo_mes - dt.timedelta(days=1):
                 raise ValueError
@@ -93,6 +94,11 @@ class RepositorioTarefas:
                 CREATE TABLE IF NOT EXISTS arquivos_publicados (
                     tarefa_id TEXT PRIMARY KEY, caminho TEXT NOT NULL, pasta TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS artefatos_tarefa (
+                    id TEXT PRIMARY KEY, tarefa_id TEXT NOT NULL, tipo TEXT NOT NULL,
+                    caminho TEXT NOT NULL, sha256 TEXT NOT NULL,
+                    UNIQUE(tarefa_id,tipo)
+                );
             """)
         self.configuracao = ConfiguracaoLotes(self)
 
@@ -114,7 +120,7 @@ class RepositorioTarefas:
             if anterior:
                 if anterior["pedido"] != dados:
                     raise SessaoOcupada("Identificador já usado por outra tarefa.")
-                return self._publica(anterior), False
+                return self._publica(anterior, banco), False
             if banco.execute("SELECT 1 FROM tarefas WHERE status IN ('pendente','executando')").fetchone():
                 raise SessaoOcupada("Já existe uma execução na sessão; aguarde terminar.")
             identificador, agora = uuid.uuid4().hex, _agora()
@@ -146,17 +152,56 @@ class RepositorioTarefas:
         return bool(item and str(caminho) == item["caminho"] and
                     caminho.is_relative_to(Path(item["pasta"])))
 
+    def registrar_artefato(self, identificador, tipo, caminho):
+        """Registra só PDF confirmado pelo executor, com autorização exata e imutável."""
+        caminho = Path(caminho).resolve(strict=True)
+        if not caminho.is_file() or caminho.suffix.lower() != '.pdf':
+            raise ValueError('Artefato PDF inválido.')
+        resumo = hashlib.sha256(caminho.read_bytes()).hexdigest()
+        with self.conectar() as banco:
+            anterior = banco.execute('SELECT id FROM artefatos_tarefa WHERE tarefa_id=? AND tipo=?',
+                                     (identificador, tipo)).fetchone()
+            artefato_id = anterior['id'] if anterior else uuid.uuid4().hex
+            banco.execute('INSERT OR REPLACE INTO artefatos_tarefa VALUES (?,?,?,?,?)',
+                          (artefato_id, identificador, tipo, str(caminho), resumo))
+        return artefato_id
+
+    def obter_artefato(self, identificador, artefato_id):
+        with self.conectar() as banco:
+            item = banco.execute('SELECT * FROM artefatos_tarefa WHERE tarefa_id=? AND id=?',
+                                 (identificador, artefato_id)).fetchone()
+        return dict(item) if item else None
+
     @staticmethod
-    def _publica(item):
+    def artefato_permitido(item):
+        try:
+            caminho = Path(item['caminho'])
+            return (str(caminho.resolve(strict=True)) == item['caminho'] and caminho.is_file() and
+                    hashlib.sha256(caminho.read_bytes()).hexdigest() == item['sha256'])
+        except (OSError, ValueError):
+            return False
+
+    def artefatos(self, identificador, banco=None):
+        if banco is None:
+            with self.conectar() as conexao:
+                return self.artefatos(identificador, conexao)
+        itens = banco.execute('SELECT * FROM artefatos_tarefa WHERE tarefa_id=? ORDER BY rowid',
+                              (identificador,)).fetchall()
+        return [{'id': item['id'], 'tipo': item['tipo'], 'nome': Path(item['caminho']).name,
+                 'disponivel': self.artefato_permitido(item)} for item in itens]
+
+    def _publica(self, item, banco=None):
         pedido = json.loads(item["pedido"])
+        artefatos = self.artefatos(item['id'], banco)
         return {"id": item["id"], "pedido": pedido, "status": item["status"], "modo": item["modo"],
                 "resultado": None if item["resultado"] is None else bool(item["resultado"]),
-                "arquivo_disponivel": bool(item["arquivo"]), "motivo": item["motivo"],
+                "arquivo_disponivel": any(a['disponivel'] for a in artefatos) if artefatos else bool(item["arquivo"]),
+                "artefatos": artefatos, "motivo": item["motivo"],
                 "criado": item["criado"], "atualizado": item["atualizado"]}
 
     def listar(self):
         with self.conectar() as banco:
-            return [self._publica(item) for item in banco.execute("SELECT * FROM tarefas ORDER BY rowid DESC LIMIT 100")]
+            return [self._publica(item, banco) for item in banco.execute("SELECT * FROM tarefas ORDER BY rowid DESC LIMIT 100")]
 
     def tem_pendentes(self):
         with self.conectar() as banco:
@@ -254,7 +299,7 @@ class RepositorioTarefas:
                 "status": lote["status"], "motivo": lote["motivo"], "criado": lote["criado"],
                 "atualizado": lote["atualizado"]}
         if detalhar:
-            publico["tarefas"] = [self._publica(t) for t in banco.execute("SELECT t.* FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? ORDER BY i.posicao", (lote["id"],))]
+            publico["tarefas"] = [self._publica(t, banco) for t in banco.execute("SELECT t.* FROM tarefas t JOIN itens_lote i ON i.tarefa_id=t.id WHERE i.lote_id=? ORDER BY i.posicao", (lote["id"],))]
         else:
             publico["plano"] = {k: plano[k] for k in ("inicio", "fim", "quantidade_rotinas")}
         return publico
@@ -289,6 +334,7 @@ class RepositorioTarefas:
                 'empresa_nome': empresas[codigo]['nome'], 'rotina': painel.NOMES_ROTINAS[tarefa['pedido']['capacidade']],
                 'modo': tarefa['modo'], 'status': tarefa['status'], 'motivo': tarefa['motivo'],
                 'arquivo_disponivel': tarefa['arquivo_disponivel'], 'retorno_confirmado': retorno,
+                'artefatos': tarefa['artefatos'],
                 'etapa_com_falha': painel.NOMES_ETAPAS[falhas[-1]] if falhas else None, 'etapas': etapas})
         return {'lote_id': lote['id'], 'status': lote['status'], 'motivo': lote['motivo'],
                 'inicio': lote['plano']['inicio'], 'fim': lote['plano']['fim'],
@@ -537,7 +583,7 @@ class ServicoExecucao:
                   "tela_principal_reconhecida" if recuperada else None)
         return recuperada
 
-    def _nomear_arquivo(self, tarefa, pedido, arquivo):
+    def _nomear_arquivo(self, tarefa, pedido, arquivo, tipo=None):
         if not arquivo:
             return arquivo
         if tarefa.get("lote_id"):
@@ -549,7 +595,8 @@ class ServicoExecucao:
         if empresa is None:
             return arquivo  # Chamadas antigas sem cadastro conservam a convenção local.
         pasta_destino = None
-        if (pedido["capacidade"] in ("registro_entradas", "registro_saidas") and
+        tipo = tipo or pedido['capacidade']
+        if (tipo in ("registro_entradas", "registro_saidas", "registro_icms") and
                 (self.repositorio.caminho.parent / "destino_livros.json").exists()):
             if pedido["inicio"][:7] != pedido["fim"][:7]:
                 raise ValueError("O destino mensal dos Livros Fiscais exige um mês por execução.")
@@ -561,11 +608,54 @@ class ServicoExecucao:
                                                      self.repositorio.caminho.parent)
             pasta_destino = plano["caminho_local"]
         destino = arquivos.nomear_relatorio_cadastrado(
-            arquivo, self.pasta_saida, pedido["capacidade"], empresa["nome"], pedido["inicio"], pedido["fim"],
+            arquivo, self.pasta_saida, tipo, empresa["nome"], pedido["inicio"], pedido["fim"],
             pasta_destino=pasta_destino)
         if pasta_destino is not None:
             self.repositorio.registrar_arquivo_publicado(tarefa["id"], destino, pasta_destino)
         return str(destino)
+
+    def _publicar_livros(self, tarefa, pedido, itens):
+        """Preserva cada PDF válido mesmo se outro livro ou o retorno falhar."""
+        from pypdf import PdfReader
+        from pypdf.errors import PyPdfError
+        tipos = {'registro_entradas', 'registro_saidas', 'registro_icms'}
+        vistos, origens, caminhos, falhou = set(), set(), [], False
+        for item in itens:
+            try:
+                if not isinstance(item, dict) or set(item) != {'tipo', 'caminho'}:
+                    raise ValueError('Artefato não reconhecido.')
+                tipo = item['tipo']
+                if tipo not in tipos or tipo in vistos:
+                    raise ValueError('Livro duplicado ou não reconhecido.')
+                origem = Path(item['caminho']).resolve(strict=True)
+                if not origem.is_relative_to(self.pasta_saida) or origem.suffix.lower() != '.pdf':
+                    raise ValueError('Arquivo fora da saída fiscal.')
+                if origem in origens:
+                    raise ValueError('Mesmo PDF informado para livros diferentes.')
+                with origem.open('rb') as entrada:
+                    if entrada.read(5) != b'%PDF-':
+                        raise ValueError('PDF inválido.')
+                    entrada.seek(0)
+                    leitor = PdfReader(entrada, strict=True)
+                    if not leitor.pages:
+                        raise ValueError('PDF sem páginas.')
+                    for pagina in leitor.pages:
+                        pagina.extract_text()
+                vistos.add(tipo)
+                origens.add(origem)
+                self.repositorio.registrar_artefato(tarefa['id'], tipo, origem)
+                try:
+                    destino = self._nomear_arquivo(tarefa, pedido, origem, tipo=tipo)
+                    self.repositorio.registrar_artefato(tarefa['id'], tipo, destino)
+                    caminhos.append(str(destino))
+                except (OSError, ValueError):
+                    caminhos.append(str(origem))
+                    falhou = True
+                    logging.getLogger(__name__).exception('Publicação do livro não confirmada na tarefa %s', tarefa['id'])
+            except (OSError, ValueError, TypeError, KeyError, PyPdfError):
+                falhou = True
+                logging.getLogger(__name__).exception('Artefato não confirmado na tarefa %s', tarefa['id'])
+        return caminhos, vistos == tipos and not falhou, falhou
 
     def _executar_pendentes(self):
         while not self._parar.is_set():
@@ -594,7 +684,6 @@ class ServicoExecucao:
                 with controlar_execucao(controle):
                     executar = getattr(self.executor, "executar_em_lote", self.executor) if tarefa.get("lote_id") else self.executor
                     resultado = executar(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
-                controle.verificar_interrupcao()
                 arquivo = None
                 if isinstance(resultado, tuple) and len(resultado) == 2 and type(resultado[0]) is bool:
                     resultado, arquivo = resultado
@@ -607,16 +696,25 @@ class ServicoExecucao:
                 concluido = modelo.linhas.get("fim", (None, None, None))[2] == "concluido"
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
                 motivo = "resultado_ou_retorno_nao_confirmado" if status == "nao_confirmada" else None
+                if pedido['capacidade'] == 'livros_fiscais':
+                    itens = arquivo if isinstance(arquivo, list) else []
+                    caminhos, completo, falha_publicacao = self._publicar_livros(tarefa, pedido, itens)
+                    arquivo = caminhos[0] if caminhos else None
+                    if resultado is True and not completo:
+                        status = 'nao_confirmada'
+                        motivo = 'nome_arquivo_nao_confirmado' if falha_publicacao else 'livros_incompletos'
                 if status == 'falha' and pedido['capacidade'] == 'resumo_acumulador':
                     motivos_periodo = [e['evidence'] for e in self.repositorio.eventos(identificador)
                                        if e['status'] == 'falha' and e.get('evidence') in MOTIVOS_PERIODO]
                     motivo = motivos_periodo[-1] if motivos_periodo else None
-                if status == "concluida" and arquivo:
+                if status == "concluida" and arquivo and pedido['capacidade'] != 'livros_fiscais':
                     try:
                         arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)
                     except (OSError, ValueError):
                         logging.getLogger(__name__).exception("Nome ou destino do arquivo não confirmado na tarefa %s", identificador)
                         status, motivo = "nao_confirmada", "nome_arquivo_nao_confirmado"
+                # A pausa/cancelamento não apaga PDFs já confirmados pelo gerador.
+                controle.verificar_interrupcao()
                 recuperada = status != "concluida" and self._recuperar_lote(tarefa, pedido, controle)
                 self.repositorio.concluir(identificador, status, resultado, arquivo,
                                          motivo,

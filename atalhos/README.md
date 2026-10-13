@@ -57,3 +57,7 @@ Paddle continua opcional; o motor mantém o Tesseract atual.
 | [Testar Resumo por Acumulador.bat](ferramentas/Testar%20Resumo%20por%20Acumulador.bat) | Teste individual com código cadastrado, competência passada e as mesmas travas do painel; parar o servidor antes |
 | [Listar Funcoes.bat](ferramentas/Listar%20Funcoes.bat) | Consultar o catálogo descritivo |
 | [Abrir Motor SPED.bat](ferramentas/Abrir%20Motor%20SPED.bat) | Abrir o menu de texto existente |
+
+- `ferramentas/Testar Livros Fiscais.bat`: teste individual dos três livros,
+  com código/competência/apuração informados e servidor parado. Usa o mesmo
+  worker e troca de empresa do painel; conferir os três PDFs antes do lote.
