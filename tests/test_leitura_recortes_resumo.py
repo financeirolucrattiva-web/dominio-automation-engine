@@ -1,5 +1,6 @@
 """Pixels e OCR sintéticos; sem calibração do print real do operador."""
 import copy
+import json
 from pathlib import Path
 import unittest
 from unittest.mock import Mock,patch
@@ -44,6 +45,44 @@ def linha(textos):
 
 
 class TestRecortesResumo(unittest.TestCase):
+    def test_diagnostico_diferencia_rotulos_de_bordas_sem_ocr_livre(self):
+        imagem,dados=formulario(None)
+        for k,v in zip(dados,('EMPRESA PRIVADA',10,10,50,20)):dados[k].append(v)
+        backend=Mock(); backend._ler_dados_ocr.side_effect=lambda img,escala:dados
+        backend.ler_dados_ocr_windows.return_value=None
+        backend.ler_dados_ocr_formulario.return_value=None
+        # Bordas ausentes, com rótulos detectados; depois rótulos ausentes.
+        for origem,motivo in ((dados,'bordas_ausentes_ou_ambiguas'),
+                              ({k:[] for k in dados},'rotulos_ausentes_ou_ambiguos')):
+            detalhes=[]; backend._ler_dados_ocr.side_effect=None
+            backend._ler_dados_ocr.return_value=origem
+            with patch.multiple('app',create=True,tela=backend),self.assertRaises(ValueError):
+                ler_campos(Image.new('RGB',imagem.size,'white'),detalhes.append)
+            geometria=[d for d in detalhes if d['fase']=='geometria']
+            self.assertTrue(geometria)
+            self.assertEqual({d['motivo'] for d in geometria},{motivo})
+            self.assertNotIn('PRIVADA',json.dumps(detalhes))
+            if origem['text']:self.assertTrue(geometria[0]['rotulos'])
+
+    def test_diagnostico_ocr_indisponivel_nao_imprime_excecao(self):
+        imagem,_=formulario(None); backend=Mock()
+        backend._ler_dados_ocr.side_effect=RuntimeError('PRIVADO')
+        backend.ler_dados_ocr_windows.return_value=None
+        backend.ler_dados_ocr_formulario.side_effect=RuntimeError('PRIVADO')
+        detalhes=[]
+        with patch.multiple('app',create=True,tela=backend),self.assertRaises(ValueError):
+            ler_campos(imagem,detalhes.append)
+        self.assertEqual({d['motivo'] for d in detalhes},
+                         {'motor_indisponivel','leitura_motor_nao_confirmada'})
+        self.assertNotIn('PRIVADO',json.dumps(detalhes))
+
+    def test_rotulos_diagnostico_unidos_e_erro_desconhecido_sao_limitados(self):
+        from app.leitura_resumo import diagnostico_rotulos,motivo_geometria
+        dados=linha(['DataInicial:','Data final:','PRIVADO'])
+        self.assertEqual([r['rotulo'] for r in diagnostico_rotulos(dados,2)],
+                         ['data_inicial','data_final'])
+        self.assertEqual(motivo_geometria(ValueError('PRIVADO')),'geometria_nao_confirmada')
+
     def test_preto_branco_amplia_copia_sem_alterar_captura(self):
         from app import tela
         imagem,_=formulario('total');antes=imagem.tobytes()

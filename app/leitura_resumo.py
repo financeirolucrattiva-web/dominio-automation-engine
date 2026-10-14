@@ -5,6 +5,34 @@ import re
 from app.formulario_resumo import campos_periodo
 
 
+def diagnostico_rotulos(dados, escala):
+    """Somente rótulos canônicos/caixas; descarta texto livre da captura."""
+    permitidos={'data':'data','inicial':'inicial','final':'final',
+                'datainicial':'data_inicial','datafinal':'data_final',
+                'iniciat':'inicial','finat':'final'}
+    resultado=[]
+    for i, texto in enumerate(dados.get('text', [])):
+        token=re.sub(r'\s+', '', str(texto).rstrip(':').casefold())
+        if token not in permitidos:continue
+        try:
+            caixa=[dados[k][i]/escala for k in ('left','top','width','height')]
+            if any(not isinstance(v,(int,float)) or v<0 for v in caixa):continue
+        except (KeyError,IndexError,TypeError,ZeroDivisionError):continue
+        resultado.append({'rotulo':permitidos[token],'caixa':caixa})
+    return resultado
+
+
+def motivo_geometria(erro):
+    """Converte só mensagens conhecidas em códigos; não imprime exceções."""
+    return {
+        'Rótulos do período ausentes ou ambíguos.':'rotulos_ausentes_ou_ambiguos',
+        'Ordem dos campos não confirmada.':'ordem_campos_nao_confirmada',
+        'Bordas do campo ausentes ou ambíguas.':'bordas_ausentes_ou_ambiguas',
+        'Área textual do campo não confirmada.':'area_textual_nao_confirmada',
+        'A dupla de controles não confirmou alinhamento/tamanho.':'alinhamento_campos_nao_confirmado',
+    }.get(str(erro),'geometria_nao_confirmada')
+
+
 def rotulos_periodo(dados, escala, livros=False):
     palavras=[{'texto':str(t).strip(), 'x':dados['left'][i]/escala, 'y':dados['top'][i]/escala,
                'w':dados['width'][i]/escala, 'h':dados['height'][i]/escala}
@@ -155,7 +183,10 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
             if motor=='tesseract':dados=tela._ler_dados_ocr(imagem,escala)
             elif motor=='windows':dados=tela.ler_dados_ocr_windows(imagem,escala)
             else:dados=tela.ler_dados_ocr_formulario(imagem,escala,'binaria',6 if motor=='binaria_bloco' else 11)
-            if dados is None:continue
+            if dados is None:
+                if registrar:registrar({'fase':'ocr','motor':motor,'escala':escala,
+                    'confirmado':False,'motivo':'motor_indisponivel'})
+                continue
             try:
                 if livros:
                     from app.formulario_livros import _periodo, _palavras
@@ -167,9 +198,14 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
                 contextos.append(medidas)
                 if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,'confirmado':True,
                     'campos':{p:list(c['retangulo']) for p,c in medidas.items()}})
-            except ValueError:
-                if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,'confirmado':False})
-        except Exception:continue
+            except ValueError as erro:
+                if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,
+                    'confirmado':False,'motivo':motivo_geometria(erro),
+                    'rotulos':diagnostico_rotulos(dados,escala)})
+        except Exception:
+            if registrar:registrar({'fase':'ocr','motor':motor,'escala':escala,
+                'confirmado':False,'motivo':'leitura_motor_nao_confirmada'})
+            continue
     if not contextos:
         # Compatibilidade sem nova geometria: duas leituras globais completas.
         if len(completos)>=2 and len({tuple(c[p]['valor'] for p in ('inicial','final')) for c in completos})==1:

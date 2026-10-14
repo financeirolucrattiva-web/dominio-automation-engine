@@ -1,5 +1,27 @@
 # Domínio Automation Engine — handoff
 
+## Três releituras do Resumo também falham: diagnosticar a captura salva — 14/10/2026
+
+Operador voltou com geometri:false nos seis motores/preparos, antes do campo
+final, inclusive na terceira tentativa. Informou que o formulário continuava
+aberto com as duas datas. O motor não enviou OK e recuperou o painel azul.
+Esse log não distingue rótulos, bordas, área textual ou alinhamento: não
+ajustar limiares/posições ou aumentar tentativas sem a evidência que falta.
+
+RESUMO_RECORTE agora registra motivo fechado de rejeição e somente rótulos
+canônicos com suas caixas; também distingue OCR indisponível/erro de leitura.
+Não imprime mensagem de exceção, nomes, CNPJ nem OCR livre. A decisão de
+liberar emissão permanece a mesma; esta revisão é diagnóstico.
+
+No PC, `python scripts\revisar_periodo_resumo.py --ultima-falha` escolhe o
+PNG mais recente de *erro_periodo_resumo.png em capturas/ e analisa offline,
+sem captura nova, clique, digitação, troca de empresa ou emissão. Mostra
+dimensões/título reconhecido e o motivo por motor. Captura integral continua
+somente no PC; compartilhar somente o texto limitado do diagnóstico.
+
+Próximo passo depende desse diagnóstico. A falha real do Resumo segue aberta.
+Validação da ferramenta: 557 testes passaram; sintaxe Python e diff conferidos.
+
 ## Resumo perde uma leitura; operador interrompe a espera da EFD — 14/10/2026
 
 Novo log: uma leitura do Resumo confirmou ambas as datas de agosto/2026.
