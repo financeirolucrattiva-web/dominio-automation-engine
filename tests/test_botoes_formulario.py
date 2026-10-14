@@ -32,6 +32,15 @@ def tela_resumo(dx=0,dy=0,fator=1):
 
 
 class TestBotaoResumo(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('tesseract'),'Tesseract indisponível.')
+    def test_ok_compartilha_leitura_local_quando_final_falta_na_tela_inteira(self):
+        imagem,dados=tela_resumo()
+        dados={k:[v for i,v in enumerate(valores) if i!=3] for k,valores in dados.items()}
+        self.preparar(imagem,dados)
+        with patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:
+                          {'fechar'} if c[1]>110 else {'ok'}):
+            self.assertIsNotNone(botoes.achar_ok_resumo(imagem))
+
     def preparar(self,imagem,dados,ok=None):
         def ocr(_imagem,escala):
             copia=copy.deepcopy(dados)

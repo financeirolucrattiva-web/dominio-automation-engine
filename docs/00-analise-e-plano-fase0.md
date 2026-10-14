@@ -4589,6 +4589,40 @@ conferidos.
 
 ---
 
+### 0.107 Final visível não reconhecido no OCR global do Resumo (14/10/2026)
+
+**Achado real:** diagnóstico offline da última captura confirmou título e
+Data inicial. Tesseract4x também encontrou Data na linha abaixo, mas nenhum
+motor retornou Final. Motivo rotulos_ausentes_ou_ambiguos: ainda não era falha
+na medição das bordas. Print recortado seguinte mostra Data final legível e
+01/08/2026 a31/08/2026; não presumir que o período estava errado.
+
+**Correção:** resolvedor mantém leitura global e acrescenta ROI do rótulo.
+Exige Inicial único, título do Resumo e um único Data abaixo na mesma coluna;
+largura/altura/origem da ROI vêm dessas caixas atuais, sem coordenada fixa.
+Leitura PSM7 sem whitelist, cinza/binária4x/6x, aceita só Data final completo
+em pelo menos duas opiniões concordantes. Texto extra, Data inicial, duas
+linhas, bbox fora do recorte ou sem sobreposição com Data observado recusam.
+Nenhum Final é fabricado pela posição. Bordas dos controles e duas leituras
+de cada data continuam necessárias; o período solicitado não entra no leitor.
+
+**Integração:** mesmo resolvedor no reconhecimento do formulário, ler_campos e
+busca do OK. Evita confirmar datas e falhar no OK pelo mesmo rótulo global
+ausente. Livros não usam esse fallback. Diagnóstico rotulo_recorte limita-se
+à área, contagem de leituras e booleano; script --ultima-falha continua
+somente leitura, sem nova execução no desktop.
+
+**Limite de validação:** print inline inspecionado visualmente; nenhum PNG
+local da imagem enviada estava disponível para executar OCR sobre ele.
+Testes usam fixtures sintéticas, incluindo Tesseract real em seus pixels.
+Precisamos de nova leitura offline da captura salva e teste individual no
+Domínio para validar emissão. Não afirmar homologação ou sucesso fiscal.
+Suíte completa: 569 testes passaram; inclui rótulo perdido globalmente,
+OCR real em fixtures1x/2x, integração OK, texto extra, duas linhas, contradição,
+caixas fora da ROI, ambiguidade e borda ausente. Sintaxe/diff conferidos.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

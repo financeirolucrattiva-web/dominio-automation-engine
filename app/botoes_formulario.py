@@ -9,7 +9,7 @@ import math
 from app import tela
 from app.formulario_livros import _palavras, _rotulo
 from app.leitura_resumo import (formulario_resumo_reconhecido, medir_campos,
-                                rotulos_periodo)
+                                resolver_rotulos_resumo)
 
 AVISOS = ('Atenção', 'Aviso Empresa', 'Aviso')
 
@@ -73,7 +73,8 @@ def _contexto_coluna(imagem):
                      else tela.ler_dados_ocr_windows(imagem,escala))
             if dados is None:
                 continue
-            campos = medir_campos(imagem,rotulos_periodo(dados,escala))
+            campos = medir_campos(imagem,resolver_rotulos_resumo(imagem,dados,escala,
+                                                               titulo_confirmado=True))
             palavras = _palavras(dados,escala)
             fechar = _rotulo(palavras,'Fechar')
             centro = (fechar['x']+fechar['w']/2,fechar['y']+fechar['h']/2)
