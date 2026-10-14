@@ -1,5 +1,43 @@
 # Domínio Automation Engine — handoff
 
+## Novo teste falhou na abertura dos livros e no período do Resumo — 14/10/2026
+
+Operador atualizou para main2c7a1f7 e informou falha em todas as rotinas.
+Especificou Livros em abrir_livros, sem marcar as três caixas; Resumo em
+preencher_periodo, sem reconhecer datas. Captura parcial mostra rótulos
+Registro de Entradas/Saídas/ICMS e caixas desmarcadas, sem painel completo
+ou dados da empresa. Não comprova a causa exata do OCR/CV na instalação.
+
+Trava comprovada no código: abrir_livros exigia ler_campos antes de ler
+qualquer caixa. Agora abertura/marcação usam ler_selecao_com_ocr sem
+período; as três caixas e todas as outras opções continuam conferidas.
+Leitura/preenchimento das datas acontece na etapa própria; antes OK exige
+novamente seleção e período completo. Não marca/desmarca por offset.
+
+OCR acrescenta cópias ampliadas 4x/6x em preto e branco (contraste/Otsu),
+segmentação de formulário e linhas numéricas. Pixels originais continuam
+sendo usados para caixas/marcações. Bordas claras recebem reforço medido
+por outro limiar e detecção de bordas nos campos; fixtures Windows3D
+sintéticas reproduzem limitações do algoritmo anterior. Não comprovam
+qual renderização exata causou a falha real.
+
+Mantém concordância de leituras completas, sem usar a data desejada como
+sugestão, corrigir ano ou completar dígitos. Falha de data salva recortes
+original/binária6x localmente em capturas/resumo_data_* ou livros_data_*.
+LIVROS_SELECAO imprime só rótulos conhecidos/medidas/contagens/estados/
+motivos fechados, inclusive leitura parcial. LIVROS_PERIODO e RESUMO_RECORTE
+imprimem só campos/data/medidas. Diagnósticos CLI continuam sem ação e
+agora separam leitura das caixas das datas. Capturas/PDFs ficam locais.
+
+523 testes passaram. Incluem marcação real simulada das três caixas antes
+de uma falha de período, ausência de OK, preto/branco concordante e
+conflitante, imagem original preservada, sombras/caixas claras, grupo15
+recusado e privacidade dos diagnósticos. Ainda sem execução Windows dessa
+correção. Primeiro retestar individual em agosto/2026 na empresa confirmada.
+EFD também foi informada falha, sem detalhe novo; não atribuir causa nem
+alegar corrigida. Se persistir, pedir saída limitada dos diagnósticos locais,
+não OCR bruto nem capturas com identificação fiscal.
+
 ## Integração dos três livros e leitura de datas — 13/10/2026
 
 Prioridade do operador: finalizar Presumido por empresa antes dos lotes.

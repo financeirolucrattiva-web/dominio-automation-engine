@@ -79,3 +79,26 @@ python scripts\explorar_presumido.py
 Sem --somente-disponiveis, sequência custom pendente fica bloqueada.
 Somente competências fechadas, escolhidas pelo operador; o calendário
 sozinho não confirma apuração. Primeiro individual, depois lote do Presumido.
+
+## Diagnóstico da atualização de 14/10/2026
+
+O teste real anterior falhou na abertura dos livros e no período do Resumo.
+A seleção dos livros agora é lida antes das datas; o OCR tenta ampliação e
+preto e branco. Recortes de datas que falham ficam locais em capturas/.
+
+Se persistir, abra somente o formulário correspondente no Domínio e rode
+o diagnóstico abaixo no CMD. Volte ao formulário nos cinco segundos;
+os comandos só leem a tela, sem alterar campos ou emitir:
+
+```bat
+python scripts\revisar_periodo_resumo.py
+```
+
+Para Livros, abra Relatórios → Livros → Livros Fiscais, aba Geral:
+
+```bat
+python scripts\revisar_formulario_livros.py
+```
+
+Compartilhar apenas as linhas limitadas RESUMO_RECORTE/LIVROS_SELECAO/
+LIVROS_PERIODO e mensagens finais, sem capturas com dados fiscais.

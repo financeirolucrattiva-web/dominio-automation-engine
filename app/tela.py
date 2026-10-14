@@ -184,9 +184,32 @@ def _ler_dados_ocr(imagem, escala):
     return dados
 
 
-def ler_dados_ocr_linha_data(imagem, escala=4):
-    """Recorte de campo: uma linha/dígitos, sem reutilizar o cache geral."""
+def preparar_recorte_ocr(imagem, escala=4, preparo='cinza'):
+    """Amplia só a cópia do recorte, preservando coordenadas do desktop."""
+    if preparo not in ('cinza', 'binaria'):
+        raise ValueError('Preparação OCR não reconhecida.')
     imagem_ocr = _preparar_para_ocr(imagem, escala)
+    if preparo == 'binaria':
+        import cv2
+        import numpy as np
+        pixels = np.asarray(ImageOps.autocontrast(imagem_ocr))
+        _, pixels = cv2.threshold(pixels, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        imagem_ocr = Image.fromarray(pixels)
+    return imagem_ocr
+
+
+def ler_dados_ocr_formulario(imagem, escala=4, preparo='cinza', psm=6):
+    """Opinião adicional isolada do cache geral de tela inteira."""
+    if psm not in (6, 11):
+        raise ValueError('Segmentação OCR não reconhecida.')
+    imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
+    return pytesseract.image_to_data(imagem_ocr, lang='por',
+        config=f'--psm {psm}', output_type=Output.DICT)
+
+
+def ler_dados_ocr_linha_data(imagem, escala=4, preparo='cinza'):
+    """Recorte de campo: uma linha/dígitos, sem reutilizar o cache geral."""
+    imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
     return pytesseract.image_to_data(imagem_ocr, lang='por',
         config='--psm 7 -c tessedit_char_whitelist=0123456789/', output_type=Output.DICT)
 

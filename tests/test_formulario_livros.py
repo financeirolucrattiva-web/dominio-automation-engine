@@ -1,16 +1,19 @@
 """Pixels/OCR locais sintéticos; não afirmam calibração da captura real."""
 import copy
+import json
 from pathlib import Path
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from PIL import Image, ImageDraw, ImageFont
-from app.formulario_livros import ler_formulario, marcar_tres_livros, ROTULOS
+from app.formulario_livros import (ler_formulario, ler_selecao, ler_selecao_com_ocr,
+                                   marcar_tres_livros, ROTULOS)
 
 FONTES = (Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'), Path('C:/Windows/Fonts/arial.ttf'))
 
 
-def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False):
+def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False,
+               tridimensional=False):
     fonte = next((p for p in FONTES if p.exists()), None)
     font = ImageFont.truetype(str(fonte), 12) if fonte else ImageFont.load_default()
     imagem = Image.new('RGB',(1000+dx,680+dy),'#eeeeee')
@@ -35,6 +38,12 @@ def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False):
         x=70+(20 if i==2 else 0)+dx; y=105+i*23+dy
         cor = '#bbbbbb' if cinzas and i in (5,8,9,10,11,13,14) else 'black'
         desenho.rectangle((x,y,x+12,y+12),fill='white',outline=cor)
+        if tridimensional:
+            # Fixture ilustrativa de borda 3D, sem alegar pixels do PC real.
+            desenho.line([(x,y+12),(x,y),(x+12,y)],fill='#808080')
+            desenho.line([(x+1,y+11),(x+1,y+1),(x+11,y+1)],fill='#404040')
+            desenho.line([(x+12,y),(x+12,y+12),(x,y+12)],fill='white')
+            desenho.line([(x+11,y+1),(x+11,y+11),(x+1,y+11)],fill='#dfdfdf')
         tipo = next((t for t,r in ROTULOS.items() if r==frase),None)
         if tipo: caixas[tipo]=(x,y,13,13)
         if tipo in marcados or (i==6 and outros):
@@ -52,6 +61,79 @@ def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False):
 
 
 class TestLeituraFormularioLivros(unittest.TestCase):
+    def test_selecao_nao_depende_de_datas_visiveis_ou_validas(self):
+        imagem,dados,_=formulario()
+        dados['text']=[t if not '/' in t else 'DATA INDISPONIVEL' for t in dados['text']]
+        selecao=ler_selecao(imagem,dados)
+        self.assertEqual(set(selecao),{'livros','outros'})
+        self.assertEqual(len(selecao['outros']),13)
+        self.assertFalse(any(c['marcada'] for c in selecao['livros'].values()))
+        with self.assertRaises(ValueError):ler_formulario(imagem,dados)
+
+    def test_diagnostico_da_selecao_e_parcial_sem_ocr_livre(self):
+        imagem,dados,caixas=formulario()
+        x,y,w,h=caixas['registro_icms']
+        ImageDraw.Draw(imagem).rectangle((x-2,y-2,x+w+2,y+h+2),fill='#eeeeee')
+        for chave,valor in zip(dados,('EMPRESA PRIVADA CNPJ',1200,1200,200,20)):
+            dados[chave].append(valor)
+        eventos=[]
+        with self.assertRaises(ValueError):ler_selecao(imagem,dados,registrar=eventos.append)
+        self.assertEqual(len(eventos),1)
+        self.assertFalse(eventos[0]['confirmado'])
+        self.assertEqual(eventos[0]['motivo'],'caixa_livro_nao_confirmada')
+        self.assertIsInstance(eventos[0]['caixas_detectadas'],int)
+        self.assertEqual(eventos[0]['livros']['registro_icms']['candidatas'],0)
+        self.assertNotIn('PRIVADA',json.dumps(eventos))
+        self.assertNotIn('CNPJ',json.dumps(eventos))
+
+    def test_preparos_ocr_preservam_imagem_original_das_caixas(self):
+        from app import tela
+        imagem,dados,_=formulario(('registro_icms',))
+        dados4 = copy.deepcopy(dados)
+        for chave in ('left','top','width','height'):
+            dados4[chave] = [v*2 for v in dados4[chave]]
+        original=imagem.tobytes(); eventos=[]
+        with patch.object(tela,'_ler_dados_ocr',return_value={'text':[]}), \
+                patch.object(tela,'ler_dados_ocr_formulario',side_effect=[{'text':[]},dados4],create=True) as preparar, \
+                patch.object(tela,'ler_dados_ocr_windows',return_value=None):
+            resultado=ler_selecao_com_ocr(imagem,eventos.append)
+        self.assertTrue(resultado['livros']['registro_icms']['marcada'])
+        self.assertEqual(imagem.tobytes(),original)
+        self.assertTrue(all(c.args[0] is imagem for c in preparar.call_args_list))
+        self.assertEqual([c.kwargs['preparo'] for c in preparar.call_args_list],['cinza','binaria'])
+        self.assertTrue(eventos[-1]['confirmado'])
+        self.assertEqual(eventos[-1]['preparo'],'binaria')
+
+    def test_motor_indisponivel_nao_imprime_excecao_ou_dados_livres(self):
+        from app import tela
+        imagem,_,_=formulario(); eventos=[]
+        with patch.object(tela,'_ler_dados_ocr',side_effect=RuntimeError('CAMINHO PRIVADO')), \
+                patch.object(tela,'ler_dados_ocr_formulario',side_effect=RuntimeError('CAMINHO PRIVADO'),create=True), \
+                patch.object(tela,'ler_dados_ocr_windows',return_value=None),self.assertRaises(ValueError):
+            ler_selecao_com_ocr(imagem,eventos.append)
+        self.assertTrue(eventos)
+        self.assertNotIn('PRIVADO',json.dumps(eventos))
+        self.assertTrue(all(e['motivo']=='motor_selecao_indisponivel' for e in eventos))
+
+    def test_caixas_3d_sinteticas_nao_confundem_sombra_com_marcacao(self):
+        for fator in (1,2):
+            for marcados in ((),('registro_icms',)):
+                imagem,dados,_=formulario(marcados,tridimensional=True,fator=fator,dx=90,dy=30)
+                resultado=ler_selecao(imagem,dados)
+                self.assertEqual(len(resultado['outros']),13)
+                self.assertFalse(any(c['marcada'] for c in resultado['outros']))
+                self.assertEqual({t for t,c in resultado['livros'].items() if c['marcada']},set(marcados))
+
+    def test_caixa_de_outro_livro_ausente_continua_bloqueando_grupo_15(self):
+        imagem,dados,_=formulario(tridimensional=True)
+        # Remove a caixa de Registro de ISS, mantendo os três alvos visíveis.
+        ImageDraw.Draw(imagem).rectangle((68,241,86,258),fill='#eeeeee')
+        eventos=[]
+        with self.assertRaises(ValueError):ler_selecao(imagem,dados,registrar=eventos.append)
+        self.assertEqual(eventos[-1]['caixas_emitir'],15)
+        self.assertEqual(eventos[-1]['motivo'],'grupo_emitir_incompleto')
+        self.assertFalse(eventos[-1]['confirmado'])
+
     def test_le_tres_desmarcados_periodo_e_ignora_opcao_marcada_fora_de_emitir(self):
         imagem,dados,_=formulario()
         resultado=ler_formulario(imagem,dados)

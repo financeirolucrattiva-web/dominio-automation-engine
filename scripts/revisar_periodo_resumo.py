@@ -83,7 +83,8 @@ def main(argv=None):
     print('Nenhum campo foi alterado e nenhum relatório foi emitido.')
     try:
         from app.leitura_resumo import ler_campos
-        campos=ler_campos(imagem,registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False)))
+        campos=ler_campos(imagem,registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False)),
+            salvar_recorte=lambda recorte,nome:tela.salvar(recorte,ROOT/'capturas'/('resumo_data_'+nome+'.png')))
         print('RESUMO_LEITURA_CAMPOS '+json.dumps(resumo_leitura(campos),ensure_ascii=False))
         return 0
     except Exception:
