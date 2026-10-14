@@ -44,6 +44,48 @@ def linha(textos):
 
 
 class TestRecortesResumo(unittest.TestCase):
+    def test_preto_branco_amplia_copia_sem_alterar_captura(self):
+        from app import tela
+        imagem,_=formulario('total');antes=imagem.tobytes()
+        nova=tela.preparar_recorte_ocr(imagem,4,'binaria')
+        self.assertEqual(nova.size,(imagem.width*4,imagem.height*4))
+        self.assertLessEqual(set(nova.tobytes()),{0,255})
+        self.assertEqual(imagem.tobytes(),antes)
+
+    def test_datas_podem_ser_confirmadas_por_duas_leituras_binarias(self):
+        imagem,dados=formulario();tela=Mock()
+        tela._ler_dados_ocr.return_value=dados;tela.ler_dados_ocr_windows.return_value=None
+        tela.ler_dados_ocr_formulario.return_value=None
+        def ler(recorte,escala,preparo='cinza'):
+            return linha(['01/09/2026']) if preparo=='binaria' else None
+        tela.ler_dados_ocr_linha_data.side_effect=ler
+        detalhes=[]
+        with patch.multiple('app',create=True,tela=tela):campos=ler_campos(imagem,detalhes.append)
+        self.assertEqual(campos['inicial']['valor'],'01/09/2026')
+        self.assertTrue(any(l['variante']=='binaria' and l['valor']=='01/09/2026' for r in detalhes if 'leituras' in r for l in r['leituras']))
+
+    def test_binaria_conflitante_preserva_recortes_locais_e_nao_escolhe_valor(self):
+        imagem,dados=formulario();tela=Mock()
+        tela._ler_dados_ocr.return_value=dados;tela.ler_dados_ocr_windows.return_value=None
+        tela.ler_dados_ocr_formulario.return_value=None
+        tela.ler_dados_ocr_linha_data.side_effect=lambda recorte,escala,preparo='cinza':linha(['01/09/2028' if preparo=='binaria' else '01/09/2026'])
+        tela.preparar_recorte_ocr.return_value='recorte_binario'
+        salvar=Mock()
+        with patch.multiple('app',create=True,tela=tela),self.assertRaises(ValueError):ler_campos(imagem,salvar_recorte=salvar)
+        self.assertEqual([c.args[1] for c in salvar.call_args_list],['inicial_original','inicial_binaria_6x'])
+
+    def test_mede_bordas_claras_de_campo_windows_3d_sem_offsets(self):
+        imagem,dados=formulario(None)
+        desenho=ImageDraw.Draw(imagem)
+        for x,y in ((115,80),(115,112)):
+            desenho.line((x,y,x+97,y),fill='#808080')
+            desenho.line((x,y,x,y+23),fill='#808080')
+            desenho.line((x+97,y,x+97,y+23),fill='white')
+            desenho.line((x,y+23,x+97,y+23),fill='white')
+        campos=medir_campos(imagem,rotulos_periodo(dados,2))
+        self.assertLess(campos['inicial']['posicao'][0],196)
+        self.assertLess(campos['inicial']['posicao'][1],campos['final']['posicao'][1])
+
     def test_mede_dupla_e_spinner_com_selecao_parcial_total_ou_sem_selecao(self):
         for selecao in ('parcial','total',None):
             for fator in (1,2):

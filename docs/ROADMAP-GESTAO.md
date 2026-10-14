@@ -8,6 +8,14 @@ main até `3b780c9`, branch Claude `e73ab29` e integração dos três livros nes
 neste ambiente; instalação, execução e homologação no Windows do escritório
 continuam sendo etapas próprias.
 
+## Teste real de 14/10/2026
+
+A instalação foi atualizada, mas o operador informou todas as rotinas com
+falha: Livros ao abrir o formulário, Resumo no período. A correção desta
+entrega separa seleção/datas e reforça OCR ampliado/preto e branco; ainda
+precisa de novo teste real. EFD sem detalhe novo para atribuir causa.
+O piloto permanece em validação e não está liberado como homologado.
+
 ## Situação atual
 
 A base técnica está implementada: cadastro empresa/código/regime, painel,

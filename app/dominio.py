@@ -1757,7 +1757,8 @@ def _tratar_aviso_resumo(imagem, pos, prefixo):
 def _ler_campos_resumo():
     from app.leitura_resumo import ler_campos
     imagem = tela.capturar_tela()
-    return ler_campos(imagem, registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False),flush=True))
+    return ler_campos(imagem, registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False),flush=True),
+        salvar_recorte=lambda recorte,nome:salvar(recorte,'resumo_data_'+nome+'.png'))
 
 
 def _diagnosticar_periodo_resumo(fase, campo, esperado, campos=None, tentativa=0):

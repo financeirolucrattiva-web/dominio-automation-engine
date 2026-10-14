@@ -4450,6 +4450,44 @@ em agosto/2026, depois sequência Presumido, depois lote por regime.
 
 ---
 
+### 0.103 Livros sem marcar caixas e datas do Resumo não reconhecidas (14/10/2026)
+
+**Evidência:** após atualizar main2c7a1f7, operador informou todas falhas;
+Ver etapas: abrir livros falhou; preencher período do Resumo falhou.
+Recorte mostra Entradas/Saídas/ICMS desmarcados. Não há captura completa
+medida nesta nuvem nem novos logs de datas para atribuir erro específico.
+Solicitou ampliação e preto e branco para melhorar leitura.
+
+**Achado de código:** _aguardar_formulario chamava _ler_formulario, que
+exigia datas antes de conferir qualquer caixa. Separados ler_selecao e
+ler_periodo; abertura/marcação não dependem da leitura do período antigo.
+Seleção completa continua obrigatória; não aceita grupo incompleto nem
+outras opções marcadas. Antes OK relê período e seleção. Teste sintético
+marca exatamente três caixas e falha depois no período, sem emitir.
+
+**OCR:** amplia cópia 4x/6x, adiciona preto/branco por contraste/Otsu e
+segmentações de formulário/linha. Coordenadas seguem escala original.
+Pixels de checkbox nunca são binarizados para decidir marcação. Segundo
+limiar de bordas claras mantém os critérios de quadrado/alinhamento/grupo16;
+campos recebem detecção de bordas claras mantendo dupla inequívoca.
+Fixtures 3D sintéticas mostraram perda de bordas no algoritmo anterior,
+sem comprovar que essa é a causa da instalação do operador.
+
+**Diagnóstico:** LIVROS_SELECAO traz motivos/medidas/contagens/estados e
+rótulos fixos, mesmo incompleto; LIVROS_PERIODO e RESUMO_RECORTE só datas/
+medidas, sem OCR livre. Recortes original e binária6x são salvos apenas no
+PC quando a data não confirma. Scripts revisar_formulario_livros.py e
+revisar_periodo_resumo.py continuam só leitura, sem cliques/geração.
+
+**Validação:** 523 testes passaram; regressão etapa/sequência, datas
+binárias concordantes/conflitantes, imagem preservada, caixas claras,
+grupos incompletos e privacidade. Sintaxe/diff conferidos. Emissão real
+continua não homologada; retestar individual, agosto/2026 só na empresa
+confirmada. EFD informada falha sem detalhe: causa/correção ainda não
+confirmadas; não inferir sucesso dos testes sintéticos.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

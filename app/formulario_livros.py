@@ -56,15 +56,19 @@ def _quadrados(imagem, altura_texto):
     import cv2
     import numpy as np
     cinza = cv2.cvtColor(np.asarray(imagem.convert('RGB')), cv2.COLOR_RGB2GRAY)
-    mascara = (cinza < 200).astype('uint8')*255
-    contornos, _ = cv2.findContours(mascara, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     candidatos = []
-    for c in contornos:
-        x,y,w,h = cv2.boundingRect(c)
-        vertices = cv2.approxPolyDP(c, .025*cv2.arcLength(c, True), True)
-        if (len(vertices)==4 and .75 <= w/h <= 1.3 and cv2.contourArea(c)/(w*h) >= .65
-                and .65*altura_texto <= min(w,h) and max(w,h) <= 2.3*altura_texto):
-            candidatos.append((x,y,w,h))
+    # Um único limiar perde bordas 3D com lados claros. Duas máscaras
+    # preservam também esses lados; só reforçam localização, nunca marcação.
+    # Não fecha artificialmente traços nem completa uma caixa cortada.
+    mascaras = [(cinza < limite).astype('uint8')*255 for limite in (200,230)]
+    for mascara in mascaras:
+        contornos, _ = cv2.findContours(mascara, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contornos:
+            x,y,w,h = cv2.boundingRect(c)
+            vertices = cv2.approxPolyDP(c, .025*cv2.arcLength(c, True), True)
+            if (len(vertices)==4 and .75 <= w/h <= 1.3 and cv2.contourArea(c)/(w*h) >= .65
+                    and .65*altura_texto <= min(w,h) and max(w,h) <= 2.3*altura_texto):
+                candidatos.append((x,y,w,h))
     # Borda interna/externa da mesma caixa não são dois controles.
     caixas = []
     for c in sorted(candidatos, key=lambda c:c[2]*c[3], reverse=True):
@@ -115,37 +119,125 @@ def _periodo(palavras):
     return resultado
 
 
-def ler_formulario(imagem, dados, escala=2, periodo_confirmado=None):
+def ler_selecao(imagem, dados, escala=2, registrar=None):
+    """Confere apenas Emitir, sem depender de datas reconhecidas.
+
+    A imagem original fornece bordas e marcas. Dados de OCR podem vir de
+    uma cópia preparada, mas suas coordenadas devem conservar a geometria.
+    O retorno nunca autoriza OK: o período precisa ser conferido à parte.
+    """
     palavras = _palavras(dados, escala)
-    _rotulo(palavras, 'Livros Fiscais')
-    rotulos = {tipo:_rotulo(palavras, frase) for tipo,frase in ROTULOS.items()}
-    altura = max(r['h'] for r in rotulos.values())
+    diagnostico = {'fase':'selecao', 'confirmado':False, 'rotulos':{},
+                  'caixas_detectadas':None, 'caixas_emitir':None, 'livros':{}}
+    try:
+        return _ler_selecao(imagem, palavras, diagnostico)
+    finally:
+        if registrar:
+            registrar(diagnostico)
+
+
+def _ler_selecao(imagem, palavras, diagnostico):
+    frases = {'titulo':'Livros Fiscais', **ROTULOS,
+              'primeira_opcao':'Termos de abertura e encerramento',
+              'ultima_opcao':'Contra capa'}
+    rotulos = {}
+    for chave, frase in frases.items():
+        try:
+            rotulo = _rotulo(palavras, frase)
+            rotulos[chave] = rotulo
+            diagnostico['rotulos'][chave] = {'reconhecido':True,
+                'caixa':[rotulo[k] for k in ('x','y','w','h')]}
+        except ValueError:
+            diagnostico['rotulos'][chave] = {'reconhecido':False}
+    if len(rotulos) != len(frases):
+        diagnostico['motivo'] = 'rotulos_selecao_nao_confirmados'
+        raise ValueError('Rótulos da seleção ausentes ou ambíguos.')
+    rotulos_livros = {tipo:rotulos[tipo] for tipo in ROTULOS}
+    altura = max(r['h'] for r in rotulos_livros.values())
     caixas = _quadrados(imagem, altura)
+    diagnostico['caixas_detectadas'] = len(caixas)
     livros = {}
-    for tipo, rotulo in rotulos.items():
+    for tipo, rotulo in rotulos_livros.items():
         candidatas = [c for c in caixas if c[0]+c[2] <= rotulo['x']
                       and rotulo['x']-(c[0]+c[2]) <= 2*altura
                       and rotulo['y']-altura/3 <= c[1]+c[3]/2 <= rotulo['y']+rotulo['h']+altura/3]
+        diagnostico['livros'][tipo] = {'candidatas':len(candidatas), 'marcada':None}
         if len(candidatas) != 1:
+            diagnostico['motivo'] = 'caixa_livro_nao_confirmada'
             raise ValueError(f'Não identifiquei uma única caixa de {ROTULOS[tipo]}.')
         x,y,w,h = candidatas[0]
-        livros[tipo] = {'marcada':_estado(imagem,candidatas[0]),'retangulo':candidatas[0],
+        diagnostico['livros'][tipo]['retangulo'] = list(candidatas[0])
+        try:
+            estado = _estado(imagem,candidatas[0])
+        except ValueError:
+            diagnostico['motivo'] = 'estado_livro_nao_confirmado'
+            raise
+        diagnostico['livros'][tipo]['marcada'] = estado
+        livros[tipo] = {'marcada':estado,'retangulo':candidatas[0],
                         'posicao':(x+w//2,y+h//2)}
     referencia = livros['registro_entradas']['retangulo']
     if max(l['posicao'][0] for l in livros.values())-min(l['posicao'][0] for l in livros.values()) > referencia[2]:
+        diagnostico['motivo'] = 'alinhamento_livros_nao_confirmado'
         raise ValueError('As caixas dos três livros não estão alinhadas.')
-    primeiro = _rotulo(palavras,'Termos de abertura e encerramento')
-    ultimo = _rotulo(palavras,'Contra capa')
+    primeiro, ultimo = rotulos['primeira_opcao'], rotulos['ultima_opcao']
     grupo = [c for c in caixas if referencia[0]-referencia[2]/2 <= c[0] <= referencia[0]+3*referencia[2]
              and primeiro['y']-altura <= c[1]+c[3]/2 <= ultimo['y']+ultimo['h']+altura]
     # As duas capturas do formulário mostram 16 caixas em Emitir (inclui
     # a opção aninhada Relação de Emitentes). Versão diferente recusa leitura.
+    diagnostico['caixas_emitir'] = len(grupo)
     if len(grupo) != 16 or any(l['retangulo'] not in grupo for l in livros.values()):
+        diagnostico['motivo'] = 'grupo_emitir_incompleto'
         raise ValueError(f'Identifiquei {len(grupo)} de 16 caixas do grupo Emitir; revisão visual necessária.')
     principais = {l['retangulo'] for l in livros.values()}
-    outros = [{'retangulo':c,'marcada':_estado(imagem,c)} for c in grupo if c not in principais]
+    try:
+        outros = [{'retangulo':c,'marcada':_estado(imagem,c)} for c in grupo if c not in principais]
+    except ValueError:
+        diagnostico['motivo'] = 'outras_opcoes_nao_confirmadas'
+        raise
+    diagnostico['outras_opcoes_marcadas'] = sum(c['marcada'] for c in outros)
+    diagnostico['confirmado'] = True
+    return {'livros':livros, 'outros':outros}
+
+
+def ler_formulario(imagem, dados, escala=2, periodo_confirmado=None):
+    selecao = ler_selecao(imagem, dados, escala)
+    palavras = _palavras(dados, escala)
     periodo = _periodo(palavras) if periodo_confirmado is None else _validar_periodo_confirmado(periodo_confirmado)
-    return {'livros':livros, 'periodo':periodo, 'outros':outros}
+    return {**selecao, 'periodo':periodo}
+
+
+def ler_selecao_com_ocr(imagem, registrar=None):
+    """Varia a leitura dos rótulos sem transformar os pixels das caixas."""
+    from app import tela
+    ultimo = None
+    tentativas = [('tesseract',2,'padrao'), ('tesseract',4,'padrao'),
+                  ('tesseract',4,'cinza'), ('tesseract',4,'binaria'),
+                  ('tesseract',6,'binaria'), ('windows',2,'padrao'),
+                  ('windows',4,'padrao')]
+    for motor, escala, preparo in tentativas:
+        contexto = {'motor':motor, 'escala':escala, 'preparo':preparo}
+        def registrar_tentativa(diagnostico):
+            if registrar:
+                registrar({**contexto, **diagnostico})
+        try:
+            if motor == 'windows':
+                dados = tela.ler_dados_ocr_windows(imagem, escala)
+            elif preparo == 'padrao':
+                dados = tela._ler_dados_ocr(imagem, escala)
+            else:
+                dados = tela.ler_dados_ocr_formulario(imagem, escala=escala,
+                                                    preparo=preparo, psm=6)
+            if dados is None:
+                registrar_tentativa({'fase':'ocr', 'confirmado':False,
+                                     'motivo':'motor_selecao_indisponivel'})
+                continue
+            return ler_selecao(imagem, dados, escala, registrar_tentativa)
+        except ValueError as erro:
+            ultimo = erro
+        except Exception:
+            registrar_tentativa({'fase':'ocr', 'confirmado':False,
+                                 'motivo':'motor_selecao_indisponivel'})
+    raise ultimo or ValueError('Seleção dos livros não confirmada pelos motores locais.')
 
 
 def _validar_periodo_confirmado(periodo):

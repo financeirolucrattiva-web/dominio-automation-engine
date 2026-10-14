@@ -19,6 +19,30 @@ TEXTOS={'registro_entradas':'REGISTRO DE ENTRADAS'+CAB,
 
 
 class TestConjunto(unittest.TestCase):
+    def test_marca_tres_livros_antes_de_tentar_datas_e_bloqueia_emissao_se_periodo_falha(self):
+        with tempfile.TemporaryDirectory() as pasta,contextlib.ExitStack() as stack:
+            dominio=Mock();interacao=Mock();dominio.TITULOS_ERRO=()
+            dominio._esperar_item_menu.return_value=(10,20)
+            rotina=AcompanhamentoRotina('livros_fiscais',Path(pasta)/'logs')
+            selecao={'livros':{tipo:{'marcada':False,'posicao':(30,40+i*30)} for i,tipo in enumerate(TEXTOS)},
+                     'outros':[{'marcada':False} for _ in range(13)]}
+            stack.enter_context(patch.object(livros,'_ler_selecao',return_value=selecao))
+            periodo=stack.enter_context(patch.object(livros,'_ler_periodo',side_effect=ValueError('Leitura sintética incompleta')))
+            stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
+            for nome,valor in [('capturar_tela','frame'),('recortar_topo','frame'),('ler_empresa_selecionada',('Empresa Fictícia','52')),('achar_texto',(10,20))]:
+                stack.enter_context(patch.object(livros.tela,nome,return_value=valor))
+            interacao.identificar_janela_dominio_atual.return_value={'hwnd':12}
+            def clicar(x,y):
+                for livro in selecao['livros'].values():
+                    if livro['posicao']==(x,y):livro['marcada']=True
+            interacao.clicar.side_effect=clicar
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            with self.assertRaises(ValueError):livros._executar(dominio,interacao,rotina,[],pasta,INICIO,FIM,'',CNPJ)
+            self.assertTrue(all(l['marcada'] for l in selecao['livros'].values()))
+            self.assertEqual(rotina.etapa,'preencher_periodo')
+            periodo.assert_called_once();interacao.digitar.assert_not_called()
+            self.assertEqual(interacao.clicar.call_count,4)  # Menu e exatamente as três caixas; nenhum OK.
+
     def test_opcao_pdf_com_sete_palavras_nao_confunde_opcao_de_arquivo_unico(self):
         import shutil
         if not shutil.which('tesseract'):self.skipTest('Tesseract indisponível.')
@@ -98,11 +122,11 @@ class TestConjunto(unittest.TestCase):
             if v=='01082026':atual['periodo']['inicial']['valor']=INICIO
             elif v=='31082026':atual['periodo']['final']['valor']=FIM
         interacao.digitar.side_effect=digitar
-        with patch.object(livros,'_ler_formulario',side_effect=lambda:atual),patch.object(livros.time,'sleep'):
+        with patch.object(livros,'_ler_periodo',side_effect=lambda:atual['periodo']),patch.object(livros,'_ler_selecao',return_value=atual),patch.object(livros.time,'sleep'):
             livros._preencher(INICIO,FIM,interacao)
         self.assertEqual([c.args[0] for c in interacao.digitar.call_args_list],['01082026','31082026'])
         interacao.digitar.side_effect=None; atual['periodo']['inicial']['valor']='01/09/2026'
-        with patch.object(livros,'_ler_formulario',return_value=atual),patch.object(livros.time,'sleep'),self.assertRaises(ValueError):
+        with patch.object(livros,'_ler_periodo',return_value=atual['periodo']),patch.object(livros.time,'sleep'),self.assertRaises(ValueError):
             livros._preencher(INICIO,FIM,interacao)
 
     def test_fluxo_completo_tres_artefatos_e_retorno_azul(self):
@@ -117,7 +141,8 @@ class TestConjunto(unittest.TestCase):
             rotina=AcompanhamentoRotina('livros_fiscais',root/'logs');artefatos=[]
             formulario={'periodo':{'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}},
                         'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[]}
-            stack.enter_context(patch.object(livros,'_ler_formulario',return_value=formulario))
+            stack.enter_context(patch.object(livros,'_ler_periodo',return_value=formulario['periodo']))
+            stack.enter_context(patch.object(livros,'_ler_selecao',return_value=formulario))
             stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
             stack.enter_context(patch.object(livros,'_aguardar',return_value='frame'))
             stack.enter_context(patch.object(livros.formulario_livros,'marcar_tres_livros'))

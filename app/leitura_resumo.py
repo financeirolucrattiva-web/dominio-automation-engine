@@ -66,8 +66,11 @@ def medir_campos(imagem, rotulos):
     cinza=np.array(imagem.convert('L'))
     altura=max(r['h'] for r in rotulos.values())
     caixas=set()
-    for limite in (160,200,230):
-        contornos,_=cv2.findContours((cinza<limite).astype('uint8')*255,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+    mascaras=[(cinza<limite).astype('uint8')*255 for limite in (160,200,230)]
+    # Borda Windows tem lados claros: máscara escura isolada pode formar L.
+    mascaras.append(cv2.Canny(cinza,8,30))
+    for mascara in mascaras:
+        contornos,_=cv2.findContours(mascara,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
         for contorno in contornos:
             x,y,w,h=cv2.boundingRect(contorno)
             vertices=cv2.approxPolyDP(contorno,.02*cv2.arcLength(contorno,True),True)
@@ -138,7 +141,7 @@ def formulario_resumo_reconhecido(imagem):
     return None
 
 
-def ler_campos(imagem, registrar=None, livros=False):
+def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
     """Mede controles e exige duas leituras completas concordantes por data.
 
     O período solicitado não entra neste leitor. Leituras completas
@@ -146,12 +149,18 @@ def ler_campos(imagem, registrar=None, livros=False):
     """
     from app import tela
     contextos=[]; completos=[]
-    for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
+    for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4),
+                         ('binaria_bloco',4),('binaria_esparsa',4)):
         try:
-            dados=tela._ler_dados_ocr(imagem,escala) if motor=='tesseract' else tela.ler_dados_ocr_windows(imagem,escala)
+            if motor=='tesseract':dados=tela._ler_dados_ocr(imagem,escala)
+            elif motor=='windows':dados=tela.ler_dados_ocr_windows(imagem,escala)
+            else:dados=tela.ler_dados_ocr_formulario(imagem,escala,'binaria',6 if motor=='binaria_bloco' else 11)
             if dados is None:continue
             try:
-                if not livros:completos.append(campos_periodo(dados,escala))
+                if livros:
+                    from app.formulario_livros import _periodo, _palavras
+                    completos.append(_periodo(_palavras(dados,escala)))
+                else:completos.append(campos_periodo(dados,escala))
             except ValueError:pass
             try:
                 medidas=medir_campos(imagem,rotulos_periodo(dados,escala,livros=livros))
@@ -185,11 +194,24 @@ def ler_campos(imagem, registrar=None, livros=False):
                 except Exception:valor=None
                 detalhe.append({'variante':variante,'motor':motor,'escala':escala,'valor':valor})
                 if valor is not None:leituras.append(valor)
+        # Preto e branco tenta ler dígitos pequenos sem mudar o valor pedido.
+        for escala in (4,6):
+            try:
+                dados=tela.ler_dados_ocr_linha_data(normalizada,escala,preparo='binaria')
+                valor=data_da_linha(dados) if dados is not None else None
+            except Exception:valor=None
+            detalhe.append({'variante':'binaria','motor':'tesseract','escala':escala,'valor':valor})
+            if valor is not None:leituras.append(valor)
         valores=set(leituras)
         if registrar:registrar({'campo':papel,'retangulo':list(campo['retangulo']),
             'area_texto':list(campo['area_texto']),'leituras':detalhe,
             'confirmado':len(leituras)>=2 and len(valores)==1})
         if len(leituras)<2 or len(valores)!=1:
+            if salvar_recorte:
+                try:
+                    salvar_recorte(original,papel+'_original')
+                    salvar_recorte(tela.preparar_recorte_ocr(normalizada,6,'binaria'),papel+'_binaria_6x')
+                except Exception:pass
             raise ValueError('Data do recorte incompleta ou conflitante entre leituras.')
         valor=valores.pop()
         if any(c[papel]['valor']!=valor for c in completos):

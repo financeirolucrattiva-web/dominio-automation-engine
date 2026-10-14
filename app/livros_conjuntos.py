@@ -7,6 +7,7 @@ import datetime as dt
 from pathlib import Path
 import time
 import uuid
+import json
 
 from app import arquivos, estados, formulario_livros, tela
 from app.controle_execucao import ponto_seguro, ExecucaoInterrompida
@@ -31,17 +32,25 @@ def _captura_falha(dominio, prefixo):
         print('Captura local dos livros indisponível; consulte as etapas.', flush=True)
 
 
-def _ler_formulario(imagem=None):
+def _ler_selecao(imagem=None):
+    imagem = imagem if imagem is not None else tela.capturar_tela()
+    return formulario_livros.ler_selecao_com_ocr(imagem, registrar=lambda detalhe:
+        print('LIVROS_SELECAO '+json.dumps(detalhe,ensure_ascii=False),flush=True))
+
+
+def _ler_periodo(imagem=None):
     from app.leitura_resumo import ler_campos
     imagem = imagem if imagem is not None else tela.capturar_tela()
-    periodo = ler_campos(imagem, livros=True)
-    return formulario_livros.ler_com_ocr(imagem, periodo_confirmado=periodo)
+    from app import dominio
+    return ler_campos(imagem, livros=True, registrar=lambda detalhe:
+        print('LIVROS_PERIODO '+json.dumps(detalhe,ensure_ascii=False),flush=True),
+        salvar_recorte=lambda recorte,nome: dominio.salvar(recorte,'livros_data_'+nome+'.png'))
 
 
 def _aguardar_formulario(dominio, prefixo):
     def detectar(imagem):
         try:
-            _ler_formulario(imagem)
+            _ler_selecao(imagem)
             return (0, 0)
         except ValueError:
             return None
@@ -67,7 +76,7 @@ def _aguardar(dominio, nome, detector, prefixo, tentativas=90):
 
 def _preencher(inicial, final, interacao):
     for papel, valor in (('inicial', inicial), ('final', final)):
-        campos = _ler_formulario()['periodo']
+        campos = _ler_periodo()
         interacao.clicar(*campos[papel]['posicao'])
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace('/', ''))
@@ -76,7 +85,7 @@ def _preencher(inicial, final, interacao):
         for _ in range(5):
             ponto_seguro()
             try:
-                campos = _ler_formulario()['periodo']
+                campos = _ler_periodo()
                 confirmado = campos[papel]['valor'] == valor
                 if confirmado:
                     break
@@ -85,10 +94,11 @@ def _preencher(inicial, final, interacao):
             time.sleep(.3)
         if not confirmado:
             raise ValueError('Data '+papel+' dos livros não confirmou o período solicitado.')
-    final_lido = _ler_formulario()
-    if (final_lido['periodo']['inicial']['valor'] != inicial or final_lido['periodo']['final']['valor'] != final
-            or not all(l['marcada'] for l in final_lido['livros'].values())
-            or any(c['marcada'] for c in final_lido['outros'])):
+    periodo = _ler_periodo()
+    selecao = _ler_selecao()
+    if (periodo['inicial']['valor'] != inicial or periodo['final']['valor'] != final
+            or not all(l['marcada'] for l in selecao['livros'].values())
+            or any(c['marcada'] for c in selecao['outros'])):
         raise ValueError('Período ou seleção final dos três livros divergiu; não emitir.')
 
 
@@ -243,7 +253,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     interacao.clicar_com_desvio(*pos)
     if _aguardar_formulario(dominio,prefixo) is None:
         return False
-    formulario_livros.marcar_tres_livros(_ler_formulario,interacao.clicar)
+    formulario_livros.marcar_tres_livros(_ler_selecao,interacao.clicar)
     acompanhamento.confirmar('titulo_livros_fiscais_lido')
     acompanhamento.iniciar('preencher_periodo')
     _preencher(inicial,final,interacao)
