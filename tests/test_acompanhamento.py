@@ -339,6 +339,31 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(self.rotina.eventos[-1]["routine_id"], "efd_contribuicoes")
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "confirmado" and e["evidence"] == "tela_principal_reconhecida" for e in self.rotina.eventos))
 
+    def test_efd_gerada_fechar_falha_e_limpeza_confirma_sem_regerar(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.fechar_sped.return_value=False
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        self.stack.enter_context(patch.object(self.dominio,'_verificar_retorno_tela_principal',return_value='tela_principal_reconhecida'))
+        self.assertTrue(self.dominio.gerar_efd_contribuicoes())
+        self.assertEqual(self.espera.call_count,1)
+        self.assertEqual(self.rotina.eventos[-1]['status'],'concluido')
+        self.assertEqual(tuple(self.rotina.confirmadas),self.rotina.ETAPAS)
+
+    def test_efd_limpeza_nao_promove_falha_antes_da_geracao(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.competencia.return_value=False
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        self.assertFalse(self.dominio.gerar_efd_contribuicoes())
+        self.espera.assert_not_called()
+
+    def test_efd_foco_perdido_na_ultima_conferencia_nao_promove(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.fechar_sped.return_value=False
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        self.dominio.interacao.janela_dominio_em_foco.return_value=False
+        self.assertFalse(self.dominio.gerar_efd_contribuicoes())
+        self.assertNotEqual(self.rotina.eventos[-1]['status'],'concluido')
+
     def test_sped_falha_periodo_preserva_etapa_e_fechamento_legado(self):
         self.preparar_sped()
         self.competencia.return_value = False

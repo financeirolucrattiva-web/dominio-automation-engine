@@ -8,6 +8,8 @@ import datetime as dt
 import math
 import re
 import unicodedata
+import time
+from app.controle_execucao import ponto_seguro
 
 ROTULOS = {"registro_entradas": "Registro de Entradas",
            "registro_saidas": "Registro de Saídas", "registro_icms": "Registro de ICMS"}
@@ -257,7 +259,7 @@ def _validar_periodo_confirmado(periodo):
     return resultado
 
 
-def marcar_tres_livros(ler, clicar):
+def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3):
     """Primitiva para futura integração: só altera caixas conhecidas.
 
     O chamador deve impor foco/empresa/trava antes de qualquer ação. Não
@@ -276,8 +278,22 @@ def marcar_tres_livros(ler, clicar):
         campo = atual['livros'][tipo]
         if not campo['marcada']:
             clicar(*campo['posicao'])
-            depois = conferir()
-            if not depois['livros'][tipo]['marcada']:
+            confirmado = False
+            for tentativa in range(tentativas):
+                ponto_seguro()
+                try:
+                    depois = conferir()
+                except ValueError:
+                    depois = None
+                if depois is not None:
+                    if any(c['marcada'] for c in depois['outros']):
+                        raise ValueError('Outra opção de emissão foi selecionada; não emitir.')
+                    if depois['livros'][tipo]['marcada']:
+                        confirmado = True
+                        break
+                print(f'LIVROS_MARCACAO campo={tipo} tentativa={tentativa+1} confirmado=False',flush=True)
+                if tentativa < tentativas-1:time.sleep(intervalo)
+            if not confirmado:
                 raise ValueError('Marcação do livro não confirmada; não emitir.')
     final = conferir()
     if not all(l['marcada'] for l in final['livros'].values()) or any(c['marcada'] for c in final['outros']):

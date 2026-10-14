@@ -138,6 +138,7 @@ class TestResumoFluxo(unittest.TestCase):
         self.menu = self.stack.enter_context(patch.object(self.d, "_esperar_item_menu", return_value=(12, 34)))
         self.stack.enter_context(patch.object(self.d, "_esperar_tela_resumo", return_value=("frame", (10, 20))))
         self.stack.enter_context(patch.object(self.d, "_esperar_formulario_resumo", return_value=("frame", (10, 20))))
+        self.ok = self.stack.enter_context(patch.object(self.d, "_achar_ok_resumo", return_value=(10,20)))
         self.stack.enter_context(patch.object(self.d.estados, "esperar_por_estado", return_value=("frame", "previa", (30, 40))))
         self.stack.enter_context(patch.object(self.d.tela, "capturar_tela", return_value="frame"))
         self.stack.enter_context(patch.object(self.d.tela, "recortar_topo", return_value="frame"))
@@ -235,6 +236,21 @@ class TestResumoFluxo(unittest.TestCase):
         self.assertNotIn("Empresa Fict", logs)
         self.assertNotIn(self.pasta.name, logs)
         self.assertTrue(self.menu.call_args_list[1].kwargs["menu_completo"])
+
+    def test_datas_ja_corretas_nao_sao_redigitadas_e_ok_reconhecido_inicia_previa(self):
+        digitacoes=[]
+        self.d.interacao.digitar.side_effect=lambda valor:(digitacoes.append(valor),setattr(self,'caminho',Path(valor)) if valor.endswith('.pdf') else None)
+        self.assertTrue(self.executar()[0])
+        self.assertEqual(len(digitacoes),1)
+        self.assertTrue(digitacoes[0].endswith('.pdf'))
+        self.ok.assert_called_once()
+
+    def test_datas_confirmadas_ok_ilegivel_preserva_motivo_e_nao_emite(self):
+        self.ok.return_value=None
+        self.assertEqual(self.executar(),(False,None))
+        self.icone.assert_not_called()
+        self.d.estados.esperar_por_estado.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'ok_resumo_nao_reconhecido')
 
     @unittest.skipUnless(shutil.which("tesseract"), "Tesseract nao instalado")
     def test_item_baixo_no_submenu_e_localizado_por_ocr_real(self):

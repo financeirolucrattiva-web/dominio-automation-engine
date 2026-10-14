@@ -5,6 +5,7 @@ import re
 MOTIVOS_PERIODO = {
     'campos_resumo_nao_localizados', 'data_inicial_resumo_nao_confirmada',
     'data_final_resumo_nao_confirmada', 'periodo_resumo_divergente',
+    'ok_resumo_nao_reconhecido',
 }
 
 

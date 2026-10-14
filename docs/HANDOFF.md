@@ -1,5 +1,44 @@
 # Domínio Automation Engine — handoff
 
+## Resumo confirma datas mas não encontra OK; EFD gerada e livros parciais — 14/10/2026
+
+Novo log Windows do Resumo: antes de digitar, ambos campos já confirmavam
+01/08/2026 e31/08/2026. Após digitação, OCR oscilou brevemente 2028/2026,
+mas releitura2 confirmou2026 nos dois. preencher_periodo foi confirmado;
+gerar_previa começou e falhou sem OK. Código usava só OCR2x para OK.
+Portanto essa tentativa não falhou em localizar/preencher o período.
+
+Novo helper puro botoes_formulario.achar_ok_resumo exige título/campos,
+mede botões da coluna observada e reconhece texto completo OK em escalas/
+motores ou recorte PSM7. Fechar delimita a coluna, nunca calcula offset.
+Aviso, outro OK, borda ausente ou ambiguidade impede clique. Mensagem
+ok_resumo_nao_reconhecido informa datas confirmadas/OK bloqueado.
+Campos já no valor pedido não são redigitados; valores diferentes
+continuam sendo preenchidos/reconferidos antes de emitir.
+
+Livros marcou só Entradas; sem logs de LIVROS_SELECAO não atribuir causa.
+Pós-clique agora espera até cinco novas leituras por estado, aceita OCR
+transitório, nunca reclique/desmarca e não vai à próxima caixa antes de
+confirmar atual. Grupo16/estado inequívoco e ausência de outras opções
+continuam obrigatórios; timeout impede emissão.
+
+Operador informa EFD arquivo gerado com sucesso mas rotina falha. Revisão
+comprovou wrapper descartar retorno positivo da limpeza após geração.
+Agora somente fase encerrar com todas etapas anteriores confirmadas e
+janela vinculada pode completar após nova confirmação de foco/painel,
+sem regerar. Falha anterior à geração ou exceção não é promovida.
+Worker preserva aviso_resultado_reconhecido e classifica resultado parcial
+como nao_confirmada/geracao_sinalizada_encerramento_nao_confirmado.
+Esse aviso não comprova conteúdo do arquivo; nenhuma leitura fiscal nova.
+No CLI a pendência de encerramento também ganha mensagem explícita.
+
+539 testes passaram, incluindo OCR real em pixels sintéticos para OK,
+ambiguidade/avisos, datas já corretas, marcação atrasada sem reclique,
+EFD gerada+limpeza positiva sem repetição e falta de foco/geração sem
+promoção. Motivo/aviso persistem no worker após falha/exceção. Execução
+Windows desta correção ainda pendente; testar individual em agosto/2026
+na empresa previamente confirmada e conservar logs/capturas locais.
+
 ## Novo teste falhou na abertura dos livros e no período do Resumo — 14/10/2026
 
 Operador atualizou para main2c7a1f7 e informou falha em todas as rotinas.

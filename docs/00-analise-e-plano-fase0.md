@@ -4488,6 +4488,41 @@ confirmadas; não inferir sucesso dos testes sintéticos.
 
 ---
 
+### 0.104 Datas do Resumo confirmadas, OK não reconhecido e encerramento EFD (14/10/2026)
+
+**Evidência:** log limitado do operador confirma duas datas agosto/2026,
+preencher_periodo confirmado e falha em gerar_previa sem clicar OK.
+Houve oscilação transitória OCR2028, resolvida na segunda releitura;
+não corrigir ano por hipótese. Usuário informa só Entradas marcada e
+EFD gerada com sucesso mas rotina falha, sem log próprio dessas duas.
+
+**Correção Resumo:** helper readonly exige contexto e mede botões da
+coluna. OCR2x/4x, Windows e recorte PSM7 aceitam texto completo OK dentro
+do botão real; não usa offsets. Avisos/ambiguidade/OutroOK recusam clique.
+Data já confirmada no valor pedido não é redigitada. Motivo novo distingue
+OK ausente de período inválido, preservando bloqueio antes da emissão.
+
+**Livros:** pós-clique lia uma vez imediatamente e abortava se não
+confirmava. Espera limitada de novas capturas, sem segundo clique, só
+avança quando alvo marcado. Mantém grupo16 e nenhum outro selecionado.
+Não comprova se a instalação tem atraso ou falha persistente de leitura.
+
+**EFD:** código descartava True da limpeza pós-geração. Só conclui após
+fase encerrar, prefixo completo de etapas confirmadas, janela vinculada,
+foco e azul conferidos novamente. Nunca regenera para resolver fechamento.
+Sem retorno, preserva sinalização Domínio e mostra encerramento pendente,
+não sucesso fiscal nem arquivo validado. Falha anterior/exceção não
+viram geração concluída. Marcador limitado preservado no banco/API.
+
+**Validação:** 539 testes passaram, com fluxo/worker/PDF/OCR sintéticos.
+OK medido com OCR real de pixels gerados, outroOK/avisos/borda ausente,
+sem redigitar datas válidas, marcação atrasada/timeout sem reclique,
+EFD cleanup/reconferência e falta de foco/geração sem promoção. Sintaxe e
+diff conferidos. Correção ainda não homologada no Windows. Próximo teste
+individual, agosto/2026 na empresa confirmada, sem lote completo ainda.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
