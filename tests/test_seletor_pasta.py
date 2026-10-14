@@ -5,7 +5,7 @@ from PIL import Image,ImageDraw
 from app import seletor_pasta as seletor
 
 
-def quadro(drive='Client C (M:\\)',pastas=('dominio-automation-engine','saida','LIVROS123456789012'),selecionar=False):
+def quadro(drive='Client C (M:\\)',pastas=('dominio-automation-engine','saida','LIVROS123456789012'),selecionar=False,selecionado_indice=None):
     imagem=Image.new('RGB',(600,400),'#eeeeee');d=ImageDraw.Draw(imagem)
     d.rectangle((100,76,480,100),fill='white',outline='black')
     d.rectangle((30,110,480,290),fill='white',outline='black')
@@ -17,8 +17,8 @@ def quadro(drive='Client C (M:\\)',pastas=('dominio-automation-engine','saida','
     linha('OK',355,320);linha('Cancelar',415,320)
     for i,nome in enumerate(pastas):
         linha(nome,70+i*18,140+i*25)
-    if selecionar and pastas:
-        i=len(pastas)-1;nome=pastas[-1]
+    if (selecionar or selecionado_indice is not None) and pastas:
+        i=len(pastas)-1 if selecionado_indice is None else selecionado_indice;nome=pastas[i]
         d.rectangle((70+i*18,140+i*25,70+i*18+len(nome)*7,152+i*25),fill='#0078d7')
     return imagem,palavras
 
@@ -53,7 +53,7 @@ class TestSeletor(unittest.TestCase):
 
     def test_arvore_expande_ancestral_e_confere_filhos_por_indentacao(self):
         partes=('dominio-automation-engine','saida','LIVROS123456789012')
-        fases=[quadro(pastas=partes[:1]),quadro(pastas=partes[:2]),quadro(pastas=partes,selecionar=True)]
+        fases=[quadro(pastas=partes[:1],selecionar=True),quadro(pastas=partes[:2],selecionar=True),quadro(pastas=partes,selecionar=True)]
         estado=[0];clicar=Mock()
         def tecla(tecla):
             self.assertEqual(tecla,'right');estado[0]+=1

@@ -1,161 +1,125 @@
 # Testar o Presumido por empresa e depois em lote
 
-Atualização: 14/10/2026. Agosto/2026 foi confirmado fechado pelo operador
-somente para a empresa do primeiro teste. Setembro/2026 foi informado
-aberto. A confirmação precisa ser feita para cada empresa/competência.
+Atualização: 14/10/2026. A sequência integra Resumo por Acumulador, exportação
+EFD Contribuições e Livros Fiscais (Entradas, Saídas e ICMS). Código revisado
+com testes automatizados e navegador; emissão real no Windows ainda pendente.
 
-Última revisão: o Resumo tenta novas capturas quando perde a leitura antes
-do campo final. A EFD relê mudanças pequenas no aviso e busca a mensagem
-completa de geração em mais escalas/motores. Ainda precisam de teste real.
-Na tentativa anterior, o operador interrompeu a EFD enquanto ela aguardava;
-esse resultado não comprova sucesso nem falha de geração. Não iniciar lote
-até conferir cada rotina isoladamente nessa empresa.
+Agosto/2026 foi confirmado fechado somente na empresa do primeiro teste.
+Setembro/2026 estava aberto. Confirmar fechamento para cada empresa e mês.
 
-Se o Resumo falhar com todos os motores em “geometria não confirmada”, analisar
-a captura já salva antes de nova emissão:
+## Executar as três rotinas pelo CMD
+
+Fechar o servidor e os diagnósticos anteriores. Manter Domínio aberto no
+painel azul, com referência calibrada. No CMD:
 
 ```bat
 cd /d C:\Users\darto\dominio-automation-engine
-python scripts\revisar_periodo_resumo.py --ultima-falha
+git switch main
+git pull --ff-only origin main
+python -u scripts\explorar_presumido.py --competencia 2026-08
 ```
 
-O comando não opera o desktop. Compartilhar as linhas RESUMO_FORMULARIO,
-RESUMO_RECORTE e a mensagem final; não enviar a captura integral que pode
-conter dados de clientes ao fundo. O diagnóstico distingue rótulos, bordas,
-área textual, alinhamento e indisponibilidade do OCR. Essa falha ainda está
-em investigação; não aumentar tentativas ou presumir coordenadas para passar.
+O script pede o código da empresa cadastrada no Presumido e a confirmação
+do fechamento de agosto nessa empresa. Após responder, voltar ao Domínio
+nos cinco segundos seguintes e deixar mouse/teclado livres. O mesmo fluxo
+está em **atalhos → ferramentas → Executar Presumido por Empresa.bat**;
+o atalho também pede a competência e prefere o Python da .venv existente.
 
-Na revisão0.107, a ausência de Final no OCR global passa por um recorte ampliado
-do rótulo atual, sem whitelist ou coordenada fixa. A saída deve incluir
-RESUMO_RECORTE com fase rotulo_recorte confirmado:true e, ao fim,
-RESUMO_LEITURA_CAMPOS com ambas datas. Se não confirmar, compartilhar essa
-saída limitada antes de nova emissão. Se confirmar, reiniciar servidor e
-testar o Resumo individual para verificar prévia, PDF e retorno ao painel.
+Este comando executa o worker fiscal. Os comandos revisar_periodo_resumo
+e revisar_formulario_livros somente leem uma captura ou formulário.
 
-Se preencher_periodo confirmar mas gerar_previa falhar em reconhecer OK:
+A sequência respeita a ordem cadastrada no regime e exige as três rotinas
+nativas, sem alterar o cadastro automaticamente:
 
-```bat
-python scripts\revisar_periodo_resumo.py --ultima-falha --conferir-ok
-```
+1. **Resumo por Acumulador:** confirmar período, clicar OK, aguardar prévia,
+   exportar PDF e voltar ao painel azul.
+2. **EFD Contribuições:** usar o exportador existente, reconhecer a mensagem
+   completa de geração, confirmar o aviso e retornar ao painel azul.
+3. **Livros Fiscais:** marcar somente Registro de Entradas, Registro de
+   Saídas e Registro de ICMS, conferir as datas, gerar e escolher um PDF
+   por relatório. Conferir os três arquivos antes de finalizar.
 
-Agora --ultima-falha também considera erro_ok_resumo.png, sempre usando a
-captura mais recente. Compartilhar RESUMO_BOTAO e RESUMO_BOTAO_OK para separar
-rótulo Fechar, bordas, coluna, outro OK verdadeiro e texto não confirmado.
-Esse diagnóstico não clica nem emite; aguardar confirmação do botão antes
-de repetir o teste individual.
+O código da tarefa determina a empresa. Se estiver diferente, o executor
+usa F8 e confere novamente código e painel azul antes de emitir.
 
-## Primeiro: os três Livros Fiscais
+O terminal mostra etapas, tempos e progresso a cada cinco segundos.
+O limite padrão da sequência é 30 minutos, configurável com
+--limite-minutos; ao atingir o limite, solicita cancelamento cooperativo.
+Ctrl+C solicita parada segura e impede começar a próxima rotina. Não
+fechar à força nem lançar outra execução enquanto o worker encerra.
 
-1. Atualizar a main, fechar/reabrir o servidor e recarregar o painel com Ctrl+F5.
-2. Em **Lucro Presumido por empresa**, escolher empresa e agosto/2026.
-3. Clicar **Preparar teste dos três Livros Fiscais**. Isso só prepara o
-   formulário **Nova execução**; não emite nada.
-4. Conferir rotina **Livros Fiscais — Entradas, Saídas e ICMS**, código e
-   competência. Confirmar apuração fechada e clicar **Executar no servidor**.
-5. Deixar Domínio visível no servidor e não usar mouse/teclado durante a
-   execução. O executor usa F8 se necessário e confirma código/painel azul.
-6. Em **Acompanhar execução**, conferir as etapas e os três botões de
-   download. Abrir os três PDFs: Entradas, Saídas e ICMS; conferir empresa,
-   período e valores com o supervisor. Só então testar a sequência inteira.
+No fim, conferir o status de cada rotina, artefatos disponíveis e JSON
+local em logs/piloto_presumido_<id>.json. O diagnóstico omite nome/código da
+empresa, caminhos, conteúdo dos PDFs e texto livre do OCR. O histórico
+continua no banco local e pode ser consultado após reabrir o servidor.
 
-**Conferir formulário dos três livros** é um diagnóstico sem emissão;
-requer a aba Geral aberta. É diferente do botão para preparar a execução.
-Se faltar caixa/data/unidade/pasta ou houver ambiguidade, não confirma OK.
-Consulte a etapa com falha e a captura local em capturas/.
+## Executar pelo painel
 
-## Depois: sequência completa da empresa
+Com o servidor aberto, usar **Lucro Presumido por empresa** no início do
+painel: escolher empresa e competência, conferir a sequência, confirmar a
+apuração e clicar **Executar sequência nesta empresa** uma vez.
 
-No início do painel, escolher empresa e competência em **Lucro Presumido
-por empresa**. Conferir a lista e confirmar a apuração; clicar
-**Executar sequência nesta empresa** uma vez. A sequência inicial agora
-contém três rotinas integradas:
+**Preparar teste dos três Livros Fiscais** preenche **Nova execução** com a
+rotina conjunta; conferir código e mês, confirmar apuração e executar.
+**Conferir formulário dos três livros** é somente uma leitura sem emissão
+e requer a aba Geral aberta.
 
-1. Resumo por Acumulador, PDF.
-2. EFD Contribuições, exportador existente. Ainda não é um demonstrativo PDF.
-3. Livros Fiscais, três PDFs separados de Entradas, Saídas e ICMS.
+Na tabela de resultados, **Ver etapas** abre o histórico da rotina e seus
+arquivos. **Baixar diagnóstico das etapas** registra estados, motivos,
+tempos e retorno. Reenvio do mesmo pedido não repete emissão.
 
-A migração substitui o vínculo antigo da conjunta pelo gerador nativo,
-preservando a ordem e escolhas do regime. Não repõe rotinas retiradas.
-Se o operador acrescentou rotinas custom pendentes, elas continuam
-bloqueadas; teste parcial só com a opção explícita. Pendência não é emissão.
+Rotinas custom pendentes continuam bloqueando a sequência completa. Teste
+parcial exige opção explícita e mantém as pendências como não executadas.
+Nenhum cadastro custom é apagado ou substituído para liberar o botão.
 
-Os resultados ficam na tabela do lote por empresa. **Ver etapas** abre o
-histórico da rotina e seus arquivos. **Baixar diagnóstico das etapas**
-guarda JSON local com resultados, motivos, tempos e retorno, sem caminhos,
-PDF ou texto livre de OCR. Não é homologação fiscal.
+## Conferir o resultado antes de ampliar para lote
 
-Falhas permanecem no histórico. A próxima rotina só começa após retorno
-confirmado ao painel azul; sem retorno, a sequência é interrompida.
-Reenvio do mesmo pedido não repete emissão. Reiniciar não retoma tarefas.
+Abrir o PDF do Resumo e os três livros. Conferir empresa, competência e
+valores com o supervisor. Para EFD, conferir também o arquivo no destino
+configurado no Domínio: a integração atual reconhece a exportação, mas não
+produz um demonstrativo PDF nem registra seu caminho como artefato.
+
+“Geração sinalizada; encerramento não confirmado” significa que a mensagem
+de geração foi lida, mas o ciclo não confirmou o retorno seguro. Conferir o
+arquivo e o histórico antes de repetir; não tratar como aprovação fiscal.
+
+Falhas permanecem no histórico. A próxima rotina só começa depois de
+confirmar o retorno ao painel azul. Sem retorno confirmado, a sequência
+para. Reiniciar não repete nem retoma uma emissão automaticamente.
+
+Depois do aceite individual, testar poucas empresas do Presumido em lote,
+uma empresa por vez. Lucro Real precisa de aceite próprio posteriormente.
 
 ## Onde ficam os arquivos
 
-Livros são exportados primeiro para staging exclusivo em saida/. Ao final,
-cada PDF confirmado vai ao destino cadastrado da empresa, com nome e
-competência. Configuração padrão: FISCAL/mês/RELATORIOS_APURAÇÃO/LIVROS_FISCAIS.
-Sem raiz configurada, permanecem na saída local. **Ver destino** mostra a
-previsão sem gravar; **Testar pasta** testa gravação sem emitir documento.
+Resumo fica em saida/, com nome cadastrado e competência. Livros são
+exportados para staging exclusivo em saida/ e os PDFs confirmados seguem
+para o destino cadastrado da empresa. Padrão:
+FISCAL/mês/RELATORIOS_APURAÇÃO/LIVROS_FISCAIS. Sem raiz configurada, ficam
+na saída local. **Ver destino** mostra o caminho; **Testar pasta** confere
+a gravação sem emitir. Não substitui documentos de execuções anteriores.
 
-Os três downloads usam os arquivos exatos registrados pela tarefa. Um
-livro recusado não é disponibilizado como válido. PDFs confirmados podem
-continuar disponíveis mesmo quando outro livro ou o retorno falhar.
-Não sobrescreve arquivos de execuções anteriores.
+Os downloads usam os arquivos registrados pela tarefa. Cada livro precisa
+confirmar tipo, CNPJ, período e estabilidade do arquivo. Arquivo recusado
+não é publicado como válido; PDFs confirmados permanecem disponíveis se
+outro livro ou o retorno falhar.
 
-## Alternativa pelo CMD, com servidor parado
+## Revisão técnica desta atualização
 
-```bat
-cd /d C:\Users\darto\dominio-automation-engine
-python scripts\testar_livros_fiscais.py
-```
+- Resumo: procura Fechar e OK nos retângulos medidos da captura, inclusive
+  quando Fechar desaparece no OCR global; exige rótulos inteiros e contexto
+  inequívoco. Campos já corretos não são redigitados.
+- Livros: novas capturas limitadas antes/depois de marcar cada caixa; não
+  repete clique por demora de pintura. Datas e três seleções são conferidas
+  juntas na captura anterior ao OK. Seletor aguarda unidade e árvore.
+- EFD: relê resultados negativos mesmo em tela parada, limita a espera e
+  confirma o fechamento do aviso com as mesmas escalas e motores. Envia
+  um único Enter; foco perdido bloqueia novas ações.
+- OCR: Tesseract com timeout de oito segundos por chamada; OCR Windows
+  com espera de quatro segundos e no máximo uma leitura nativa pendente.
+  Resultado tardio não passa para outra análise. Imagens ampliadas respeitam
+  o limite informado pelo motor nativo e restauram as coordenadas.
 
-O script pede código, competência e confirmação de apuração, usa o mesmo
-worker/trava e troca empresa. O atalho Testar Livros Fiscais faz o mesmo.
-Não rodar junto com o servidor. Para a sequência completa:
-
-```bat
-python scripts\explorar_presumido.py
-```
-
-Sem --somente-disponiveis, sequência custom pendente fica bloqueada.
-Somente competências fechadas, escolhidas pelo operador; o calendário
-sozinho não confirma apuração. Primeiro individual, depois lote do Presumido.
-
-## Diagnóstico da atualização de 14/10/2026
-
-O teste real anterior falhou na abertura dos livros e no período do Resumo.
-A seleção dos livros agora é lida antes das datas; o OCR tenta ampliação e
-preto e branco. Recortes de datas que falham ficam locais em capturas/.
-
-Se persistir, abra somente o formulário correspondente no Domínio e rode
-o diagnóstico abaixo no CMD. Volte ao formulário nos cinco segundos;
-os comandos só leem a tela, sem alterar campos ou emitir:
-
-```bat
-python scripts\revisar_periodo_resumo.py
-```
-
-Para Livros, abra Relatórios → Livros → Livros Fiscais, aba Geral:
-
-```bat
-python scripts\revisar_formulario_livros.py
-```
-
-Compartilhar apenas as linhas limitadas RESUMO_RECORTE/LIVROS_SELECAO/
-LIVROS_PERIODO e mensagens finais, sem capturas com dados fiscais.
-
-## Continuação após datas preenchidas
-
-O log mais recente confirmou agosto/2026 e parou ao reconhecer OK. A
-correção tenta OCR do botão medido em outras escalas e recorte; se ainda
-falhar, a mensagem RESUMO_OK distingue isso da conferência do período.
-Não altera datas que já estão corretas.
-
-Nos livros, após cada clique espera confirmação antes de marcar o próximo,
-sem repetir clique. Consulte LIVROS_MARCACAO/LIVROS_SELECAO se só parte
-dos livros ficar marcada. No teste pelo atalho, use o terminal.
-
-Na EFD, “geração sinalizada; encerramento não confirmado” significa que o
-Domínio reconheceu a geração, mas o ciclo não terminou com retorno seguro.
-Confira o arquivo e o painel antes de repetir; não é erro fiscal confirmado
-nem validação do conteúdo. Recuperação positiva pode terminar o ciclo sem
-gerar novamente. Reiniciar não repete automaticamente a tarefa.
+Esses limites e testes não substituem a rodada real do escritório. Se
+falhar, consultar a última etapa e o diagnóstico local; não reenviar uma
+rotina que já sinalizou geração sem conferir o arquivo.

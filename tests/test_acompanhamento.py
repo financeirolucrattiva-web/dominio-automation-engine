@@ -318,8 +318,10 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.competencia = self.stack.enter_context(patch.object(d, "selecionar_competencia_anterior", return_value=True))
         self.fechar_sped = self.stack.enter_context(patch.object(d, "_fechar_tela_geracao", return_value=True))
         self.stack.enter_context(patch.object(d.tela, "recortar_a_partir_de", return_value=("frame", 0, 0)))
+        self.stack.enter_context(patch.object(d.tela, "recortar_centro", return_value=("frame", 0, 0)))
+        self.stack.enter_context(patch.object(d.tela, "achar_texto_windows", return_value=None))
         d.tela.achar_texto.side_effect = lambda imagem, texto, **kwargs: (100, 130) if texto == "Empresas" else (100, 100)
-        d.tela.achar_texto_ou_no_centro.side_effect = lambda imagem, texto, **kwargs: None if texto in (self.confirmacao_sped,'Arquivo gerado com sucesso') else (100, 100)
+        d.tela.achar_texto_ou_no_centro.side_effect = lambda imagem, texto, **kwargs: None if texto in (self.confirmacao_sped,'Arquivo gerado com sucesso',*d.TITULOS_ERRO) else (100, 100)
 
     def executar_sped(self):
         return self.dominio.gerar_sped(self.item_sped, self.confirmacao_sped)
@@ -338,7 +340,8 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertIs(self.dominio.gerar_efd_contribuicoes(), True)
         self.assertEqual(self.rotina.eventos[-1]["routine_id"], "efd_contribuicoes")
         self.espera.assert_called_once_with('Arquivo gerado com sucesso',escala=2,
-            escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True)
+            escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True,
+            rever_a_cada=5,limite_segundos=180)
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "confirmado" and e["evidence"] == "tela_principal_reconhecida" for e in self.rotina.eventos))
 
     def test_efd_gerada_fechar_falha_e_limpeza_confirma_sem_regerar(self):
@@ -368,6 +371,49 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
         self.assertFalse(self.dominio.gerar_efd_contribuicoes())
         self.espera.assert_not_called()
+
+    def test_efd_sem_foco_nao_clica_ok_nem_espera_geracao(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.dominio.interacao.janela_dominio_em_foco.return_value=False
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=False))
+        self.assertFalse(self.dominio.gerar_efd_contribuicoes())
+        self.espera.assert_not_called()
+        self.dominio.interacao.pressionar_enter.assert_not_called()
+        # Um clique em Relatórios é anterior à verificação; o OK de geração
+        # calculado nesta fixture seria (100,70), e nunca deve ser enviado.
+        self.assertNotIn((100,70),[chamada.args for chamada in self.dominio.interacao.clicar.call_args_list])
+
+    def test_efd_foco_perdido_apos_sucesso_nao_envia_enter(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.dominio.interacao.janela_dominio_em_foco.side_effect=[True,False]
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=False))
+        self.assertFalse(self.dominio.gerar_efd_contribuicoes())
+        self.dominio.interacao.pressionar_enter.assert_not_called()
+        self.fechar_sped.assert_not_called()
+        self.assertIn('gerar_documento',self.rotina.confirmadas)
+
+    def test_efd_aviso_ainda_lido_apenas_4x_nao_clica_fechar_nem_regera(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        d=self.dominio
+        d.tela.achar_texto_ou_no_centro.side_effect=lambda imagem,texto,**kw: (
+            (100,100) if texto=='Arquivo gerado com sucesso' and kw['escala']==4 else
+            None if texto=='Arquivo gerado com sucesso' else (100,100))
+        self.stack.enter_context(patch.object(d,'_limpar_ao_encerrar',return_value=False))
+        self.assertFalse(d.gerar_efd_contribuicoes())
+        self.fechar_sped.assert_not_called()
+        d.interacao.pressionar_enter.assert_called_once()
+        self.espera.assert_called_once()
+
+    def test_efd_aviso_novo_apos_sucesso_bloqueia_fechar_direto(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        d=self.dominio
+        d.tela.achar_texto_ou_no_centro.side_effect=lambda imagem,texto,**kw: (
+            None if texto=='Arquivo gerado com sucesso' else (100,100))
+        self.stack.enter_context(patch.object(d,'_limpar_ao_encerrar',return_value=False))
+        self.assertFalse(d.gerar_efd_contribuicoes())
+        self.fechar_sped.assert_not_called()
+        d.interacao.pressionar_enter.assert_called_once()
+        self.espera.assert_called_once()
 
     def test_efd_foco_perdido_na_ultima_conferencia_nao_promove(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')

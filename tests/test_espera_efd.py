@@ -70,6 +70,39 @@ class TestEsperaEFD(unittest.TestCase):
             espera_minima=0,tentativas=2,intervalo=0)
         self.assertIs(resultado[0],depois); self.assertEqual(resultado[1:],((12,34),False))
 
+    def test_cancelamento_entre_opinioes_ocr_interrompe_sem_confirmar(self):
+        from app.controle_execucao import ControleExecucao, controlar_execucao, ExecucaoInterrompida
+        controle=ControleExecucao()
+        def interromper(*args,**kwargs):
+            controle.interromper()
+            return None
+        self.tess.side_effect=interromper
+        with controlar_execucao(controle),self.assertRaises(ExecucaoInterrompida):
+            self.executar()
+        self.tess.assert_called_once()
+        self.windows.assert_not_called()
+
+    def test_timeout_tesseract_nao_bloqueia_segunda_opiniao(self):
+        self.tess.side_effect=lambda imagem,texto,**kw: ((20,30) if kw['escala']==4 else
+            (_ for _ in ()).throw(RuntimeError('Tesseract process timeout')))
+        self.assertEqual(self.executar()[1:],((20,30),False))
+
+    def test_fechamento_aviso_usa_4x_ate_retornar_ao_formulario(self):
+        depois=self.imagem.copy(); depois.putpixel((50,50),(0,0,0))
+        self.stack.enter_context(patch.object(self.d.interacao,'janela_dominio_em_foco',return_value=True,create=True))
+        self.stack.enter_context(patch.object(self.d.tela,'capturar_tela',side_effect=[self.imagem,self.imagem,depois]))
+        self.tess.side_effect=lambda imagem,texto,**kw: (
+            (12,34) if imagem is self.imagem and texto=='Arquivo gerado com sucesso' and kw['escala']==4 else
+            (30,40) if imagem is depois and texto=='Contribui' else None)
+        self.assertTrue(self.d._confirmar_saida_aviso_efd('Contribui',{'hwnd':1},'Arquivo gerado com sucesso'))
+        self.assertTrue(any(c.kwargs['escala']==4 for c in self.tess.call_args_list))
+
+    def test_fechamento_aviso_sem_foco_nao_captura_nem_aciona(self):
+        self.stack.enter_context(patch.object(self.d.interacao,'janela_dominio_em_foco',return_value=False,create=True))
+        self.assertFalse(self.d._confirmar_saida_aviso_efd('Contribui',{'hwnd':1},'Arquivo gerado com sucesso'))
+        self.d.tela.capturar_tela.assert_not_called()
+        self.tess.assert_not_called(); self.windows.assert_not_called()
+
 
 if __name__=='__main__':
     unittest.main()

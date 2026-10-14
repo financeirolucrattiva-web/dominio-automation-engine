@@ -260,42 +260,60 @@ def _validar_periodo_confirmado(periodo):
 
 
 def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3):
-    """Primitiva para futura integração: só altera caixas conhecidas.
+    """Só altera caixas conhecidas, com releitura antes e após cada ação.
 
     O chamador deve impor foco/empresa/trava antes de qualquer ação. Não
     clica OK nem emite. Não aceita outros relatórios selecionados.
     """
+    if type(tentativas) is not int or tentativas < 1 or intervalo < 0:
+        raise ValueError('Espera de seleção inválida.')
+    confirmados = set()
+
     def conferir():
         atual = ler()
         if (set(atual['livros']) != set(ROTULOS)
+                or len(atual['outros']) != 13
                 or any(type(c['marcada']) is not bool for c in [*atual['livros'].values(),*atual['outros']])):
             raise ValueError('Estado de seleção incompleto ou indeterminado.')
+        posicoes = [c['posicao'] for c in atual['livros'].values()]
+        if (any(not isinstance(p, (tuple, list)) or len(p) != 2
+                or any(type(v) is not int or v < 0 for v in p) for p in posicoes)
+                or len({tuple(p) for p in posicoes}) != 3):
+            raise ValueError('Posições de seleção incompletas ou indeterminadas.')
         return atual
+
+    def aguardar(campo=None):
+        ultimo = None
+        for tentativa in range(tentativas):
+            ponto_seguro()
+            try:
+                atual = conferir()
+            except ValueError as erro:
+                ultimo = erro
+                atual = None
+            if atual is not None:
+                if any(c['marcada'] for c in atual['outros']):
+                    raise ValueError('Há outros relatórios selecionados no grupo Emitir; não emitir.')
+                # Não clicar novamente em um livro que já confirmou: uma
+                # pintura/OCR transitórios podem ocultar uma marca já enviada.
+                if (all(atual['livros'][tipo]['marcada'] for tipo in confirmados)
+                        and (campo is None or atual['livros'][campo]['marcada'])):
+                    return atual
+                ultimo = ValueError('Marcação do livro não confirmada; não emitir.')
+            print(f'LIVROS_MARCACAO campo={campo or "selecao"} tentativa={tentativa+1} confirmado=False',flush=True)
+            if tentativa < tentativas-1:
+                time.sleep(intervalo)
+        raise ultimo or ValueError('Seleção dos livros não confirmada; não emitir.')
+
     for tipo in ROTULOS:
-        atual = conferir()
-        if any(c['marcada'] for c in atual['outros']):
-            raise ValueError('Há outros relatórios selecionados no grupo Emitir.')
+        atual = aguardar()
+        confirmados.update(t for t, c in atual['livros'].items() if c['marcada'])
         campo = atual['livros'][tipo]
         if not campo['marcada']:
             clicar(*campo['posicao'])
-            confirmado = False
-            for tentativa in range(tentativas):
-                ponto_seguro()
-                try:
-                    depois = conferir()
-                except ValueError:
-                    depois = None
-                if depois is not None:
-                    if any(c['marcada'] for c in depois['outros']):
-                        raise ValueError('Outra opção de emissão foi selecionada; não emitir.')
-                    if depois['livros'][tipo]['marcada']:
-                        confirmado = True
-                        break
-                print(f'LIVROS_MARCACAO campo={tipo} tentativa={tentativa+1} confirmado=False',flush=True)
-                if tentativa < tentativas-1:time.sleep(intervalo)
-            if not confirmado:
-                raise ValueError('Marcação do livro não confirmada; não emitir.')
-    final = conferir()
+            aguardar(tipo)
+        confirmados.add(tipo)
+    final = aguardar()
     if not all(l['marcada'] for l in final['livros'].values()) or any(c['marcada'] for c in final['outros']):
         raise ValueError('Seleção final dos três livros não confirmada.')
     return final

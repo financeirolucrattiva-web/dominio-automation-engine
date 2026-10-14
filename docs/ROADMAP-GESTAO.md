@@ -1,20 +1,26 @@
 # Roadmap de gestão — Domínio Automation Engine
 
-**Referência:** 13/10/2026 · **Empresa:** Lucrattiva Contabilidade
+**Referência:** 14/10/2026 · **Empresa:** Lucrattiva Contabilidade
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-main até `3b780c9`, branch Claude `e73ab29` e integração dos três livros nesta entrega. Implementação preparada
-neste ambiente; instalação, execução e homologação no Windows do escritório
-continuam sendo etapas próprias.
+main `5784126` e revisão das três rotinas nesta entrega. Código e testes
+validados neste ambiente; emissão e aceite fiscal dependem do Windows do
+escritório.
 
-## Teste real de 14/10/2026
+## Revisão e teste de 14/10/2026
 
-A instalação foi atualizada, mas o operador informou todas as rotinas com
-falha: Livros ao abrir o formulário, Resumo no período. A correção desta
-entrega separa seleção/datas e reforça OCR ampliado/preto e branco; ainda
-precisa de novo teste real. EFD sem detalhe novo para atribuir causa.
-O piloto permanece em validação e não está liberado como homologado.
+O último log confirmou as datas do Resumo e bloqueou a prévia ao reconhecer
+OK. Nos Livros, o operador relatou marcação apenas de Entradas. A EFD
+sinalizou geração, mas o operador interrompeu enquanto ela aguardava;
+essa interrupção não comprova falha fiscal.
+
+A revisão limita esperas de OCR, reforça leitura dos botões medidos,
+aguarda as três marcações sem repetir cliques e confere a saída do aviso
+EFD. A sequência por empresa tem novo atalho com etapas/progresso no
+terminal. 615 testes automatizados e o navegador passaram com fiscal simulado;
+próximo marco é a emissão real de agosto/2026 na empresa confirmada.
+O piloto permanece em validação.
 
 ## Situação atual
 
@@ -27,15 +33,15 @@ código entregue e documento fiscal aprovado têm critérios diferentes.
 Na atualização de 13/10/2026, os três Livros Fiscais foram integrados numa
 única emissão com três arquivos/downloads. A limpeza final publicada pelo
 Claude foi incorporada. Falhas reais de leitura do Resumo motivaram leitura
-por recortes e novas verificações. A EFD falhou na geração no último log;
-o traceback local ainda é necessário para atribuir a causa. Os testes em
+por recortes e novas verificações. A geração EFD foi sinalizada, mas seu encerramento ainda precisa
+de nova conferência no Windows. Os testes em
 nuvem não operam o Domínio do escritório nem homologam valores fiscais.
 
 | Ordem | Entrega | Estado | Critério para avançar |
 | --- | --- | --- | --- |
 | 1 | Livros juntos: Entradas, Saídas e ICMS | Código integrado para teste individual | Três PDFs corretos de agosto/2026 na empresa confirmada, destino e retorno azul conferidos |
 | 2 | Resumo por Acumulador | Leitura corrigida a partir do diagnóstico; precisa de novo teste Windows | Datas mudam para a competência pedida e PDF confirma empresa/período/valores |
-| 3 | EFD Contribuições | Exportador existente; última geração falhou | Identificar exceção no log local, revalidar emissão e definir aceite do produto esperado |
+| 3 | EFD Contribuições | Exportador existente; geração sinalizada, ciclo interrompido | Conferir arquivo e encerramento seguro; definir aceite do produto esperado |
 | 4 | Presumido inteiro por empresa | Um envio executa a sequência nativa cadastrada | Supervisor aprova cada documento e uma falha controlada mantém histórico/continuidade segura |
 | 5 | Lote do Presumido | Mesmo worker, uma empresa por vez | Repetir em poucas empresas fechadas, sem troca incorreta, duplicação ou arquivo no destino errado |
 | 6 | Operação assistida e Lucro Real | Depois do aceite do Presumido | Procedimento/backup/responsáveis definidos e novo aceite para Real |

@@ -45,6 +45,13 @@ def linha(textos):
 
 
 class TestRecortesResumo(unittest.TestCase):
+    def test_separador_claro_do_spinner_nao_entra_no_recorte_da_data(self):
+        imagem,dados=formulario(None)
+        desenho=ImageDraw.Draw(imagem)
+        for y in (80,112):desenho.line((196,y,196,y+23),fill='#d4d4d4')
+        campos=medir_campos(imagem,rotulos_periodo(dados,2))
+        self.assertTrue(all(c['area_texto'][2]<196 for c in campos.values()))
+
     def test_diagnostico_diferencia_rotulos_de_bordas_sem_ocr_livre(self):
         imagem,dados=formulario(None)
         for k,v in zip(dados,('EMPRESA PRIVADA',10,10,50,20)):dados[k].append(v)

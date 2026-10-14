@@ -74,37 +74,63 @@ def _aguardar(dominio, nome, detector, prefixo, tentativas=90):
     return imagem if estado == nome else None
 
 
+def _esperar_periodo(papel=None, esperado=None, tentativas=5):
+    """Aguarda leitura nova, sem redigitar para compensar OCR transitório."""
+    for tentativa in range(tentativas):
+        ponto_seguro()
+        try:
+            campos = formulario_livros._validar_periodo_confirmado(_ler_periodo())
+            if papel is None or campos[papel]['valor'] == esperado:
+                return campos
+        except ValueError:
+            pass
+        print(f'LIVROS_PERIODO_RELEITURA campo={papel or "campos"} tentativa={tentativa+1} confirmado=False',flush=True)
+        if tentativa < tentativas-1:
+            time.sleep(.3)
+    raise ValueError('Período dos livros não confirmado; não emitir.')
+
+
+def _conferir_antes_ok(inicial, final, tentativas=5):
+    """As duas datas e todas as opções precisam bater na MESMA captura."""
+    for tentativa in range(tentativas):
+        ponto_seguro()
+        imagem = tela.capturar_tela()
+        try:
+            periodo = formulario_livros._validar_periodo_confirmado(_ler_periodo(imagem))
+            selecao = _ler_selecao(imagem)
+            if (set(selecao['livros']) == set(TIPOS) and len(selecao['outros']) == 13
+                    and all(type(l['marcada']) is bool for l in selecao['livros'].values())
+                    and all(type(c['marcada']) is bool for c in selecao['outros'])
+                    and periodo['inicial']['valor'] == inicial and periodo['final']['valor'] == final
+                    and all(l['marcada'] for l in selecao['livros'].values())
+                    and not any(c['marcada'] for c in selecao['outros'])):
+                return imagem
+            if any(c['marcada'] is True for c in selecao['outros']):
+                raise ValueError('Outra opção está marcada; não emitir.')
+        except ValueError:
+            pass
+        if tentativa < tentativas-1:
+            time.sleep(.3)
+    raise ValueError('Período ou seleção final dos três livros divergiu; não emitir.')
+
+
 def _preencher(inicial, final, interacao):
     for papel, valor in (('inicial', inicial), ('final', final)):
-        campos = _ler_periodo()
+        campos = _esperar_periodo()
+        if campos[papel]['valor'] == valor:
+            continue  # Não arriscar reescrever um campo que já confirmou.
         interacao.clicar(*campos[papel]['posicao'])
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace('/', ''))
         interacao.pressionar_tecla('tab')
-        confirmado = False
-        for _ in range(5):
-            ponto_seguro()
-            try:
-                campos = _ler_periodo()
-                confirmado = campos[papel]['valor'] == valor
-                if confirmado:
-                    break
-            except ValueError:
-                pass
-            time.sleep(.3)
-        if not confirmado:
-            raise ValueError('Data '+papel+' dos livros não confirmou o período solicitado.')
-    periodo = _ler_periodo()
-    selecao = _ler_selecao()
-    if (periodo['inicial']['valor'] != inicial or periodo['final']['valor'] != final
-            or not all(l['marcada'] for l in selecao['livros'].values())
-            or any(c['marcada'] for c in selecao['outros'])):
-        raise ValueError('Período ou seleção final dos três livros divergiu; não emitir.')
+        _esperar_periodo(papel, valor)
+    return _conferir_antes_ok(inicial, final)
 
 
-def _conferir_conjunto(pasta, inicial, final, cnpj, nome):
+def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
     """Classifica pelo conteúdo, nunca pelo nome, ordem ou primeiro preview."""
     from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
     candidatos = {}
     for caminho in sorted(pasta.glob('*.pdf')):
         ponto_seguro()
@@ -138,15 +164,16 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome):
         except Exception:
             # PDF ilegível fica no staging local e nunca vira artefato válido.
             continue
-    artefatos = []
+    artefatos = [] if artefatos is None else artefatos
     for tipo in TIPOS:
+        ponto_seguro()
         if len(candidatos.get(tipo, [])) != 1:
             continue
         try:
             caminho = arquivos.finalizar_pdf(candidatos[tipo][0], tipo, inicial, final,
                                              cnpj_esperado=cnpj, nome_empresa=nome)
             artefatos.append({'tipo': tipo, 'caminho': str(caminho)})
-        except (OSError, ValueError):
+        except (OSError, ValueError, PyPdfError):
             continue  # Os outros livros já confirmados continuam disponíveis.
     return artefatos
 
@@ -256,10 +283,9 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     formulario_livros.marcar_tres_livros(_ler_selecao,interacao.clicar)
     acompanhamento.confirmar('titulo_livros_fiscais_lido')
     acompanhamento.iniciar('preencher_periodo')
-    _preencher(inicial,final,interacao)
+    imagem = _preencher(inicial,final,interacao)
     acompanhamento.confirmar('campos_periodo_confirmados')
     acompanhamento.iniciar('gerar_previa')
-    imagem=tela.capturar_tela()
     pos=tela.achar_texto_ou_no_centro(imagem,'OK',escala=4)
     if pos is None:return False
     interacao.clicar(*pos)
@@ -302,7 +328,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     if completa:
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
-    artefatos.extend(_conferir_conjunto(staging,inicial,final,cnpj,empresa[0]))
+    _conferir_conjunto(staging,inicial,final,cnpj,empresa[0],artefatos=artefatos)
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')

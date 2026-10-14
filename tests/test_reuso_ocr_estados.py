@@ -146,6 +146,32 @@ class TestEsperaPixels(unittest.TestCase):
             estados.esperar_por_estado([('sucesso',detector)],comparacao_exata=True)
         detector.assert_not_called()
 
+    def test_releitura_periodica_de_pixels_identicos_recupera_ocr_negativo(self):
+        imagem=Image.new('RGB',(100,100),'white')
+        detector=Mock(side_effect=[None,(20,30)])
+        with patch.object(tela,'capturar_tela',return_value=imagem), \
+                patch.object(estados.time,'sleep'),patch.object(estados,'ponto_seguro'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            resultado=estados.esperar_por_estado([('sucesso',detector)],espera_minima=0,
+                tentativas=3,intervalo=0,comparacao_exata=True,rever_a_cada=2)
+        self.assertEqual(resultado[1:],('sucesso',(20,30)))
+        self.assertEqual(detector.call_count,2)
+
+    def test_teto_real_inclui_tempo_dos_detectores_sem_repetir_geracao(self):
+        imagem=Image.new('RGB',(100,100),'white'); relogio=[0]
+        def lento(_):
+            relogio[0]+=7
+            return None
+        detector=Mock(side_effect=lento)
+        with patch.object(tela,'capturar_tela',return_value=imagem) as captura, \
+                patch.object(estados.time,'sleep'),patch.object(estados,'ponto_seguro'), \
+                patch.object(estados.time,'monotonic',side_effect=lambda:relogio[0]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            resultado=estados.esperar_por_estado([('sucesso',detector)],espera_minima=0,
+                tentativas=90,intervalo=0,comparacao_exata=True,limite_segundos=5)
+        self.assertEqual(resultado,(None,None,None))
+        detector.assert_called_once(); captura.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

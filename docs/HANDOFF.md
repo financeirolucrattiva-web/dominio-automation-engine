@@ -1,5 +1,46 @@
 # Domínio Automation Engine — handoff
 
+## Três rotinas revisadas; próximo passo é emissão por empresa — 14/10/2026
+
+Prioridade: executar o Presumido completo na empresa do primeiro teste,
+agosto/2026 fechado. Setembro estava aberto. Não estender confirmação a
+outras empresas. Código e automação revisados; nenhuma nova emissão real
+foi feita neste ambiente.
+
+- OCR com timeout, uma leitura Windows pendente e descarte de resposta
+  tardia; limite de imagem informado pelo motor e coordenadas restauradas.
+- Resumo mede botões e recupera Fechar em recorte; duas leituras literais
+  para Fechar/OK, sem aliases nem coordenadas fixas. Bordas 3D verificadas.
+- Livros aguarda marcações sem repetir cliques, confere datas e seleção
+  na mesma captura e espera transições do seletor. Mantém PDFs já validados
+  se outro arquivo ou o retorno falhar; PDF corrompido não vira sucesso.
+- EFD relê tela estática, confirma mensagem e saída do aviso com múltiplas
+  escalas/motores, um Enter e foco conferido. Não repete geração.
+- Novo atalho Executar Presumido por Empresa usa o mesmo worker/mutex,
+  etapas no terminal, progresso periódico, cancelamento cooperativo e
+  JSON local limitado. Encerramento não depende do histórico funcionar.
+
+Com servidor e diagnósticos anteriores fechados, Domínio no painel azul:
+
+```bat
+cd /d C:\Users\darto\dominio-automation-engine
+git switch main
+git pull --ff-only origin main
+python -u scripts\explorar_presumido.py --competencia 2026-08
+```
+
+Pede código e confirmação de mês fechado nessa empresa. Não executar em
+paralelo com o servidor; pelo painel, usar Lucro Presumido por empresa.
+Conferir PDF do Resumo, três livros e arquivo da EFD; este último continua
+exportador existente, sem demonstrativo PDF ou caminho de artefato.
+
+Validação: 615 testes passaram, compileall/diff --check e smoke Chromium
+com fiscal sintético; conferir
+[roteiro atual](TESTE-PRESUMIDO-POR-EMPRESA.md). Próximo resultado necessário:
+etapas e documentos da emissão real, não outro diagnóstico offline parado
+na leitura de OK. Falha continua registrada; sem retorno azul confirmado,
+sequência para. Não reenviar geração já sinalizada sem conferir arquivo.
+
 ## Diagnóstico ainda lendo o botão; reduzir OCR repetido por captura — 14/10/2026
 
 Saída local confirmou datas e parou no trecho RESUMO_LEITURA_CAMPOS enviado.
