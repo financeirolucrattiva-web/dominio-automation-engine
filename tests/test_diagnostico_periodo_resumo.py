@@ -18,6 +18,30 @@ from app.servidor import ServicoExecucao
 
 
 class TestDiagnosticoPeriodoResumo(unittest.TestCase):
+    def test_ultima_falha_ok_mais_recente_e_conferencia_nao_clica(self):
+        import scripts.revisar_periodo_resumo as diagnostico
+        from app import botoes_formulario
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz=Path(pasta); capturas=raiz/'capturas'; capturas.mkdir()
+            for nome,largura,tempo in (('antigo_erro_periodo_resumo.png',100,10),
+                                       ('recente_erro_ok_resumo.png',200,20)):
+                p=capturas/nome; Image.new('RGB',(largura,100)).save(p); os.utime(p,(tempo,tempo))
+            backend=Mock(); backend.achar_texto_ou_no_centro.return_value=(10,20)
+            def ler_dados(imagem,escala):
+                dados=dados_ocr()
+                for k in ('left','top','width','height'):dados[k]=[v*escala/2 for v in dados[k]]
+                return dados
+            backend._ler_dados_ocr.side_effect=ler_dados
+            backend.ler_dados_ocr_windows.return_value=None
+            saida=io.StringIO()
+            with patch.object(diagnostico,'ROOT',raiz),patch.multiple('app',create=True,tela=backend), \
+                    patch.object(botoes_formulario,'achar_ok_resumo',return_value=(150,50)) as botao, \
+                    contextlib.redirect_stdout(saida):
+                self.assertEqual(main(['--ultima-falha','--conferir-ok']),0)
+            self.assertEqual(botao.call_args.args[0].width,200)
+            backend.capturar_tela.assert_not_called()
+            self.assertIn('RESUMO_BOTAO_OK {"confirmado": true',saida.getvalue())
+
     def test_ultima_falha_usa_png_mais_recente_sem_capturar_desktop(self):
         import scripts.revisar_periodo_resumo as diagnostico
         with tempfile.TemporaryDirectory() as pasta:

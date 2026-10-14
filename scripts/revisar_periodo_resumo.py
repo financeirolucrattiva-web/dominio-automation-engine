@@ -35,15 +35,17 @@ def main(argv=None):
     imagens=parser.add_mutually_exclusive_group()
     imagens.add_argument('--imagem',type=Path,help='PNG local do formulário, sem desktop.')
     imagens.add_argument('--ultima-falha',action='store_true',
-        help='Analisa o PNG local mais recente de erro_periodo_resumo; não captura nem opera o desktop.')
+        help='Analisa o PNG mais recente de erro_periodo_resumo ou erro_ok_resumo; não opera o desktop.')
+    parser.add_argument('--conferir-ok',action='store_true',help='Também lê o botão OK; não clica.')
     args=parser.parse_args(argv)
     if args.ultima_falha:
-        candidatos=list((ROOT/'capturas').glob('*erro_periodo_resumo.png'))
+        candidatos=[p for padrao in ('*erro_periodo_resumo.png','*erro_ok_resumo.png')
+                    for p in (ROOT/'capturas').glob(padrao)]
         if not candidatos:
-            print('Nenhuma captura de falha do período do Resumo encontrada em capturas/. Não houve alteração ou emissão.')
+            print('Nenhuma captura de falha do período ou OK do Resumo encontrada em capturas/. Não houve alteração ou emissão.')
             return 1
         args.imagem=max(candidatos,key=lambda p:p.stat().st_mtime_ns)
-        print('Analisando a captura local mais recente da falha do período; nenhuma nova execução será iniciada.')
+        print('Analisando a captura local mais recente da falha do período ou OK; nenhuma nova execução será iniciada.')
     if not args.imagem and sys.platform!='win32':parser.error('Captura ao vivo requer Windows; use --imagem para leitura de PNG.')
     try:
         from PIL import Image
@@ -99,6 +101,11 @@ def main(argv=None):
         campos=ler_campos(imagem,registrar=lambda detalhe:print('RESUMO_RECORTE '+json.dumps(detalhe,ensure_ascii=False)),
             salvar_recorte=lambda recorte,nome:tela.salvar(recorte,ROOT/'capturas'/('resumo_data_'+nome+'.png')))
         print('RESUMO_LEITURA_CAMPOS '+json.dumps(resumo_leitura(campos),ensure_ascii=False))
+        if args.conferir_ok:
+            from app.botoes_formulario import achar_ok_resumo
+            pos=achar_ok_resumo(imagem,registrar=lambda d:print('RESUMO_BOTAO '+json.dumps(d,ensure_ascii=False)))
+            print('RESUMO_BOTAO_OK '+json.dumps({'confirmado':pos is not None,'posicao':pos}))
+            return 0 if pos is not None else 1
         return 0
     except Exception:
         print('Leitura dos campos não confirmada por recortes/concordância. Não houve alteração ou emissão.')

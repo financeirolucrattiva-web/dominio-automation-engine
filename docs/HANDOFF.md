@@ -1,5 +1,31 @@
 # Domínio Automation Engine — handoff
 
+## Período confirmado no fluxo real; bloqueio passou ao OK — 14/10/2026
+
+Novo log Windows: abrir_resumo e preencher_periodo confirmados; ambos campos
+01/08/2026–31/08/2026 reconhecidos nas duas capturas atuais. Rótulo Final foi
+recuperado por ROI e campos já corretos não foram redigitados. gerar_previa
+iniciou, RESUMO_OK false, nenhum clique/relatório, recuperação azul confirmada.
+Motivo real agora ok_resumo_nao_reconhecido; não tratar como falha de datas.
+
+Revisão encontrou veto incorreto por substring: achar_texto(...,'OK') podia
+encontrar BOOK fora da coluna e bloquear o botão real. A checagem global
+agora considera somente token inteiro OK; outro OK verdadeiro ainda bloqueia.
+Não há bitmap local que prove essa causa no teste enviado. Os critérios de
+borda, coluna e texto completo dos recortes mantêm as travas anteriores.
+
+RESUMO_BOTAO informa fase/motivo fechado, caixas, contagens e presença de texto
+esperado; nunca imprime o OCR desconhecido ou mensagem de exceção. Distingue
+avisos, formulário, período, Fechar, bordas, coluna, outro OK e texto ilegível.
+`python scripts\revisar_periodo_resumo.py --ultima-falha --conferir-ok` analisa
+offline o PNG mais recente entre erro_periodo_resumo e erro_ok_resumo. Não
+captura desktop, clica, troca empresa ou emite. Saída RESUMO_BOTAO_OK inclui
+booleano/posição. Usar esse resultado antes de nova execução.
+
+Leitura real validada nessa tentativa; prévia/PDF/encerramento continuam
+pendentes. Não afirmar homologação completa do Resumo ou lote.
+Validação de código: 573 testes passaram; sintaxe Python e diff conferidos.
+
 ## Data final visível, mas ausente no OCR de tela inteira — 14/10/2026
 
 Diagnóstico da captura salva: título do Resumo reconhecido; Data inicial

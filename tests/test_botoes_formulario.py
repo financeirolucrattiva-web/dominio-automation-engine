@@ -42,14 +42,18 @@ class TestBotaoResumo(unittest.TestCase):
             self.assertIsNotNone(botoes.achar_ok_resumo(imagem))
 
     def preparar(self,imagem,dados,ok=None):
+        dados=copy.deepcopy(dados)
+        if ok is not None:
+            for k,v in zip(dados,('OK',(ok[0]-10)*2,(ok[1]-4)*2,40,16)):
+                dados[k].append(v)
         def ocr(_imagem,escala):
             copia=copy.deepcopy(dados)
             for chave in ('left','top','width','height'):
                 copia[chave]=[v*escala/2 for v in copia[chave]]
             return copia
         self.addCleanup(patch.stopall)
-        patch.object(botoes.tela,'_ler_dados_ocr',side_effect=ocr).start()
-        patch.object(botoes.tela,'ler_dados_ocr_windows',return_value=None).start()
+        self.dados_ocr=patch.object(botoes.tela,'_ler_dados_ocr',side_effect=ocr).start()
+        self.dados_windows=patch.object(botoes.tela,'ler_dados_ocr_windows',return_value=None).start()
         self.texto=patch.object(botoes.tela,'achar_texto_ou_no_centro',
                                side_effect=lambda im,t,**kw:ok if t=='OK' else None).start()
         self.windows=patch.object(botoes.tela,'achar_texto_windows',return_value=None).start()
@@ -74,8 +78,33 @@ class TestBotaoResumo(unittest.TestCase):
         with patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:
                           {'fechar'} if c[1]>110 else {'ok'}):
             self.assertIsNotNone(botoes.achar_ok_resumo(imagem))
-        self.assertEqual({c.kwargs['escala'] for c in self.texto.call_args_list if c.args[1]=='OK'}, {2,4})
-        self.assertEqual({c.kwargs['escala'] for c in self.windows.call_args_list if c.args[1]=='OK'}, {2,4})
+        self.assertEqual({c.args[1] for c in self.dados_ocr.call_args_list}, {2,4})
+        self.assertEqual({c.args[1] for c in self.dados_windows.call_args_list}, {2,4})
+
+    def test_book_fora_da_coluna_nao_veta_botao_ok_real(self):
+        imagem,dados=tela_resumo()
+        for k,v in zip(dados,('BOOK',40,40,100,20)):dados[k].append(v)
+        self.preparar(imagem,dados)
+        # Simula a busca antiga por substring devolvendo BOOK.
+        self.texto.side_effect=lambda im,t,**kw:(40,30) if t=='OK' else None
+        with patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:
+                          {'fechar'} if c[1]>110 else {'ok'}):
+            self.assertIsNotNone(botoes.achar_ok_resumo(imagem))
+
+    def test_diagnostico_do_outro_ok_nao_imprime_ocr_livre(self):
+        imagem,dados=tela_resumo(); self.preparar(imagem,dados,ok=(30,30))
+        detalhes=[]
+        self.assertIsNone(botoes.achar_ok_resumo(imagem,detalhes.append))
+        self.assertEqual(detalhes[-1]['motivo'],'outro_ok_exato')
+        self.assertNotIn('texto',detalhes[-1])
+
+    def test_diagnostico_distingue_borda_de_fechar_e_texto_ok(self):
+        imagem,dados=tela_resumo(); self.preparar(imagem,dados)
+        detalhes=[]
+        with patch.object(botoes,'_texto_recorte',return_value={'texto privado'}):
+            self.assertIsNone(botoes.achar_ok_resumo(imagem,detalhes.append))
+        self.assertEqual(detalhes[-1]['motivo'],'texto_fechar_nao_confirmado')
+        self.assertNotIn('privado',str(detalhes))
 
     def test_aviso_reconhecido_bloqueia_antes_de_buscar_ok(self):
         imagem,dados=tela_resumo(); self.preparar(imagem,dados)

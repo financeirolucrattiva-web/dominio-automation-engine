@@ -4623,6 +4623,36 @@ caixas fora da ROI, ambiguidade e borda ausente. Sintaxe/diff conferidos.
 
 ---
 
+### 0.108 Período confirmado, reconhecimento do OK bloqueia a prévia (14/10/2026)
+
+**Achado real:** log Windows após0.107 confirma ambos campos de agosto/2026
+nas leituras atuais e preencher_periodo. Datas já corretas foram preservadas.
+gerar_previa começa, mas OK não é reconhecido. Nenhum clique é enviado;
+recuperação ao painel azul é confirmada. Falha ok_resumo_nao_reconhecido.
+
+**Bug comprovado no código:** veto global procurava substring OK; palavra
+como BOOK fora da coluna podia bloquear o botão real medido. Agora busca
+token inteiro OK em Tesseract/Windows2x/4x. Outro OK literal fora dos botões
+continua bloqueando, assim como avisos/ambiguidade e texto não confirmado.
+Não afirmar que o falso veto foi a causa na máquina sem captura/diagnóstico.
+
+**Diagnóstico:** RESUMO_BOTAO separa formulário/aviso, campos, Fechar, bordas,
+coluna, outro OK e texto do recorte. Só motivos fechados, medidas/contagens
+e presença da palavra esperada; não imprime conteúdo livre da captura.
+O script existente aceita --conferir-ok para apenas ler esse botão. Com
+--ultima-falha, escolhe a captura mais recente de erro_periodo_resumo OU
+erro_ok_resumo, evitando analisar a falha antiga de datas. Não opera desktop.
+Esse resultado é o próximo passo antes de nova emissão.
+
+**Limite:** o período foi confirmado no fluxo real. Prévia, PDF e retorno
+normal da rotina ainda não foram validados. Sem relaxar leitura Fechar/OK,
+sem coordenada fixa ou tecla Enter para contornar reconhecimento incerto.
+Validação: 573 testes passaram; regressão BOOK/OK literal, outro OK externo,
+diagnóstico sem OCR privado e seleção da falha OK mais recente sem ação.
+Sintaxe Python/diff conferidos. Emissão real ainda pendente.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
