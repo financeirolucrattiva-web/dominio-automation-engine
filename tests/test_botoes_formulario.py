@@ -2,8 +2,9 @@
 import copy
 from pathlib import Path
 import shutil
+import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock,patch
 
 from PIL import ImageDraw, ImageFont
 from app import botoes_formulario as botoes
@@ -32,6 +33,23 @@ def tela_resumo(dx=0,dy=0,fator=1):
 
 
 class TestBotaoResumo(unittest.TestCase):
+    def test_wrapper_reutiliza_ocr_e_descarta_ao_terminar_a_analise(self):
+        imagem,_=tela_resumo(); engine=types.ModuleType('winocr')
+        engine.recognize_pil_sync=Mock(return_value={'lines':[]})
+        dados={'text':[],'left':[],'top':[],'width':[],'height':[]}
+        def analisar(im,registrar):
+            for _ in range(3):
+                botoes.tela._ler_dados_ocr(im.copy(),2)
+                botoes.tela.ler_dados_ocr_windows(im.copy(),2)
+            return (315,94)
+        with patch.dict('sys.modules',{'winocr':engine}), \
+                patch.object(botoes.tela.pytesseract,'image_to_data',return_value=dados) as tess, \
+                patch.object(botoes,'_achar_ok_resumo_na_captura',side_effect=analisar):
+            self.assertEqual(botoes.achar_ok_resumo(imagem),(315,94))
+            self.assertEqual(tess.call_count,1); self.assertEqual(engine.recognize_pil_sync.call_count,1)
+            botoes.achar_ok_resumo(imagem)
+            self.assertEqual(tess.call_count,2); self.assertEqual(engine.recognize_pil_sync.call_count,2)
+
     @unittest.skipUnless(shutil.which('tesseract'),'Tesseract indisponível.')
     def test_ok_compartilha_leitura_local_quando_final_falta_na_tela_inteira(self):
         imagem,dados=tela_resumo()

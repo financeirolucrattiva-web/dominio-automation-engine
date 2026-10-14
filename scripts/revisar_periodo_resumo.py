@@ -103,7 +103,8 @@ def main(argv=None):
         print('RESUMO_LEITURA_CAMPOS '+json.dumps(resumo_leitura(campos),ensure_ascii=False))
         if args.conferir_ok:
             from app.botoes_formulario import achar_ok_resumo
-            pos=achar_ok_resumo(imagem,registrar=lambda d:print('RESUMO_BOTAO '+json.dumps(d,ensure_ascii=False)))
+            print('Analisando botão OK na imagem salva; somente leitura, sem clique.',flush=True)
+            pos=achar_ok_resumo(imagem,registrar=lambda d:print('RESUMO_BOTAO '+json.dumps(d,ensure_ascii=False),flush=True))
             print('RESUMO_BOTAO_OK '+json.dumps({'confirmado':pos is not None,'posicao':pos}))
             return 0 if pos is not None else 1
         return 0

@@ -264,6 +264,22 @@ def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
     return None
 
 
+def _reconhecer_ocr_windows(imagem, escala, lang='pt', preparar=True):
+    """Reutiliza resultado OCR válido só no escopo da captura atual."""
+    cache=_CACHE_OCR.get(); chave=None
+    if cache is not None:
+        pixels=imagem.convert('RGBA').tobytes() if imagem.mode=='P' else imagem.tobytes()
+        chave=('windows',imagem.mode,imagem.size,escala,lang,preparar,
+               hashlib.sha256(pixels).digest())
+        if chave in cache:return cache[chave]
+    import winocr
+    imagem_ocr=_preparar_para_ocr(imagem,escala) if preparar else imagem
+    resultado=winocr.recognize_pil_sync(imagem_ocr,lang=lang)
+    if (cache is not None and len(cache)<8 and isinstance(resultado,dict)
+            and isinstance(resultado.get('lines'),list)):cache[chave]=resultado
+    return resultado
+
+
 def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lang="pt"):
     """Mesma interface de `achar_texto()` (mesmo recorte/escala, mesma
     busca por substring em janelas de 1..`max_palavras` palavras
@@ -290,16 +306,12 @@ def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lan
     continua funcionando sem ela).
     """
     try:
-        import winocr
+        resultado = _reconhecer_ocr_windows(imagem,escala,lang,preparar=escala>1)
     except ImportError:
         if debug:
             print("winocr não instalado — pulando segunda opinião do OCR do Windows.")
         return None
 
-    imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
-
-    try:
-        resultado = winocr.recognize_pil_sync(imagem_ocr, lang=lang)
     except Exception as erro:
         if debug:
             print(f"OCR do Windows falhou: {erro!r}")
@@ -333,9 +345,7 @@ def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lan
 def ler_dados_ocr_windows(imagem, escala=2):
     """Segunda opinião local com caixas medidas; None se indisponível."""
     try:
-        import winocr
-        imagem_ocr = _preparar_para_ocr(imagem, escala)
-        resultado = winocr.recognize_pil_sync(imagem_ocr, lang="pt")
+        resultado = _reconhecer_ocr_windows(imagem,escala)
         dados = {chave: [] for chave in ("text", "left", "top", "width", "height")}
         for linha in resultado["lines"]:
             for palavra in linha["words"]:
