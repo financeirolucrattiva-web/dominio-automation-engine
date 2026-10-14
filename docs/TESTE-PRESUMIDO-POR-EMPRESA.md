@@ -25,6 +25,13 @@ conter dados de clientes ao fundo. O diagnóstico distingue rótulos, bordas,
 área textual, alinhamento e indisponibilidade do OCR. Essa falha ainda está
 em investigação; não aumentar tentativas ou presumir coordenadas para passar.
 
+Na revisão0.107, a ausência de Final no OCR global passa por um recorte ampliado
+do rótulo atual, sem whitelist ou coordenada fixa. A saída deve incluir
+RESUMO_RECORTE com fase rotulo_recorte confirmado:true e, ao fim,
+RESUMO_LEITURA_CAMPOS com ambas datas. Se não confirmar, compartilhar essa
+saída limitada antes de nova emissão. Se confirmar, reiniciar servidor e
+testar o Resumo individual para verificar prévia, PDF e retorno ao painel.
+
 ## Primeiro: os três Livros Fiscais
 
 1. Atualizar a main, fechar/reabrir o servidor e recarregar o painel com Ctrl+F5.

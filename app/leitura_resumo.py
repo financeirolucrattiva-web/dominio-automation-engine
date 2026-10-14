@@ -1,5 +1,6 @@
 """Datas em campos medidos por pixels; nenhuma ação sobre o desktop."""
 import datetime as dt
+import math
 import re
 
 from app.formulario_resumo import campos_periodo
@@ -33,38 +34,110 @@ def motivo_geometria(erro):
     }.get(str(erro),'geometria_nao_confirmada')
 
 
-def rotulos_periodo(dados, escala, livros=False):
+def _rotulo_periodo(dados, escala, papel, livros=False):
     palavras=[{'texto':str(t).strip(), 'x':dados['left'][i]/escala, 'y':dados['top'][i]/escala,
                'w':dados['width'][i]/escala, 'h':dados['height'][i]/escala}
               for i,t in enumerate(dados['text']) if str(t).strip()]
-    resultado={}
-    for papel in ('inicial','final'):
-        candidatos=[]
-        for p in palavras:
-            token=p['texto'].rstrip(':').casefold()
-            if livros and token in ('iniciat','finat'):
-                token = 'inicial' if token == 'iniciat' else 'final'
-            if re.fullmatch('data'+r'\s*'+papel,token):
-                candidatos.append(p)
-            elif token==papel:
-                if livros:
-                    anteriores = [a for a in palavras if a['x']+a['w'] <= p['x']
-                        and p['x']-(a['x']+a['w']) <= 2*p['h']
-                        and max(p['y'],a['y']) < min(p['y']+p['h'],a['y']+a['h'])]
-                    if not anteriores:
-                        candidatos.append(p)
-                    continue
-                anteriores=[a for a in palavras if a['texto'].casefold()=='data' and a['x']+a['w']<=p['x']
+    candidatos=[]
+    for p in palavras:
+        token=p['texto'].rstrip(':').casefold()
+        if livros and token in ('iniciat','finat'):
+            token = 'inicial' if token == 'iniciat' else 'final'
+        if re.fullmatch('data'+r'\s*'+papel,token):
+            candidatos.append(p)
+        elif token==papel:
+            if livros:
+                anteriores = [a for a in palavras if a['x']+a['w'] <= p['x']
                     and p['x']-(a['x']+a['w'])<=2*p['h']
                     and max(p['y'],a['y'])<min(p['y']+p['h'],a['y']+a['h'])]
-                if len(anteriores)==1:
-                    a=anteriores[0]
-                    candidatos.append({'x':a['x'],'y':min(a['y'],p['y']),
-                        'w':p['x']+p['w']-a['x'],'h':max(a['y']+a['h'],p['y']+p['h'])-min(a['y'],p['y'])})
-        if len(candidatos)!=1:raise ValueError('Rótulos do período ausentes ou ambíguos.')
-        resultado[papel]=candidatos[0]
+                if not anteriores:candidatos.append(p)
+                continue
+            anteriores=[a for a in palavras if a['texto'].casefold()=='data' and a['x']+a['w']<=p['x']
+                and p['x']-(a['x']+a['w'])<=2*p['h']
+                and max(p['y'],a['y'])<min(p['y']+p['h'],a['y']+a['h'])]
+            if len(anteriores)==1:
+                a=anteriores[0]
+                candidatos.append({'x':a['x'],'y':min(a['y'],p['y']),
+                    'w':p['x']+p['w']-a['x'],'h':max(a['y']+a['h'],p['y']+p['h'])-min(a['y'],p['y'])})
+    if len(candidatos)!=1:raise ValueError('Rótulos do período ausentes ou ambíguos.')
+    return candidatos[0]
+
+
+def rotulos_periodo(dados, escala, livros=False):
+    resultado={p:_rotulo_periodo(dados,escala,p,livros) for p in ('inicial','final')}
     if resultado['inicial']['y']>=resultado['final']['y']:raise ValueError('Ordem dos campos não confirmada.')
     return resultado
+
+
+def resolver_rotulos_resumo(imagem, dados, escala, registrar=None, titulo_confirmado=False):
+    """Global primeiro; relê rótulo final numa ROI das caixas atuais.
+
+    Nunca transforma uma segunda linha em Final por sua posição. Somente
+    duas leituras literais completas autorizam medir o controle seguinte.
+    """
+    from app import tela
+    try:return rotulos_periodo(dados,escala)
+    except ValueError as erro:
+        original=erro
+    inicial=_rotulo_periodo(dados,escala,'inicial')
+    # Não encobrir Final duplicado, deslocado ou sem Data: se ele já foi
+    # lido, a ambiguidade global precisa continuar bloqueando a rotina.
+    if any(re.fullmatch(r'(data\s*)?final:?',str(t).strip().casefold()) for t in dados['text']):
+        raise original
+    datas=[{'x':dados['left'][i]/escala,'y':dados['top'][i]/escala,
+            'w':dados['width'][i]/escala,'h':dados['height'][i]/escala}
+           for i,t in enumerate(dados['text']) if str(t).strip().casefold()=='data']
+    candidatas=[r for r in datas if r['y']>inicial['y']+inicial['h']
+                and abs(r['x']-inicial['x'])<=inicial['h']]
+    if len(candidatas)!=1:raise original
+    if not titulo_confirmado:
+        for ampliacao in (2,4):
+            if (tela.achar_texto_ou_no_centro(imagem,'Resumo por acumulador',escala=ampliacao) is not None
+                    or tela.achar_texto_windows(imagem,'Resumo por acumulador',escala=ampliacao) is not None):
+                titulo_confirmado=True; break
+    if not titulo_confirmado:raise original
+    r=candidatas[0]; margem=max(inicial['h'],r['h'])*.4
+    area=(max(0,math.floor(min(inicial['x'],r['x'])-margem)),
+          max(math.ceil(inicial['y']+inicial['h']),math.floor(r['y']-margem)),
+          min(imagem.width,math.ceil(inicial['x']+inicial['w']+margem)),
+          min(imagem.height,math.ceil(r['y']+r['h']+margem)))
+    if area[2]<=area[0] or area[3]<=area[1]:raise original
+    recorte=imagem.crop(area); reconhecidos=[]; contradicao=False
+    for preparo,ampliacao in (('cinza',4),('cinza',6),('binaria',4),('binaria',6)):
+        try:
+            leitura=tela.ler_dados_ocr_linha_rotulo(recorte,ampliacao,preparo)
+            indices=[i for i,t in enumerate(leitura['text']) if str(t).strip()]
+            texto=' '.join(str(leitura['text'][i]).strip() for i in indices).casefold()
+            if re.fullmatch(r'data\s*inicial:?',texto):
+                contradicao=True; break
+            if not re.fullmatch(r'data\s*final:?',texto):continue
+            if any(leitura['left'][i]<0 or leitura['top'][i]<0
+                   or leitura['width'][i]<=0 or leitura['height'][i]<=0
+                   or leitura['left'][i]+leitura['width'][i]>recorte.width*ampliacao
+                   or leitura['top'][i]+leitura['height'][i]>recorte.height*ampliacao
+                   for i in indices):continue
+            if (max(leitura['top'][i] for i in indices)>=
+                    min(leitura['top'][i]+leitura['height'][i] for i in indices)):continue
+            x=min(leitura['left'][i] for i in indices)/ampliacao+area[0]
+            y=min(leitura['top'][i] for i in indices)/ampliacao+area[1]
+            direita=max(leitura['left'][i]+leitura['width'][i] for i in indices)/ampliacao+area[0]
+            baixo=max(leitura['top'][i]+leitura['height'][i] for i in indices)/ampliacao+area[1]
+            # A palavra Data relida precisa corresponder à mesma âncora,
+            # não a outra linha dentro da margem do recorte.
+            i=indices[0]
+            data_x=leitura['left'][i]/ampliacao+area[0]
+            data_y=leitura['top'][i]/ampliacao+area[1]
+            if (max(data_x,r['x'])>=min(data_x+leitura['width'][i]/ampliacao,r['x']+r['w'])
+                    or max(data_y,r['y'])>=min(data_y+leitura['height'][i]/ampliacao,r['y']+r['h'])):continue
+            reconhecidos.append({'x':x,'y':y,'w':direita-x,'h':baixo-y})
+        except Exception:continue
+    confirmado=(not contradicao and len(reconhecidos)>=2 and all(
+        abs(c[k]-reconhecidos[0][k])<=max(inicial['h'],r['h'])*.3
+        for c in reconhecidos for k in ('x','y','w','h')))
+    if registrar:registrar({'fase':'rotulo_recorte','campo':'final','area':list(area),
+                           'leituras_confirmadas':len(reconhecidos),'confirmado':confirmado})
+    if not confirmado:raise original
+    return {'inicial':inicial,'final':reconhecidos[0]}
 
 
 def normalizar_selecao(imagem):
@@ -161,7 +234,7 @@ def formulario_resumo_reconhecido(imagem):
                 continue
             dados = (tela._ler_dados_ocr(imagem, escala) if motor == 'tesseract' else
                      tela.ler_dados_ocr_windows(imagem, escala))
-            rotulos = rotulos_periodo(dados, escala)
+            rotulos = resolver_rotulos_resumo(imagem,dados,escala,titulo_confirmado=True)
             medir_campos(imagem, rotulos)
             return titulo
         except (ValueError, TypeError, KeyError, RuntimeError):
@@ -194,7 +267,9 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
                 else:completos.append(campos_periodo(dados,escala))
             except ValueError:pass
             try:
-                medidas=medir_campos(imagem,rotulos_periodo(dados,escala,livros=livros))
+                rotulos=(rotulos_periodo(dados,escala,livros=True) if livros else
+                         resolver_rotulos_resumo(imagem,dados,escala,registrar))
+                medidas=medir_campos(imagem,rotulos)
                 contextos.append(medidas)
                 if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,'confirmado':True,
                     'campos':{p:list(c['retangulo']) for p,c in medidas.items()}})

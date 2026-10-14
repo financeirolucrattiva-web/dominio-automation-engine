@@ -1,5 +1,35 @@
 # Domínio Automation Engine — handoff
 
+## Data final visível, mas ausente no OCR de tela inteira — 14/10/2026
+
+Diagnóstico da captura salva: título do Resumo reconhecido; Data inicial
+reconhecido em todas opiniões. Tesseract4x encontrou Data na segunda linha,
+mas nenhum Final. Todas geometrias falharam em rotulos_ausentes_ou_ambiguos,
+antes de medir bordas. O print recortado enviado depois mostra Data final
+visível e período01/08/2026–31/08/2026 correto. Não é evidência de data errada
+nem falta do controle. Não criar alias para uma palavra que não foi lida.
+
+Resolver compartilhado agora tenta leitura global primeiro. Quando falta
+Final, exige título, Inicial único e somente um Data abaixo na mesma coluna
+da captura atual. A ROI é delimitada pelas caixas desses rótulos, sem posição
+fixa ou gap entre campos. PSM7 cinza/binária4x/6x, sem whitelist, precisa ler
+literalmente Data final completo em pelo menos duas opiniões. Texto extra,
+Data inicial contraditório, duas linhas, bbox fora da ROI ou sem sobreposição
+com o Data observado não confirmam. As caixas relidas são convertidas à tela;
+bordas dos dois controles e datas completas continuam obrigatórias.
+
+Usado em ler_campos, reconhecimento do formulário e contexto da coluna OK;
+não corrigir só o preenchimento e deixar o OK preso no OCR global. Livros
+mantêm o resolvedor próprio. RESUMO_RECORTE fase rotulo_recorte informa área,
+contagem de leituras e confirmação, sem texto livre. Diagnóstico existente
+--ultima-falha já usa esse leitor. A captura inline foi inspecionada visualmente;
+não estava disponível como PNG local para executar Tesseract sobre ela.
+
+Teste real permanece pendente. Primeiro analisar novamente o mesmo PNG salvo;
+se confirmar ambas datas, reiniciar servidor e testar Resumo individual na
+empresa com agosto/2026 fechado. Não considerar lote homologado.
+Validação de código: 569 testes passaram; sintaxe Python e diff conferidos.
+
 ## Três releituras do Resumo também falham: diagnosticar a captura salva — 14/10/2026
 
 Operador voltou com geometri:false nos seis motores/preparos, antes do campo

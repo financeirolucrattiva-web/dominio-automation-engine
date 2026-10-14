@@ -207,6 +207,13 @@ def ler_dados_ocr_formulario(imagem, escala=4, preparo='cinza', psm=6):
         config=f'--psm {psm}', output_type=Output.DICT)
 
 
+def ler_dados_ocr_linha_rotulo(imagem, escala=4, preparo='cinza'):
+    """Uma linha de rótulo, sem whitelist para não fabricar palavras."""
+    imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
+    return pytesseract.image_to_data(imagem_ocr, lang='por',
+        config='--psm 7', output_type=Output.DICT)
+
+
 def ler_dados_ocr_linha_data(imagem, escala=4, preparo='cinza'):
     """Recorte de campo: uma linha/dígitos, sem reutilizar o cache geral."""
     imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
