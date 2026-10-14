@@ -359,7 +359,7 @@ class RepositorioTarefas:
         # OCR livre nunca atravessa a API; só retorno e motivos fechados.
         dados = {k: evento[k] for k in ("execution_id", "routine_id", "attempt", "step", "status", "elapsed_seconds")}
         evidencia = evento.get('evidence')
-        dados['evidence'] = evidencia if isinstance(evidencia, str) and evidencia in {'tela_principal_reconhecida', *MOTIVOS_PERIODO} else None
+        dados['evidence'] = evidencia if isinstance(evidencia, str) and evidencia in {'tela_principal_reconhecida', 'aviso_resultado_reconhecido', *MOTIVOS_PERIODO} else None
         with self.conectar() as banco:
             banco.execute("INSERT INTO eventos (tarefa_id, evento) VALUES (?,?)", (identificador, json.dumps(dados)))
 
@@ -657,6 +657,14 @@ class ServicoExecucao:
                 logging.getLogger(__name__).exception('Artefato não confirmado na tarefa %s', tarefa['id'])
         return caminhos, vistos == tipos and not falhou, falhou
 
+    def _geracao_sinalizada(self, pedido, identificador):
+        if pedido.get('capacidade') not in ('sped_fiscal', 'efd_contribuicoes'):
+            return False
+        eventos = self.repositorio.eventos(identificador)
+        ultimo = max((e['attempt'] for e in eventos), default=0)
+        return any(e['attempt'] == ultimo and e['step'] == 'gerar_documento'
+            and e['status'] == 'confirmado' and e['evidence'] == 'aviso_resultado_reconhecido' for e in eventos)
+
     def _executar_pendentes(self):
         while not self._parar.is_set():
             self._acordar.wait(timeout=1)
@@ -696,6 +704,8 @@ class ServicoExecucao:
                 concluido = modelo.linhas.get("fim", (None, None, None))[2] == "concluido"
                 status = "falha" if resultado is False else "concluida" if resultado is True and retorno and concluido else "nao_confirmada"
                 motivo = "resultado_ou_retorno_nao_confirmado" if status == "nao_confirmada" else None
+                if status in ('falha', 'nao_confirmada') and self._geracao_sinalizada(pedido,identificador):
+                    status, motivo = 'nao_confirmada', 'geracao_sinalizada_encerramento_nao_confirmado'
                 if pedido['capacidade'] == 'livros_fiscais':
                     itens = arquivo if isinstance(arquivo, list) else []
                     caminhos, completo, falha_publicacao = self._publicar_livros(tarefa, pedido, itens)
@@ -731,8 +741,10 @@ class ServicoExecucao:
                 # Sem exceções/capturas/caminhos privados na resposta remota.
                 logging.getLogger(__name__).exception("Falha na tarefa %s", identificador)
                 recuperada = self._recuperar_lote(tarefa, json.loads(tarefa["pedido"]), controle)
-                self.repositorio.concluir(identificador, "falha", False, motivo="erro_execucao_consulte_servidor",
-                                         continuar_lote=recuperada)
+                sinalizada = self._geracao_sinalizada(json.loads(tarefa['pedido']),identificador)
+                self.repositorio.concluir(identificador, 'nao_confirmada' if sinalizada else 'falha', False,
+                    motivo='geracao_sinalizada_encerramento_nao_confirmado' if sinalizada else 'erro_execucao_consulte_servidor',
+                    continuar_lote=recuperada)
             finally:
                 with self._controle_lock:
                     self._controle, self._tarefa_atual = None, None

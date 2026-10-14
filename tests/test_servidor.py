@@ -130,6 +130,31 @@ class TestRepositorioServidor(BaseRepositorio, unittest.TestCase):
 
 
 class TestWorkerServidor(BaseRepositorio, unittest.TestCase):
+    def test_efd_geracao_sinalizada_encerramento_falhou_fica_parcial_com_motivo(self):
+        def executar(dados,receber):
+            receber({'execution_id':dados['request_id'].replace('-',''),'routine_id':'efd_contribuicoes',
+                'attempt':1,'step':'gerar_documento','status':'confirmado','elapsed_seconds':.1,
+                'evidence':'aviso_resultado_reconhecido'})
+            return False
+        dados=pedido() | {'capacidade':'efd_contribuicoes'}
+        tarefa=self.iniciar(executar).solicitar(dados);final=aguardar(self.repo,tarefa['id'])
+        self.assertEqual(final['status'],'nao_confirmada')
+        self.assertEqual(final['motivo'],'geracao_sinalizada_encerramento_nao_confirmado')
+        self.assertEqual(self.repo.eventos(tarefa['id'])[0]['evidence'],'aviso_resultado_reconhecido')
+        self.assertFalse(final['arquivo_disponivel'])
+
+    def test_efd_excecao_depois_de_geracao_observada_nao_afirma_arquivo_validado(self):
+        def executar(dados,receber):
+            receber({'execution_id':dados['request_id'].replace('-',''),'routine_id':'efd_contribuicoes',
+                'attempt':1,'step':'gerar_documento','status':'confirmado','elapsed_seconds':.1,
+                'evidence':'aviso_resultado_reconhecido'})
+            raise RuntimeError('Falha sintética no encerramento')
+        tarefa=self.iniciar(executar).solicitar(pedido() | {'capacidade':'efd_contribuicoes'})
+        final=aguardar(self.repo,tarefa['id'])
+        self.assertEqual(final['status'],'nao_confirmada')
+        self.assertEqual(final['motivo'],'geracao_sinalizada_encerramento_nao_confirmado')
+        self.assertFalse(final['arquivo_disponivel'])
+
     def iniciar(self, executor):
         servico = ServicoExecucao(self.repo, executor, modo="simulacao")
         servico.iniciar()

@@ -61,6 +61,26 @@ def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False,
 
 
 class TestLeituraFormularioLivros(unittest.TestCase):
+    def test_aguarda_checkbox_repintar_sem_clicar_de_novo(self):
+        import copy
+        from unittest.mock import patch
+        im,dados,_=formulario(('registro_saidas','registro_icms'))
+        antigo=ler_selecao(im,dados);novo=copy.deepcopy(antigo)
+        novo['livros']['registro_entradas']['marcada']=True
+        leituras=Mock(side_effect=[antigo,antigo,ValueError('OCR transitório'),novo,novo,novo,novo])
+        clicar=Mock()
+        with patch('app.formulario_livros.time.sleep'):
+            final=marcar_tres_livros(leituras,clicar)
+        self.assertTrue(all(l['marcada'] for l in final['livros'].values()))
+        clicar.assert_called_once_with(*antigo['livros']['registro_entradas']['posicao'])
+
+    def test_timeout_marcacao_nao_tenta_segundo_livro_nem_reclique(self):
+        from unittest.mock import patch
+        im,dados,_=formulario();atual=ler_selecao(im,dados);clicar=Mock()
+        with patch('app.formulario_livros.time.sleep'),self.assertRaisesRegex(ValueError,'não confirmada'):
+            marcar_tres_livros(lambda:atual,clicar)
+        clicar.assert_called_once_with(*atual['livros']['registro_entradas']['posicao'])
+
     def test_selecao_nao_depende_de_datas_visiveis_ou_validas(self):
         imagem,dados,_=formulario()
         dados['text']=[t if not '/' in t else 'DATA INDISPONIVEL' for t in dados['text']]

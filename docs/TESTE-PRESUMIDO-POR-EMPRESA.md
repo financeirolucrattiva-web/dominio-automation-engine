@@ -102,3 +102,20 @@ python scripts\revisar_formulario_livros.py
 
 Compartilhar apenas as linhas limitadas RESUMO_RECORTE/LIVROS_SELECAO/
 LIVROS_PERIODO e mensagens finais, sem capturas com dados fiscais.
+
+## Continuação após datas preenchidas
+
+O log mais recente confirmou agosto/2026 e parou ao reconhecer OK. A
+correção tenta OCR do botão medido em outras escalas e recorte; se ainda
+falhar, a mensagem RESUMO_OK distingue isso da conferência do período.
+Não altera datas que já estão corretas.
+
+Nos livros, após cada clique espera confirmação antes de marcar o próximo,
+sem repetir clique. Consulte LIVROS_MARCACAO/LIVROS_SELECAO se só parte
+dos livros ficar marcada. No teste pelo atalho, use o terminal.
+
+Na EFD, “geração sinalizada; encerramento não confirmado” significa que o
+Domínio reconheceu a geração, mas o ciclo não terminou com retorno seguro.
+Confira o arquivo e o painel antes de repetir; não é erro fiscal confirmado
+nem validação do conteúdo. Recuperação positiva pode terminar o ciclo sem
+gerar novamente. Reiniciar não repete automaticamente a tarefa.

@@ -446,7 +446,18 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data
         resultado = _executar_sped(item_menu, texto_confirmacao, prefixo=prefixo, acompanhamento=acompanhamento,
                                   data_inicial=data_inicial, data_final=data_final)
         if not resultado:
-            _limpar_ao_encerrar(acompanhamento)
+            recuperou = _limpar_ao_encerrar(acompanhamento)
+            # A geração já foi sinalizada: apenas termina o fechamento, sem
+            # repetir OK. Falha anterior ao aviso continua sendo falha.
+            geracao_sinalizada = (acompanhamento.etapa == 'encerrar' and
+                tuple(acompanhamento.confirmadas) == acompanhamento.ETAPAS[:-1])
+            if (recuperou and geracao_sinalizada and acompanhamento.janela_dominio is not None
+                    and interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)
+                    and _verificar_retorno_tela_principal(acompanhamento) == 'tela_principal_reconhecida'):
+                acompanhamento.confirmar('tela_principal_reconhecida')
+                resultado = True
+            elif geracao_sinalizada:
+                print('Geração sinalizada pelo Domínio; encerramento não confirmado. Não repita a emissão antes de conferir o arquivo e o painel azul.',flush=True)
         acompanhamento.concluir(resultado)
         return resultado
     except Exception:
@@ -1761,6 +1772,11 @@ def _ler_campos_resumo():
         salvar_recorte=lambda recorte,nome:salvar(recorte,'resumo_data_'+nome+'.png'))
 
 
+def _achar_ok_resumo(imagem):
+    from app.botoes_formulario import achar_ok_resumo
+    return achar_ok_resumo(imagem)
+
+
 def _diagnosticar_periodo_resumo(fase, campo, esperado, campos=None, tentativa=0):
     from app.formulario_resumo import resumo_leitura
     leitura = resumo_leitura(campos) if campos is not None else None
@@ -1836,6 +1852,9 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
             _diagnosticar_periodo_resumo('antes_digitacao', papel, valor)
             return _falhar_periodo_resumo(acompanhamento, 'campos_resumo_nao_localizados', prefixo)
         _diagnosticar_periodo_resumo('antes_digitacao', papel, valor, campos)
+        if campos[papel]['valor'] == valor:
+            _diagnosticar_periodo_resumo('campo_ja_confirmado', papel, valor, campos)
+            continue
         interacao.clicar(*campos[papel]["posicao"])
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace("/", ""))
@@ -1856,10 +1875,13 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     acompanhamento.confirmar("campos_periodo_confirmados")
     acompanhamento.iniciar("gerar_previa")
     imagem = tela.capturar_tela()
-    pos = tela.achar_texto_ou_no_centro(imagem, "OK", escala=2)
+    pos = _achar_ok_resumo(imagem)
     if pos is None:
+        acompanhamento.motivo_periodo = 'ok_resumo_nao_reconhecido'
+        print('RESUMO_OK reconhecido=False; datas confirmadas, nenhum OK enviado.',flush=True)
         salvar(imagem, f"{prefixo}erro_ok_resumo.png")
         return False, None
+    print('RESUMO_OK reconhecido=True; enviando o botão confirmado.',flush=True)
     interacao.clicar(*pos)
 
     def previa(imagem):
