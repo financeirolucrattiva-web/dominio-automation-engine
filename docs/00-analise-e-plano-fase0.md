@@ -4653,6 +4653,34 @@ Sintaxe Python/diff conferidos. Emissão real ainda pendente.
 
 ---
 
+### 0.109 Diagnóstico de OK ainda em andamento e OCR duplicado (14/10/2026)
+
+**Achado real:** operador enviou saída até RESUMO_LEITURA_CAMPOS, com ambos
+valores confirmados, e informou que o terminal continuava trabalhando.
+Não havia resultado final RESUMO_BOTAO_OK nem retorno ao prompt. Não inferir
+novo motivo de falha a partir de uma saída parcial.
+
+**Custo comprovado no código:** a mesma captura era reconhecida novamente
+para vários títulos, formulário, coluna e OK. O cache por pixels já existia
+para Tesseract, mas o helper do botão não abria esse escopo e Windows não
+compartilhava reconhecimento entre busca e dados.
+
+**Melhoria:** analisar OK num escopo reutilizar_ocr, limpar/restaurar ao sair.
+Compartilhar reconhecimento Windows válido por motor/pixels/modo/tamanho/
+escala/idioma/preparo, mantendo coordenadas relativas ao engine. Escala1
+original da busca e cinza dos dados são chaves diferentes; paleta entra no
+hash RGBA. Falhas não são cacheadas, nem resultados entre threads/análises.
+Critérios de texto, bordas e ambiguidade permanecem. Diagnóstico informa
+início antes da primeira leitura, com flush nas mensagens.
+
+**Validação:** suíte completa578 passou; novo teste isolado do wrapper passou.
+Três consultas aos mesmos pixels passam a uma chamada por motor; próxima
+análise relê, e idioma/preparo/paleta/exceção/thread não misturam resultados.
+Sem medição de duração ou emissão no Windows nesta revisão; aguardar o
+resultado final do diagnóstico para identificar o bloqueio do botão.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

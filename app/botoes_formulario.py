@@ -127,6 +127,13 @@ def _contexto_coluna(imagem, registrar=None):
 
 
 def achar_ok_resumo(imagem, registrar=None):
+    """Uma análise, uma captura: descarta o OCR ao retornar, sem clicar."""
+    _registrar(registrar,'inicio','analise_ok_iniciada')
+    with tela.reutilizar_ocr():
+        return _achar_ok_resumo_na_captura(imagem,registrar)
+
+
+def _achar_ok_resumo_na_captura(imagem, registrar=None):
     """Devolve centro do botão inequívoco ou None; nunca clica/gera."""
     try:
         for aviso in AVISOS:
@@ -135,6 +142,7 @@ def achar_ok_resumo(imagem, registrar=None):
                         or tela.achar_texto_windows(imagem,aviso,escala=escala) is not None):
                     _registrar(registrar,'contexto','aviso_reconhecido')
                     return None
+        _registrar(registrar,'contexto','verificar_formulario')
         if formulario_resumo_reconhecido(imagem) is None:
             _registrar(registrar,'contexto','formulario_nao_reconhecido')
             return None

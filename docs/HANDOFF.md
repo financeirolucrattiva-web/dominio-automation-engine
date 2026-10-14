@@ -1,5 +1,30 @@
 # Domínio Automation Engine — handoff
 
+## Diagnóstico ainda lendo o botão; reduzir OCR repetido por captura — 14/10/2026
+
+Saída local confirmou datas e parou no trecho RESUMO_LEITURA_CAMPOS enviado.
+Operador esclareceu que o processo ainda estava trabalhando; não voltou ao
+prompt. Não é resultado final de OK nem prova de novo erro de reconhecimento.
+Aguardar RESUMO_BOTAO/RESUMO_BOTAO_OK; emissão continua pendente.
+
+Código repetia OCR para cada título/guarda/dados na mesma imagem do botão.
+achar_ok_resumo agora abre o escopo existente reutilizar_ocr, descartado ao
+retornar. Windows passa a compartilhar resultado válido entre busca e dados
+nesse escopo, além do Tesseract. Chave: motor, pixels, modo/tamanho, escala,
+idioma e variante de preparo. Preserva escala1: busca usa imagem original,
+dados usam cinza. Paleta entra via RGBA. Erros/resultado inválido não são
+cacheados, threads e nova captura/análise não compartilham leituras.
+
+Não altera textos, bordas, ambiguidade, coordenadas ou autorização de clique.
+Diagnóstico anuncia início da análise do OK antes de ler e descarrega suas
+mensagens imediatamente no terminal. Cache reduz chamadas duplicadas; não
+há medição real da duração no PC nem identificação da causa de todo atraso.
+
+Validação: suíte578 passou; teste adicional do wrapper passou isoladamente,
+com três consultas virando uma leitura por motor e nova análise relendo tudo.
+Testes Windows cobrem escala1/preparo, idioma, paleta/pixels, thread, exceção
+e namespace separado do Tesseract. Nenhuma emissão real executada na nuvem.
+
 ## Período confirmado no fluxo real; bloqueio passou ao OK — 14/10/2026
 
 Novo log Windows: abrir_resumo e preencher_periodo confirmados; ambos campos
