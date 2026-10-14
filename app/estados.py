@@ -204,7 +204,7 @@ class AcompanhamentoRotina:
 
 
 def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
-                       comparacao_exata=False):
+                       comparacao_exata=False, rever_a_cada=0, limite_segundos=None):
     """Tira print repetidamente até um dos `detectores` achar alguma
     coisa, ou esgotar as tentativas — nunca por tempo fixo sozinho
     (mesmo princípio de sempre neste projeto).
@@ -219,15 +219,23 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
     a parte mais lenta) quando a assinatura perceptual indica uma tela
     semelhante à anterior (seção 0.58). `comparacao_exata=True` compara
     pixels: um aviso pequeno pode mudar sem alterar essa assinatura.
+    `rever_a_cada` permite uma nova leitura periódica mesmo com pixels
+    idênticos; OCR negativo não vira evidência permanente. `limite_segundos`
+    limita o tempo real da espera, incluindo as leituras, quando informado.
 
     Devolve `(imagem, nome_estado, posicao)` quando um detector achar,
     ou `(None, None, None)` se esgotar as tentativas sem achar nada.
     """
     print(f"Esperando pelo menos {espera_minima}s antes de checar...")
+    inicio = time.monotonic()
     time.sleep(espera_minima)
     assinatura_anterior = None
+    sem_reler = 0
     for tentativa in range(1, tentativas + 1):
         ponto_seguro()
+        if limite_segundos is not None and time.monotonic() - inicio >= limite_segundos:
+            print("Limite de espera atingido sem confirmação visual; geração não será repetida.", flush=True)
+            return None, None, None
         imagem = tela.capturar_tela()
         if comparacao_exata:
             import hashlib
@@ -238,15 +246,22 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
             assinatura_atual = tela.assinatura_tela(imagem)
             mudou = tela.tela_mudou(assinatura_anterior, assinatura_atual)
         if not mudou:
-            print(f"Tela igual à tentativa anterior, pulando checagem (tentativa {tentativa}/{tentativas})...")
-            time.sleep(intervalo)
-            continue
+            sem_reler += 1
+            if not rever_a_cada or sem_reler < rever_a_cada:
+                print(f"Tela igual à tentativa anterior, pulando checagem (tentativa {tentativa}/{tentativas})...")
+                time.sleep(intervalo)
+                continue
         assinatura_anterior = assinatura_atual
+        sem_reler = 0
 
         # A mesma captura pode ser examinada por vários títulos. Reutiliza
         # OCR por região/escala nesta tentativa, mantendo a ordem anterior.
         with tela.reutilizar_ocr():
             for nome_estado, funcao in detectores:
+                ponto_seguro()
+                if limite_segundos is not None and time.monotonic() - inicio >= limite_segundos:
+                    print("Limite de espera atingido sem confirmação visual; geração não será repetida.", flush=True)
+                    return None, None, None
                 pos = funcao(imagem)
                 if pos is not None:
                     return imagem, nome_estado, pos

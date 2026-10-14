@@ -200,8 +200,39 @@ def _sugerir_diagnostico(alvo, imagem):
         print(f"Palpite da IA sobre o que houve: {sugestao}")
 
 
+def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
+                          ocr_windows=False, debug=False):
+    """Relê a mesma captura por motores/escala, com cancelamento entre opiniões."""
+    from .controle_execucao import ponto_seguro, ExecucaoInterrompida
+    escalas = tuple(dict.fromkeys((escala, *escalas_adicionais)))
+    for ampliacao in escalas:
+        ponto_seguro()
+        try:
+            pos = tela.achar_texto_ou_no_centro(imagem, texto, escala=ampliacao,
+                debug=debug and not escalas_adicionais and not ocr_windows)
+        except ExecucaoInterrompida:
+            raise
+        except (RuntimeError,OSError):
+            pos = None
+        if pos is not None:
+            return pos
+    if ocr_windows:
+        for ampliacao in escalas:
+            ponto_seguro()
+            pos = tela.achar_texto_windows(imagem, texto, escala=ampliacao)
+            if pos is not None:
+                return pos
+            ponto_seguro()
+            centro, dx, dy = tela.recortar_centro(imagem)
+            pos = tela.achar_texto_windows(centro, texto, escala=ampliacao)
+            if pos is not None:
+                return pos[0] + dx, pos[1] + dy
+    return None
+
+
 def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, tentativas=90, intervalo=2,
-                    escalas_adicionais=(), ocr_windows=False, comparacao_exata=False):
+                    escalas_adicionais=(), ocr_windows=False, comparacao_exata=False,
+                    rever_a_cada=0, limite_segundos=None):
     """Espera pelo menos `espera_minima` segundos e depois fica
     verificando a tela por estado (a cada `intervalo` segundos, até
     `tentativas` vezes) em vez de confiar num tempo fixo — achado real
@@ -260,20 +291,9 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     o motor novo diretamente.
     """
     titulos = (texto_erro,) if isinstance(texto_erro, str) else (texto_erro or ())
-    escalas = tuple(dict.fromkeys((escala, *escalas_adicionais)))
     def procurar(imagem, texto, debug=False):
-        for ampliacao in escalas:
-            pos = tela.achar_texto_ou_no_centro(imagem,texto,escala=ampliacao,
-                debug=debug and not escalas_adicionais and not ocr_windows)
-            if pos is not None:return pos
-        if ocr_windows:
-            for ampliacao in escalas:
-                pos = tela.achar_texto_windows(imagem,texto,escala=ampliacao)
-                if pos is not None:return pos
-                centro,dx,dy = tela.recortar_centro(imagem)
-                pos = tela.achar_texto_windows(centro,texto,escala=ampliacao)
-                if pos is not None:return (pos[0]+dx,pos[1]+dy)
-        return None
+        return _achar_texto_reforcado(imagem, texto, escala=escala,
+            escalas_adicionais=escalas_adicionais, ocr_windows=ocr_windows, debug=debug)
     detectores = [
         ("sucesso", lambda img: procurar(img,alvo,debug=True)),
     ] + [
@@ -281,6 +301,10 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
         for titulo in titulos
     ]
     opcoes_espera = {'comparacao_exata':True} if comparacao_exata else {}
+    if rever_a_cada:
+        opcoes_espera['rever_a_cada'] = rever_a_cada
+    if limite_segundos is not None:
+        opcoes_espera['limite_segundos'] = limite_segundos
     imagem, estado, pos = estados.esperar_por_estado(
         detectores, espera_minima=espera_minima, tentativas=tentativas, intervalo=intervalo,
         **opcoes_espera,
@@ -447,6 +471,40 @@ def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
 
     salvar(tela.capturar_tela(), f"{prefixo}depois_trocar_empresa.png")
     return True
+
+
+def _confirmar_saida_aviso_efd(item_menu, janela, texto_confirmacao):
+    """Depois do único Enter, observa o aviso e a volta ao formulário.
+
+    Ausência no OCR2x não basta: usa as mesmas opiniões que reconheceram
+    a geração. Aviso novo/desconhecido bloqueia fechamento por coordenada
+    anterior; a recuperação geral continua responsável pelo painel azul.
+    """
+    from .controle_execucao import ponto_seguro
+    for tentativa in range(6):
+        ponto_seguro()
+        if janela is None or not interacao.janela_dominio_em_foco(janela):
+            print('EFD: foco perdido após confirmar o resultado; fechamento bloqueado.', flush=True)
+            return False
+        imagem = tela.capturar_tela()
+        with tela.reutilizar_ocr():
+            opcoes = {'escalas_adicionais': (4,), 'ocr_windows': True}
+            if _achar_texto_reforcado(imagem, texto_confirmacao, **opcoes) is not None:
+                print('EFD: aguardando o aviso de sucesso fechar; não envio outro Enter.', flush=True)
+            else:
+                for titulo in TITULOS_ERRO:
+                    if _achar_texto_reforcado(imagem, titulo, **opcoes) is not None:
+                        print('EFD: aviso permanece após Enter; fechamento direto bloqueado.', flush=True)
+                        return False
+                if _achar_texto_reforcado(imagem, item_menu, **opcoes) is not None:
+                    return True
+                from types import SimpleNamespace
+                if _verificar_retorno_tela_principal(SimpleNamespace(janela_dominio=janela)) == 'tela_principal_reconhecida':
+                    return True
+        if tentativa < 5:
+            time.sleep(.3)
+    print('EFD: saída do aviso não confirmada; não repito a geração.', flush=True)
+    return False
 
 
 def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data_final=None):
@@ -637,6 +695,10 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     acompanhamento.confirmar("formulario_e_botoes_reconhecidos")
     acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
     acompanhamento.iniciar("gerar_documento")
+    if acompanhamento.rotina == 'efd_contribuicoes' and (acompanhamento.janela_dominio is None
+            or not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)):
+        print('EFD: foco do Domínio não confirmado; geração bloqueada.', flush=True)
+        return False
     print(f"Clicando em OK: {pos}")
     interacao.clicar(*pos)
 
@@ -646,7 +708,8 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     # de um botão só, "OK" ilegível pro OCR de novo — seção 0.13) e
     # checar que ela realmente sumiu.
     print("Aguardando o resultado da geração (verificando por estado)...")
-    leitura_confirmacao = ({'escalas_adicionais':(4,), 'ocr_windows':True, 'comparacao_exata':True}
+    leitura_confirmacao = ({'escalas_adicionais':(4,), 'ocr_windows':True, 'comparacao_exata':True,
+                           'rever_a_cada': 5, 'limite_segundos': 180}
                           if acompanhamento.rotina == 'efd_contribuicoes' else {})
     if acompanhamento.rotina == 'efd_contribuicoes':
         # Corpo completo observado em 0.21; "sucesso" isolado pode estar
@@ -704,6 +767,10 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     salvar(imagem, f"{prefixo}resultado.png")
 
     print("Confirmando com Enter (diálogo padrão de um só botão)...")
+    if acompanhamento.rotina == 'efd_contribuicoes' and (acompanhamento.janela_dominio is None
+            or not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)):
+        print('EFD: foco do Domínio não confirmado; Enter não foi enviado.', flush=True)
+        return False
     interacao.pressionar_enter()
 
     # Confere por estado, com mais de uma tentativa, antes de concluir
@@ -716,21 +783,30 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     # confirmação já tinha fechado de verdade (o resto do lote seguiu
     # confirmando isso: `_fechar_tela_geracao()` logo depois já não
     # achava mais a tela).
-    ainda_aberto = None
-    for _ in range(3):
-        time.sleep(1)
-        ainda_aberto = tela.achar_texto_ou_no_centro(tela.capturar_tela(), texto_confirmacao,
-            escala=2, debug=acompanhamento.rotina != 'efd_contribuicoes')
-        if ainda_aberto is None:
-            break
-    if ainda_aberto is not None:
+    if acompanhamento.rotina == 'efd_contribuicoes':
+        confirmado_fechamento_aviso = _confirmar_saida_aviso_efd(
+            item_menu, acompanhamento.janela_dominio, texto_confirmacao)
+    else:
+        ainda_aberto = None
+        for _ in range(3):
+            time.sleep(1)
+            ainda_aberto = tela.achar_texto_ou_no_centro(tela.capturar_tela(), texto_confirmacao,
+                escala=2, debug=True)
+            if ainda_aberto is None:
+                break
+        confirmado_fechamento_aviso = ainda_aberto is None
+    if not confirmado_fechamento_aviso:
         print("Enter não fechou a confirmação. Parando pra não seguir às cegas.")
         salvar(tela.capturar_tela(), f"{prefixo}erro_enter_confirmacao.png")
-        _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
+        if acompanhamento.rotina != 'efd_contribuicoes':
+            _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
         return False
     print("Confirmação fechada.")
 
     # 8. Fechar a tela de geração.
+    if acompanhamento.rotina == 'efd_contribuicoes' and not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio):
+        print('EFD: foco perdido antes de fechar o formulário; clique bloqueado.', flush=True)
+        return False
     fechado = _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
     if not fechado:
         return False

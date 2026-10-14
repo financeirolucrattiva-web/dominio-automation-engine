@@ -33,6 +33,34 @@ def tela_resumo(dx=0,dy=0,fator=1):
 
 
 class TestBotaoResumo(unittest.TestCase):
+    def test_fechar_ausente_global_e_lido_no_botao_sem_offset(self):
+        imagem,dados=tela_resumo()
+        dados={k:[v for i,v in enumerate(valores) if i!=4] for k,valores in dados.items()}
+        self.preparar(imagem,dados)
+        with patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:
+                          {'fechar'} if c[1]>110 else {'ok'}):
+            self.assertIsNotNone(botoes.achar_ok_resumo(imagem))
+
+    def test_um_erro_ocr_nao_veta_duas_leituras_exatas_e_conflito_real_veta(self):
+        imagem,_=tela_resumo()
+        def dado(texto,top=None):
+            tokens=texto.split(); return {'text':tokens,'top':top or [2]*len(tokens),
+                                         'height':[9]*len(tokens)}
+        for leituras,esperado in (([dado('0K'),dado('OK'),dado('OK'),dado('')],{'ok'}),
+                                  ([dado('OK'),dado('OK'),dado('OK Cancelar'),dado('')],{'contradicao'}),
+                                  ([dado('OK'),dado('OK'),dado('Fechar'),dado('')],{'contradicao'}),
+                                  ([dado('OK'),dado('OK'),dado('OK Cancelar',[2,14]),dado('')],{'contradicao'})):
+            with self.subTest(esperado=esperado),patch.object(botoes.tela,'ler_dados_ocr_linha_rotulo',side_effect=leituras):
+                self.assertEqual(botoes._texto_recorte(imagem,(280,80,76,26)),esperado)
+
+    def test_borda_em_l_sem_quatro_lados_nao_vira_botao(self):
+        imagem,_=tela_resumo(); desenho=ImageDraw.Draw(imagem)
+        desenho.rectangle((275,75,362,110),fill='#eeeeee')
+        desenho.line((280,80,280,105),fill='black')
+        desenho.line((280,105,355,105),fill='black')
+        caixas=botoes._retangulos(imagem,24)
+        self.assertFalse(any(botoes._dentro((315,94),c) for c in caixas))
+
     def test_wrapper_reutiliza_ocr_e_descarta_ao_terminar_a_analise(self):
         imagem,_=tela_resumo(); engine=types.ModuleType('winocr')
         engine.recognize_pil_sync=Mock(return_value={'lines':[]})

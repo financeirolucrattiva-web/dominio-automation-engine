@@ -7,6 +7,7 @@ from pathlib import PureWindowsPath
 import re
 import time
 import unicodedata
+from app.controle_execucao import ponto_seguro
 
 
 class SeletorPastaNaoConfirmado(ValueError):
@@ -110,27 +111,69 @@ def _selecionado(imagem, no):
     return float(((hsv[:,:,0]>=90)&(hsv[:,:,0]<=135)&(hsv[:,:,1]>100)&(hsv[:,:,2]>70)).mean())>.25
 
 
+def _aguardar_dialogo(capturar, confirmar=None, tentativas=6):
+    """Relê a captura após cada ação; nunca repete o clique por atraso."""
+    for tentativa in range(tentativas):
+        ponto_seguro()
+        imagem = capturar()
+        try:
+            detalhes = medir_dialogo(imagem)
+            if confirmar is None or confirmar(imagem, detalhes):
+                return imagem, detalhes
+        except ValueError:
+            pass
+        if tentativa < tentativas-1:
+            time.sleep(.3)
+    raise SeletorPastaNaoConfirmado('Seletor de pasta não confirmou o estado esperado; não foi enviado OK.')
+
+
+def _drive_selecionado(detalhes, letra):
+    x,y,w,h = detalhes['combo']
+    palavras = [p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
+    return _drive(palavras, letra) is not None
+
+
+def _filho(detalhes, pai_nome, filho_nome):
+    pai, filho = _no(detalhes, pai_nome), _no(detalhes, filho_nome)
+    if not (pai and filho and filho['x']>pai['x'] and filho['y']>pai['y']):
+        return None
+    x,y,w,h = detalhes['arvore']
+    entre = [p for p in detalhes['palavras'] if x<p['x']<=pai['x']+1
+             and pai['y']<p['y']<filho['y'] and y<p['y']<y+h]
+    return None if entre else filho
+
+
+def _aguardar_no_selecionado(capturar, nome, letra):
+    def confirmar(imagem, detalhes):
+        no = _no(detalhes, nome)
+        return _drive_selecionado(detalhes, letra) and no is not None and _selecionado(imagem, no)
+    return _aguardar_dialogo(capturar, confirmar)
+
+
 def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
     """Navega sem colar; só confirma a folha nova e exclusiva informada."""
     caminho=PureWindowsPath(caminho_remoto)
     if not caminho.is_absolute() or not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name):
         raise SeletorPastaNaoConfirmado('Destino precisa ser uma pasta exclusiva de livros.')
-    imagem=capturar(); detalhes=medir_dialogo(imagem)
+    imagem, detalhes = _aguardar_dialogo(capturar)
     x,y,w,h=detalhes['combo']
     combo_palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
     if _drive(combo_palavras,caminho.drive[0]) is None:
         clicar(x+w//2,y+h//2)
         alvo=None
         for _ in range(5):
-            imagem=capturar(); alvo=_drive(_palavras(imagem),caminho.drive[0])
+            ponto_seguro()
+            imagem=capturar()
+            try:
+                alvo=_drive(_palavras(imagem),caminho.drive[0])
+            except ValueError:
+                alvo=None
             if alvo is not None:break
             time.sleep(.3)
         if alvo is None:raise SeletorPastaNaoConfirmado('Unidade Client C não encontrada na lista.')
         clicar(*alvo)
-        detalhes=medir_dialogo(capturar())
-        x,y,w,h=detalhes['combo']
-        if _drive([p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h],caminho.drive[0]) is None:
-            raise SeletorPastaNaoConfirmado('Seleção da unidade Client C não confirmada.')
+        imagem, detalhes = _aguardar_dialogo(capturar,
+            lambda img, d:_drive_selecionado(d, caminho.drive[0]))
     partes=caminho.parts[1:]
     # O print mostra perfil já aberto. Não presume Users como raiz visível.
     visiveis=[(i,_no(detalhes,n)) for i,n in enumerate(partes)]
@@ -139,24 +182,15 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
     indice,no=visiveis[-1]
     for seguinte in partes[indice+1:]:
         clicar(*no['posicao'])
+        _aguardar_no_selecionado(capturar, partes[indice], caminho.drive[0])
         tecla('right')
-        filho=None
-        for _ in range(6):
-            imagem=capturar(); detalhes=medir_dialogo(imagem); pai=_no(detalhes,partes[indice])
-            filho=_no(detalhes,seguinte)
-            if pai and filho and filho['x']>pai['x'] and filho['y']>pai['y']:
-                # Não atravessa outra pasta de mesmo nível do ancestral.
-                x,y,w,h=detalhes['arvore']
-                entre=[p for p in detalhes['palavras'] if x<p['x']<=pai['x']+1 and pai['y']<p['y']<filho['y'] and y<p['y']<y+h]
-                if not entre:break
-            filho=None; time.sleep(.3)
+        imagem, detalhes = _aguardar_dialogo(capturar,
+            lambda img, d:_drive_selecionado(d,caminho.drive[0]) and
+                _filho(d, partes[indice], seguinte) is not None)
+        filho = _filho(detalhes, partes[indice], seguinte)
         if filho is None:raise SeletorPastaNaoConfirmado('Próxima pasta não confirmada como descendente.')
         indice+=1; no=filho
     clicar(*no['posicao'])
-    for _ in range(5):
-        imagem=capturar(); detalhes=medir_dialogo(imagem); folha=_no(detalhes,caminho.name)
-        if folha and _selecionado(imagem,folha):
-            clicar(*detalhes['ok'])
-            return True
-        time.sleep(.3)
-    raise SeletorPastaNaoConfirmado('Folha exclusiva não confirmou seleção; não foi enviado OK.')
+    imagem, detalhes = _aguardar_no_selecionado(capturar, caminho.name, caminho.drive[0])
+    clicar(*detalhes['ok'])
+    return True

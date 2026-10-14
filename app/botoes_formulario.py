@@ -5,6 +5,7 @@ nem reaproveita coordenadas de outra execução. Falha/ambiguidade retorna
 None. Fixtures sintéticas não equivalem à validação no Domínio real.
 """
 import math
+import unicodedata
 
 from app import tela
 from app.formulario_livros import _palavras, _rotulo
@@ -12,6 +13,7 @@ from app.leitura_resumo import (formulario_resumo_reconhecido, medir_campos,
                                 resolver_rotulos_resumo)
 
 AVISOS = ('Atenção', 'Aviso Empresa', 'Aviso')
+ROTULOS_BOTOES = {'ok', 'fechar', 'solucoes', 'cancelar', 'sim', 'nao'}
 
 
 def _dentro(posicao, caixa):
@@ -23,6 +25,24 @@ def _retangulos(imagem, altura):
     import cv2
     import numpy as np
     cinza = np.asarray(imagem.convert('L'))
+    valores = cinza.astype('int16')
+    horizontal = np.zeros(cinza.shape,dtype='int16')
+    vertical = np.zeros(cinza.shape,dtype='int16')
+    horizontal[:,1:] = np.abs(valores[:,1:]-valores[:,:-1])
+    vertical[1:,:] = np.abs(valores[1:,:]-valores[:-1,:])
+    def quatro_lados(x,y,w,h):
+        # Uma borda 3D pode ser L em uma máscara. Não completar esse L:
+        # os quatro lados precisam existir como contraste na captura.
+        margem = max(1,math.ceil(h*.12))
+        a,b = x+margem,x+w-margem
+        c,d = y+margem,y+h-margem
+        if a>=b or c>=d:return False
+        limites = (vertical[max(0,y-margem):min(cinza.shape[0],y+margem+1),a:b],
+                   vertical[max(0,y+h-margem):min(cinza.shape[0],y+h+margem+1),a:b],
+                   horizontal[c:d,max(0,x-margem):min(cinza.shape[1],x+margem+1)],
+                   horizontal[c:d,max(0,x+w-margem):min(cinza.shape[1],x+w+margem+1)])
+        return all(t.size and (t.max(axis=eixo)>=8).mean()>=.65
+                   for t,eixo in zip(limites,(0,0,1,1)))
     candidatos = set()
     mascaras = [(cinza < limite).astype('uint8')*255 for limite in (160,200,230)]
     mascaras.append(cv2.Canny(cinza,8,30))
@@ -31,38 +51,55 @@ def _retangulos(imagem, altura):
         for contorno in contornos:
             x,y,w,h = cv2.boundingRect(contorno)
             vertices = cv2.approxPolyDP(contorno,.02*cv2.arcLength(contorno,True),True)
-            if (len(vertices)==4 and .6*altura <= h <= 1.7*altura
-                    and 2 <= w/h <= 8 and cv2.contourArea(contorno)/(w*h) > .7):
+            fechado = len(vertices)==4 and cv2.contourArea(contorno)/(w*h) > .7
+            if (.6*altura <= h <= 1.7*altura and 2 <= w/h <= 8
+                    and (fechado or quatro_lados(x,y,w,h))):
                 candidatos.add((x,y,w,h))
     unicos = []
     for c in sorted(candidatos,key=lambda c:c[2]*c[3],reverse=True):
-        if not any(c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2]
-                   and c[1]+c[3]<=a[1]+a[3] for a in unicos):
+        def mesma_borda(a):
+            contida = c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2] and c[1]+c[3]<=a[1]+a[3]
+            inter = max(0,min(c[0]+c[2],a[0]+a[2])-max(c[0],a[0]))*max(0,min(c[1]+c[3],a[1]+a[3])-max(c[1],a[1]))
+            return contida or inter/(c[2]*c[3]+a[2]*a[3]-inter)>=.8
+        if not any(mesma_borda(a) for a in unicos):
             unicos.append(c)
     return unicos
 
 
 def _texto_recorte(imagem, caixa):
-    """Texto inteiro do botão: não aceita palavra contida em outra."""
-    import pytesseract
+    """Duas opiniões exatas; erro isolado não fabrica nem veta um rótulo.
+
+    Outro rótulo completo e texto que acrescenta palavras a OK/Fechar
+    continuam contraditórios. Sem aliases de caracteres nem whitelist.
+    """
     x,y,w,h = caixa
     margem = max(1,math.ceil(h*.08))
     recorte = imagem.crop((x+margem,y+margem,x+w-margem,y+h-margem))
-    reconhecidos = set()
+    votos = {}
+    contradicao = False
+    def observar(dados):
+        nonlocal contradicao
+        indices = [i for i,t in enumerate(dados.get('text',[])) if str(t).strip()]
+        if not indices:return
+        texto = ' '.join(str(dados['text'][i]).strip() for i in indices).casefold()
+        texto = ''.join(c for c in unicodedata.normalize('NFKD',texto) if not unicodedata.combining(c))
+        if (max(dados['top'][i] for i in indices)>=
+                min(dados['top'][i]+dados['height'][i] for i in indices)):
+            if any(t in ROTULOS_BOTOES for t in texto.split()):contradicao=True
+            return
+        if texto in ROTULOS_BOTOES:
+            votos[texto] = votos.get(texto,0)+1
+        elif texto.split() and texto.split()[0] in ROTULOS_BOTOES:
+            contradicao = True
     for preparo in ('cinza','binaria'):
         for escala in (2,4):
             try:
-                preparado = tela.preparar_recorte_ocr(recorte,escala,preparo)
                 # Sem whitelist: não apagar outros caracteres para fabricar OK.
-                dados = pytesseract.image_to_data(preparado,lang='por',config='--psm 7',
-                                                  output_type=pytesseract.Output.DICT)
-                palavras = [str(t).strip() for t in dados['text'] if str(t).strip()]
-                texto = ' '.join(palavras).casefold()
-                if texto:
-                    reconhecidos.add(texto)
+                observar(tela.ler_dados_ocr_linha_rotulo(recorte,escala,preparo))
             except Exception:
                 continue
-    return reconhecidos
+    if len(votos)>1 or contradicao:return {'contradicao'}
+    return {rotulo for rotulo,n in votos.items() if n>=2}
 
 
 def _registrar(registrar, fase, motivo, **detalhe):
@@ -79,8 +116,18 @@ def _oks_exatos(imagem, motor, escala):
             for i,t in enumerate(dados['text']) if str(t).strip().casefold()=='ok']
 
 
-def _contexto_coluna(imagem, registrar=None):
+def _ler_botao(imagem, caixa, leituras, registrar=None):
+    if caixa not in leituras:
+        leituras[caixa] = _texto_recorte(imagem,caixa)
+        _registrar(registrar,'texto','recorte_botao_lido',caixa=list(caixa),
+            rotulos_confirmados=sorted(leituras[caixa] & ROTULOS_BOTOES),
+            contradicao='contradicao' in leituras[caixa])
+    return leituras[caixa]
+
+
+def _contexto_coluna(imagem, registrar=None, leituras=None):
     contextos = []
+    leituras = leituras if leituras is not None else {}
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
         motivo_falha='campos_periodo_nao_confirmados'
         try:
@@ -94,14 +141,24 @@ def _contexto_coluna(imagem, registrar=None):
             altura = max(c['retangulo'][3] for c in campos.values())
             direita = max(c['retangulo'][0]+c['retangulo'][2] for c in campos.values())
             motivo_falha='bordas_botoes_nao_confirmadas'
-            caixas = [c for c in _retangulos(imagem,altura) if c[0] > direita]
+            caixas = [c for c in _retangulos(imagem,altura) if c[0] > direita
+                and c[1]+c[3]>=campos['inicial']['retangulo'][1]-altura
+                and c[1]<=campos['final']['retangulo'][1]+campos['final']['retangulo'][3]]
             motivo_falha='rotulo_fechar_nao_confirmado'
-            fechar = _rotulo(palavras,'Fechar')
-            centro = (fechar['x']+fechar['w']/2,fechar['y']+fechar['h']/2)
-            fechar_caixas = [c for c in caixas if _dentro(centro,c)]
+            try:
+                fechar = _rotulo(palavras,'Fechar')
+                centro = (fechar['x']+fechar['w']/2,fechar['y']+fechar['h']/2)
+                fechar_caixas = [c for c in caixas if _dentro(centro,c)]
+            except ValueError:
+                # O rótulo pode sumir na leitura global. Cada retângulo
+                # é real e seu texto precisa confirmar Fechar integralmente.
+                fechar_caixas = [c for c in caixas if _ler_botao(imagem,c,leituras,registrar)=={'fechar'}]
+                centro = None
+                _registrar(registrar,'coluna','fechar_por_recorte',motor=motor,escala=escala,
+                    quantidade=len(fechar_caixas))
             if len(fechar_caixas)!=1:
                 _registrar(registrar,'coluna','borda_fechar_nao_confirmada',motor=motor,escala=escala,
-                    caixas=[list(c) for c in caixas],fechar=list(centro),quantidade=len(fechar_caixas))
+                    caixas=[list(c) for c in caixas],fechar=list(centro) if centro else None,quantidade=len(fechar_caixas))
                 continue
             botao_fechar = fechar_caixas[0]
             # Fechar só delimita a coluna observada. Nenhum deslocamento
@@ -146,7 +203,8 @@ def _achar_ok_resumo_na_captura(imagem, registrar=None):
         if formulario_resumo_reconhecido(imagem) is None:
             _registrar(registrar,'contexto','formulario_nao_reconhecido')
             return None
-        contexto = _contexto_coluna(imagem,registrar)
+        leituras = {}
+        contexto = _contexto_coluna(imagem,registrar,leituras)
         if contexto is None:
             return None
         candidatos,fechar = contexto
@@ -162,14 +220,14 @@ def _achar_ok_resumo_na_captura(imagem, registrar=None):
                 continue
         # O fallback lê cada retângulo medido, mesmo quando tela cheia
         # não segmentou OK. Aceita somente o texto inteiro, sem correções.
-        textos_fechar=_texto_recorte(imagem,fechar)
+        textos_fechar=_ler_botao(imagem,fechar,leituras,registrar)
         if textos_fechar != {'fechar'}:
             _registrar(registrar,'texto','texto_fechar_nao_confirmado',
                 texto_esperado_lido='fechar' in textos_fechar,leituras_distintas=len(textos_fechar))
             return None
         confirmados=[]
         for c in candidatos:
-            textos=_texto_recorte(imagem,c)
+            textos=_ler_botao(imagem,c,leituras,registrar)
             if textos=={'ok'}:confirmados.append(c)
             _registrar(registrar,'texto','ok_lido' if textos=={'ok'} else 'texto_ok_nao_confirmado',
                 caixa=list(c),texto_esperado_lido='ok' in textos,leituras_distintas=len(textos))

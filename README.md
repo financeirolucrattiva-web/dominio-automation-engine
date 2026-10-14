@@ -110,6 +110,14 @@ livros** faz uma leitura sem emitir. **Preparar teste dos três Livros Fiscais**
 seleciona a rotina conjunta em Nova execução e exige confirmação antes de emitir.
 Veja [TESTE-PRESUMIDO-POR-EMPRESA.md](docs/TESTE-PRESUMIDO-POR-EMPRESA.md).
 
+Com o servidor parado, o novo atalho **ferramentas/Executar Presumido por
+Empresa.bat** executa a mesma sequência e mostra etapas/progresso no
+terminal. Pede código, competência e confirmação de fechamento uma vez.
+Alternativa no CMD: `python -u scripts/explorar_presumido.py --competencia
+2026-08`. Agosto/2026 foi confirmado fechado somente na primeira empresa
+do piloto. Ctrl+C solicita cancelamento cooperativo; o diagnóstico local
+fica em logs/. Emissão e documentos precisam de conferência no Windows.
+
 Se o Resumo não trocar o período, o painel mostra qual data não confirmou
 ou se os campos não foram localizados. O terminal registra somente as
 datas/posições esperadas e lidas. `python scripts/revisar_periodo_resumo.py`

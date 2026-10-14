@@ -193,7 +193,7 @@ def medir_campos(imagem, rotulos):
         pixels=np.array(normalizada.convert('L'))
         interno=pixels[margem:h-margem,:]
         divisoes=[i for i in range(max(margem,int(w*.55)),w-2*margem)
-                  if (interno[:,i]<200).mean()>=.85]
+                  if any((interno[:,i]<limite).mean()>=.85 for limite in (200,230))]
         direita=min(divisoes) if divisoes else w-margem
         area=(x+margem,y+margem,x+direita-margem,y+h-margem)
         if area[2]-area[0]<2*altura:raise ValueError('Área textual do campo não confirmada.')

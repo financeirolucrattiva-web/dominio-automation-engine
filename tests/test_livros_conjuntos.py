@@ -19,6 +19,53 @@ TEXTOS={'registro_entradas':'REGISTRO DE ENTRADAS'+CAB,
 
 
 class TestConjunto(unittest.TestCase):
+    def test_periodo_ja_correto_nao_redigita_e_validacao_final_usa_mesma_captura(self):
+        imagem=Image.new('RGB',(600,400),'white');interacao=Mock()
+        periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}
+        selecao={'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
+        with patch.object(livros,'_ler_periodo',return_value=periodo) as campos, \
+                patch.object(livros,'_ler_selecao',return_value=selecao) as selecoes, \
+                patch.object(livros.tela,'capturar_tela',return_value=imagem) as captura:
+            self.assertIs(livros._preencher(INICIO,FIM,interacao),imagem)
+        interacao.clicar.assert_not_called();interacao.digitar.assert_not_called()
+        interacao.selecionar_tudo_alternativo.assert_not_called()
+        captura.assert_called_once();campos.assert_any_call(imagem);selecoes.assert_called_once_with(imagem)
+
+    def test_periodo_aguarda_ocr_transitorio_sem_redigitar(self):
+        periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}
+        campos=Mock(side_effect=[ValueError('transitório'),periodo])
+        with patch.object(livros,'_ler_periodo',campos),patch.object(livros.time,'sleep'):
+            self.assertEqual(livros._esperar_periodo('final',FIM),periodo)
+        self.assertEqual(campos.call_count,2)
+
+    def test_opcao_adicional_ou_indeterminada_nao_confirma_formulario_final(self):
+        periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}
+        for estado in (True,None):
+            selecao={'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
+            selecao['outros'][0]['marcada']=estado
+            with self.subTest(estado=estado),patch.object(livros,'_ler_periodo',return_value=periodo), \
+                    patch.object(livros,'_ler_selecao',return_value=selecao), \
+                    patch.object(livros.tela,'capturar_tela',return_value='frame'),patch.object(livros.time,'sleep'), \
+                    self.assertRaises(ValueError):
+                livros._conferir_antes_ok(INICIO,FIM)
+
+    def test_interrupcao_durante_finalizacao_preserva_lista_e_primeiro_pdf_confirmado(self):
+        from app.controle_execucao import ExecucaoInterrompida
+        with tempfile.TemporaryDirectory() as pasta:
+            root=Path(pasta);artefatos=[]
+            for i,texto in enumerate(TEXTOS.values()):criar_pdf(root/f'{i}.pdf',texto)
+            original=arquivos.finalizar_pdf
+            numero=[0]
+            def finalizar(*args,**kwargs):
+                numero[0]+=1
+                if numero[0]==2:raise ExecucaoInterrompida('reinicio_solicitado')
+                return original(*args,**kwargs)
+            with patch.object(arquivos,'finalizar_pdf',side_effect=finalizar),self.assertRaises(ExecucaoInterrompida):
+                livros._conferir_conjunto(root,INICIO,FIM,CNPJ,'Empresa Fictícia',artefatos=artefatos)
+            self.assertEqual(len(artefatos),1)
+            self.assertTrue(Path(artefatos[0]['caminho']).exists())
+            self.assertEqual(len(list(root.glob('*.pdf'))),3)
+
     def test_marca_tres_livros_antes_de_tentar_datas_e_bloqueia_emissao_se_periodo_falha(self):
         with tempfile.TemporaryDirectory() as pasta,contextlib.ExitStack() as stack:
             dominio=Mock();interacao=Mock();dominio.TITULOS_ERRO=()
@@ -40,7 +87,7 @@ class TestConjunto(unittest.TestCase):
             with self.assertRaises(ValueError):livros._executar(dominio,interacao,rotina,[],pasta,INICIO,FIM,'',CNPJ)
             self.assertTrue(all(l['marcada'] for l in selecao['livros'].values()))
             self.assertEqual(rotina.etapa,'preencher_periodo')
-            periodo.assert_called_once();interacao.digitar.assert_not_called()
+            self.assertEqual(periodo.call_count,5);interacao.digitar.assert_not_called()
             self.assertEqual(interacao.clicar.call_count,4)  # Menu e exatamente as três caixas; nenhum OK.
 
     def test_opcao_pdf_com_sete_palavras_nao_confunde_opcao_de_arquivo_unico(self):
@@ -116,13 +163,13 @@ class TestConjunto(unittest.TestCase):
 
     def test_campos_setembro_precisam_mudar_para_agosto_antes_da_emissao(self):
         atual={'periodo':{'inicial':{'valor':'01/09/2026','posicao':(30,40)},'final':{'valor':'30/09/2026','posicao':(30,70)}},
-               'livros':{tipo:{'marcada':True} for tipo in TEXTOS},'outros':[]}
+               'livros':{tipo:{'marcada':True} for tipo in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
         interacao=Mock()
         def digitar(v):
             if v=='01082026':atual['periodo']['inicial']['valor']=INICIO
             elif v=='31082026':atual['periodo']['final']['valor']=FIM
         interacao.digitar.side_effect=digitar
-        with patch.object(livros,'_ler_periodo',side_effect=lambda:atual['periodo']),patch.object(livros,'_ler_selecao',return_value=atual),patch.object(livros.time,'sleep'):
+        with patch.object(livros,'_ler_periodo',side_effect=lambda imagem=None:atual['periodo']),patch.object(livros,'_ler_selecao',return_value=atual),patch.object(livros.tela,'capturar_tela',return_value='frame'),patch.object(livros.time,'sleep'):
             livros._preencher(INICIO,FIM,interacao)
         self.assertEqual([c.args[0] for c in interacao.digitar.call_args_list],['01082026','31082026'])
         interacao.digitar.side_effect=None; atual['periodo']['inicial']['valor']='01/09/2026'
@@ -140,7 +187,7 @@ class TestConjunto(unittest.TestCase):
             dominio.voltar_ao_inicio.return_value=True
             rotina=AcompanhamentoRotina('livros_fiscais',root/'logs');artefatos=[]
             formulario={'periodo':{'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}},
-                        'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[]}
+                        'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
             stack.enter_context(patch.object(livros,'_ler_periodo',return_value=formulario['periodo']))
             stack.enter_context(patch.object(livros,'_ler_selecao',return_value=formulario))
             stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))

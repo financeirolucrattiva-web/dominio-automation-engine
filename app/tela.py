@@ -16,6 +16,7 @@ suposição:
 """
 
 import ctypes
+import copy
 from contextlib import contextmanager
 from contextvars import ContextVar
 import hashlib
@@ -28,6 +29,10 @@ import pytesseract
 from pytesseract import Output
 
 from . import arquivos
+from .controle_execucao import ponto_seguro
+from .ocr_limites import LEITOR_WINDOWS, OCRTempoLimite, OCRLeituraOcupada
+
+LIMITE_TESSERACT=8.0
 
 
 def ler_empresa_selecionada(imagem):
@@ -43,7 +48,8 @@ def ler_empresa_selecionada(imagem):
     # Texto claro sobre o cabeçalho escuro; compara as duas polaridades.
     resultados = set()
     for tentativa in (cinza, ImageOps.invert(cinza)):
-        texto = pytesseract.image_to_string(tentativa, lang="por", config="--psm 6")
+        ponto_seguro()
+        texto = pytesseract.image_to_string(tentativa, lang="por", config="--psm 6",timeout=LIMITE_TESSERACT)
         empresa = arquivos.empresa_do_cabecalho(texto)
         if empresa is not None:
             resultados.add(empresa)
@@ -178,7 +184,8 @@ def _ler_dados_ocr(imagem, escala):
         if chave in cache:
             return cache[chave]
     imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
-    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT)
+    ponto_seguro()
+    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT,timeout=LIMITE_TESSERACT)
     if cache is not None and len(cache) < 8:
         cache[chave] = dados
     return dados
@@ -204,21 +211,21 @@ def ler_dados_ocr_formulario(imagem, escala=4, preparo='cinza', psm=6):
         raise ValueError('Segmentação OCR não reconhecida.')
     imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
     return pytesseract.image_to_data(imagem_ocr, lang='por',
-        config=f'--psm {psm}', output_type=Output.DICT)
+        config=f'--psm {psm}', output_type=Output.DICT,timeout=LIMITE_TESSERACT)
 
 
 def ler_dados_ocr_linha_rotulo(imagem, escala=4, preparo='cinza'):
     """Uma linha de rótulo, sem whitelist para não fabricar palavras."""
     imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
     return pytesseract.image_to_data(imagem_ocr, lang='por',
-        config='--psm 7', output_type=Output.DICT)
+        config='--psm 7', output_type=Output.DICT,timeout=LIMITE_TESSERACT)
 
 
 def ler_dados_ocr_linha_data(imagem, escala=4, preparo='cinza'):
     """Recorte de campo: uma linha/dígitos, sem reutilizar o cache geral."""
     imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
     return pytesseract.image_to_data(imagem_ocr, lang='por',
-        config='--psm 7 -c tessedit_char_whitelist=0123456789/', output_type=Output.DICT)
+        config='--psm 7 -c tessedit_char_whitelist=0123456789/', output_type=Output.DICT,timeout=LIMITE_TESSERACT)
 
 
 def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
@@ -264,6 +271,28 @@ def achar_texto(imagem, alvo, escala=1, debug=False, max_palavras=4):
     return None
 
 
+def _executar_windows_preparado(imagem_ocr,lang):
+    """Importação/WinRT ficam no leitor limitado, não bloqueiam o worker."""
+    import winocr
+    tamanho=imagem_ocr.size
+    limite=getattr(getattr(winocr,'OcrEngine',None),'max_image_dimension',None)
+    if isinstance(limite,int) and limite>0 and max(tamanho)>limite:
+        imagem_ocr=imagem_ocr.copy()
+        imagem_ocr.thumbnail((limite,limite),Image.Resampling.LANCZOS)
+    resultado=winocr.recognize_pil_sync(imagem_ocr,lang=lang)
+    if not isinstance(resultado,dict) or not isinstance(resultado.get('lines'),list):
+        raise ValueError('OCR nativo não devolveu dados reconhecíveis.')
+    if imagem_ocr.size!=tamanho:
+        resultado=copy.deepcopy(resultado)
+        fatores=(tamanho[0]/imagem_ocr.width,tamanho[1]/imagem_ocr.height)
+        for linha in resultado['lines']:
+            for palavra in linha['words']:
+                caixa=palavra['bounding_rect']
+                for k,f in (('x',fatores[0]),('width',fatores[0]),('y',fatores[1]),('height',fatores[1])):
+                    caixa[k]*=f
+    return resultado
+
+
 def _reconhecer_ocr_windows(imagem, escala, lang='pt', preparar=True):
     """Reutiliza resultado OCR válido só no escopo da captura atual."""
     cache=_CACHE_OCR.get(); chave=None
@@ -272,9 +301,12 @@ def _reconhecer_ocr_windows(imagem, escala, lang='pt', preparar=True):
         chave=('windows',imagem.mode,imagem.size,escala,lang,preparar,
                hashlib.sha256(pixels).digest())
         if chave in cache:return cache[chave]
-    import winocr
     imagem_ocr=_preparar_para_ocr(imagem,escala) if preparar else imagem
-    resultado=winocr.recognize_pil_sync(imagem_ocr,lang=lang)
+    try:
+        resultado=LEITOR_WINDOWS.executar(_executar_windows_preparado,imagem_ocr,lang)
+    except OCRTempoLimite:
+        print('OCR_WINDOWS tempo_limite; continuando com os outros leitores.',flush=True)
+        raise
     if (cache is not None and len(cache)<8 and isinstance(resultado,dict)
             and isinstance(resultado.get('lines'),list)):cache[chave]=resultado
     return resultado
@@ -364,7 +396,8 @@ def ler_texto(imagem, escala=2):
     fazer com uma caixa de erro (`app/erros.py`, seção 0.32). Mesmo
     pré-processamento de `achar_texto()` (ampliar + tons de cinza)."""
     imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
-    return pytesseract.image_to_string(imagem_ocr, lang="por")
+    ponto_seguro()
+    return pytesseract.image_to_string(imagem_ocr, lang="por",timeout=LIMITE_TESSERACT)
 
 
 def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
@@ -413,7 +446,8 @@ def texto_mais_proximo(imagem, x, y, raio_x=150, raio_y=60, escala=3):
     """
     recorte, dx, dy = recortar_ao_redor(imagem, x, y, raio_x=raio_x, raio_y=raio_y)
     imagem_ocr = _preparar_para_ocr(recorte, escala)
-    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT)
+    ponto_seguro()
+    dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT,timeout=LIMITE_TESSERACT)
 
     x_local, y_local = x - dx, y - dy  # ponto do clique, coordenada do recorte (escala 1)
     indices_validos = [i for i in range(len(dados["text"])) if dados["text"][i].strip()]

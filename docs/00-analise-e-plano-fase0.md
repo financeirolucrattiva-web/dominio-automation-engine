@@ -4681,6 +4681,47 @@ resultado final do diagnóstico para identificar o bloqueio do botão.
 
 ---
 
+### 0.110 Estabilização das três rotinas e execução direta por empresa (14/10/2026)
+
+Última evidência real: período do Resumo confirmado, prévia bloqueada no
+reconhecimento de OK; diagnóstico offline continuou trabalhando. Estar
+no painel azul não altera a captura já salva. Não houve resultado real
+novo de emissão das três rotinas nesta entrega.
+
+Revisão limita Tesseract a oito segundos por chamada e espera Windows a
+quatro segundos, com uma única leitura nativa pendente. A leitura atrasada
+só recebe imagem, não opera o desktop e não alimenta outra análise. Worker
+WinRT inicializa seu apartamento COM; imagem respeita max_image_dimension
+do motor e suas caixas são convertidas de volta à escala solicitada.
+
+Resumo recupera Fechar por texto completo dentro das bordas medidas;
+classificação por recorte exige duas leituras exatas, sem whitelist/aliases.
+Contradição de rótulos, outro OK ou aviso continuam bloqueando emissão.
+Bordas 3D só são aceitas com contraste nos quatro lados; spinner claro
+continua excluído do texto das datas. Não presume posição a partir do print.
+
+Livros espera novas capturas antes/depois de cada marcação e não repete
+cliques por demora de pintura. Antes do OK, período e somente Entradas,
+Saídas e ICMS precisam confirmar na mesma captura. Seletor aguarda unidade,
+expansão e seleção na árvore. PDF corrompido vira falha de conferência;
+artefatos já confirmados são preservados se o restante falhar.
+
+EFD relê OCR negativo periodicamente em pixels idênticos, usa orçamento
+de espera e confirma a saída do aviso com todos os leitores usados na
+mensagem de geração. Um Enter, foco conferido e nenhuma nova geração
+para resolver fechamento. Legado SPED Fiscal mantém seu fluxo.
+
+Executar Presumido por Empresa.bat/CLI usa o worker e mutex existentes,
+com servidor parado, código e competência informados uma vez, confirmação
+de fechamento, etapas e progresso periódico. Ctrl+C solicita cancelamento
+cooperativo sem começar a próxima rotina; histórico com erro não impede
+liberação do serviço. Diagnóstico JSON local omite dados privados.
+
+Validação: suíte completa de 615 testes, compileall/diff --check e smoke
+Chromium/API/worker, com fiscal sintético.
+O fluxo real Windows, PDF de ICMS, destino final e aceite fiscal permanecem
+pendentes de teste na empresa cuja competência foi confirmada fechada.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

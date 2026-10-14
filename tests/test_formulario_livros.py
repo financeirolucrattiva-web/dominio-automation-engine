@@ -61,6 +61,47 @@ def formulario(marcados=(), outros=False, dx=0, dy=0, fator=1, cinzas=False,
 
 
 class TestLeituraFormularioLivros(unittest.TestCase):
+    def test_transitorio_antes_do_proximo_livro_e_na_conferencia_final_nao_abortam(self):
+        im,dados,_=formulario();atual=ler_selecao(im,dados)
+        leituras_pendentes=[]
+        def ler():
+            if leituras_pendentes:
+                proxima=leituras_pendentes.pop(0)
+                if isinstance(proxima,Exception):raise proxima
+                return proxima
+            return copy.deepcopy(atual)
+        def clicar(x,y):
+            tipo=next(t for t,c in atual['livros'].items() if c['posicao']==(x,y))
+            atual['livros'][tipo]['marcada']=True
+            # Confirmação pós-clique chega; captura seguinte ainda transita.
+            leituras_pendentes.extend([copy.deepcopy(atual),ValueError('OCR transitório')])
+        clique=Mock(side_effect=clicar)
+        with patch('app.formulario_livros.time.sleep'):
+            final=marcar_tres_livros(ler,clique)
+        self.assertTrue(all(c['marcada'] for c in final['livros'].values()))
+        self.assertEqual(clique.call_count,3)
+        self.assertEqual({c.args for c in clique.call_args_list},
+                         {c['posicao'] for c in atual['livros'].values()})
+
+    def test_livro_ja_confirmado_que_desaparece_nao_e_clicado_novamente(self):
+        im,dados,_=formulario();inicial=ler_selecao(im,dados)
+        confirmado=copy.deepcopy(inicial);confirmado['livros']['registro_entradas']['marcada']=True
+        leituras=Mock(side_effect=[inicial,confirmado]+[inicial]*5)
+        clique=Mock()
+        with patch('app.formulario_livros.time.sleep'),self.assertRaises(ValueError):
+            marcar_tres_livros(leituras,clique)
+        clique.assert_called_once_with(*inicial['livros']['registro_entradas']['posicao'])
+
+    def test_grupo_parcial_e_posicoes_duplicadas_nao_autorizam_clique(self):
+        im,dados,_=formulario();inicial=ler_selecao(im,dados)
+        for caso in ('outros','posicoes'):
+            atual=copy.deepcopy(inicial);clique=Mock()
+            if caso=='outros':atual['outros'].pop()
+            else:atual['livros']['registro_icms']['posicao']=atual['livros']['registro_entradas']['posicao']
+            with self.subTest(caso=caso),patch('app.formulario_livros.time.sleep'),self.assertRaises(ValueError):
+                marcar_tres_livros(lambda:atual,clique)
+            clique.assert_not_called()
+
     def test_aguarda_checkbox_repintar_sem_clicar_de_novo(self):
         import copy
         from unittest.mock import patch
