@@ -32,8 +32,18 @@ def dados_limitados(dados,escala):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--imagem',type=Path,help='PNG local do formulário, sem desktop.')
+    imagens=parser.add_mutually_exclusive_group()
+    imagens.add_argument('--imagem',type=Path,help='PNG local do formulário, sem desktop.')
+    imagens.add_argument('--ultima-falha',action='store_true',
+        help='Analisa o PNG local mais recente de erro_periodo_resumo; não captura nem opera o desktop.')
     args=parser.parse_args(argv)
+    if args.ultima_falha:
+        candidatos=list((ROOT/'capturas').glob('*erro_periodo_resumo.png'))
+        if not candidatos:
+            print('Nenhuma captura de falha do período do Resumo encontrada em capturas/. Não houve alteração ou emissão.')
+            return 1
+        args.imagem=max(candidatos,key=lambda p:p.stat().st_mtime_ns)
+        print('Analisando a captura local mais recente da falha do período; nenhuma nova execução será iniciada.')
     if not args.imagem and sys.platform!='win32':parser.error('Captura ao vivo requer Windows; use --imagem para leitura de PNG.')
     try:
         from PIL import Image
@@ -63,8 +73,11 @@ def main(argv=None):
         except Exception:titulo=None
         if titulo is not None:break
     if titulo is None:
+        print('RESUMO_FORMULARIO '+json.dumps({'titulo_reconhecido':False,'dimensoes':list(imagem.size)}))
         print('Formulário do Resumo não reconhecido. Não houve alteração ou emissão.')
         return 1
+    print('RESUMO_FORMULARIO '+json.dumps({'titulo_reconhecido':True,
+        'posicao':list(titulo),'dimensoes':list(imagem.size)}))
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2)):
         try:
             dados=tela._ler_dados_ocr(imagem,escala) if motor=='tesseract' else tela.ler_dados_ocr_windows(imagem,escala)

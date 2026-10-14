@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,6 +18,32 @@ from app.servidor import ServicoExecucao
 
 
 class TestDiagnosticoPeriodoResumo(unittest.TestCase):
+    def test_ultima_falha_usa_png_mais_recente_sem_capturar_desktop(self):
+        import scripts.revisar_periodo_resumo as diagnostico
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz=Path(pasta); capturas=raiz/'capturas'; capturas.mkdir()
+            antigo=capturas/'PRIVADO_erro_periodo_resumo.png'
+            recente=capturas/'outro_erro_periodo_resumo.png'
+            irrelevante=capturas/'livros_erro.png'
+            for arquivo,largura,tempo in ((antigo,111,10),(recente,222,20),(irrelevante,333,30)):
+                Image.new('RGB',(largura,100)).save(arquivo); os.utime(arquivo,(tempo,tempo))
+            backend=Mock(); backend.achar_texto_ou_no_centro.return_value=None
+            backend.achar_texto_windows.return_value=None
+            saida=io.StringIO()
+            with patch.object(diagnostico,'ROOT',raiz),patch.multiple('app',create=True,tela=backend), \
+                    contextlib.redirect_stdout(saida):
+                self.assertEqual(main(['--ultima-falha']),1)
+            backend.capturar_tela.assert_not_called(); backend.salvar.assert_not_called()
+            self.assertIn('"dimensoes": [222, 100]',saida.getvalue())
+            self.assertNotIn('PRIVADO',saida.getvalue())
+
+    def test_ultima_falha_ausente_nao_captura_nem_importa_desktop(self):
+        import scripts.revisar_periodo_resumo as diagnostico
+        with tempfile.TemporaryDirectory() as pasta,patch.object(diagnostico,'ROOT',Path(pasta)), \
+                contextlib.redirect_stdout(io.StringIO()) as saida:
+            self.assertEqual(main(['--ultima-falha']),1)
+        self.assertIn('Nenhuma captura',saida.getvalue())
+
     def test_so_imprime_rotulos_e_datas_alinhadas_sem_texto_livre(self):
         dados=dados_ocr()
         for texto,x,y in (('CNPJ PRIVADO',600,80),('01/10/2026',600,200)):
@@ -31,6 +58,7 @@ class TestDiagnosticoPeriodoResumo(unittest.TestCase):
             for chave in ('left','top','width','height'):dados[chave]=[v*escala/2 for v in dados[chave]]
             return dados
         tela=Mock(); tela._ler_dados_ocr.side_effect=dados_na_escala
+        tela.achar_texto_ou_no_centro.return_value=(10,20)
         tela.ler_dados_ocr_windows.return_value=None
         with tempfile.TemporaryDirectory() as pasta:
             caminho=Path(pasta)/'formulario.png'; Image.new('RGB',(400,300)).save(caminho)

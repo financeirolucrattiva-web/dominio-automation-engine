@@ -4559,6 +4559,36 @@ sintaxe Python e diff conferidos. Teste real Windows ainda pendente.
 
 ---
 
+### 0.106 Geometria do Resumo recusada após três capturas (14/10/2026)
+
+**Achado real:** após0.105, o log enviado mostra todos os seis contextos com
+geometria não confirmada, terceira tentativa antes do campo final e falha
+campos_resumo_nao_localizados. Não houve OK; retorno ao painel foi confirmado.
+O operador informa que o formulário permanecia aberto com as duas datas.
+
+**Limitação comprovada:** diferentes falhas de rótulos/bordas/área textual/
+alinhamento eram reduzidas a um único booleano. O trecho enviado não permite
+identificar qual ocorreu. Exceções/indisponibilidade do OCR também não tinham
+diagnóstico específico. Não há base para inventar novas coordenadas ou relaxar
+os critérios que impedem relatório com período errado.
+
+**Diagnóstico:** RESUMO_RECORTE inclui motivo fechado e rótulos canônicos com
+caixas, incluindo DataInicial/DataFinal unidos. Ausência de motor e falha de
+leitura têm códigos próprios, sem mensagem livre da exceção. Novo parâmetro
+--ultima-falha no script existente seleciona a captura local mais recente de
+erro_periodo_resumo e faz análise offline; não captura desktop nem emite.
+Dimensões e reconhecimento do título permitem confirmar a imagem analisada.
+O caminho e conteúdo completo permanecem locais; somente saída limitada deve
+ser compartilhada. Nenhum critério de localização ou autorização de OK mudou.
+
+**Estado:** causa da falha no Windows ainda pendente de diagnóstico da captura.
+Não considerar a rotina corrigida ou homologada por testes sintéticos.
+Ferramenta validada com 557 testes: motivos limitados, descarte de OCR privado,
+PNG de falha mais recente, ausência de captura sem operar desktop; sintaxe/diff
+conferidos.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

@@ -11,6 +11,20 @@ Na tentativa anterior, o operador interrompeu a EFD enquanto ela aguardava;
 esse resultado não comprova sucesso nem falha de geração. Não iniciar lote
 até conferir cada rotina isoladamente nessa empresa.
 
+Se o Resumo falhar com todos os motores em “geometria não confirmada”, analisar
+a captura já salva antes de nova emissão:
+
+```bat
+cd /d C:\Users\darto\dominio-automation-engine
+python scripts\revisar_periodo_resumo.py --ultima-falha
+```
+
+O comando não opera o desktop. Compartilhar as linhas RESUMO_FORMULARIO,
+RESUMO_RECORTE e a mensagem final; não enviar a captura integral que pode
+conter dados de clientes ao fundo. O diagnóstico distingue rótulos, bordas,
+área textual, alinhamento e indisponibilidade do OCR. Essa falha ainda está
+em investigação; não aumentar tentativas ou presumir coordenadas para passar.
+
 ## Primeiro: os três Livros Fiscais
 
 1. Atualizar a main, fechar/reabrir o servidor e recarregar o painel com Ctrl+F5.
