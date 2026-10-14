@@ -65,9 +65,24 @@ def _texto_recorte(imagem, caixa):
     return reconhecidos
 
 
-def _contexto_coluna(imagem):
+def _registrar(registrar, fase, motivo, **detalhe):
+    if registrar:registrar({'fase':fase,'motivo':motivo,**detalhe})
+
+
+def _oks_exatos(imagem, motor, escala):
+    """Token inteiro; substring de BOOK, por exemplo, não é outro OK."""
+    dados=(tela._ler_dados_ocr(imagem,escala) if motor=='tesseract' else
+           tela.ler_dados_ocr_windows(imagem,escala))
+    if dados is None:return []
+    return [((dados['left'][i]+dados['width'][i]/2)/escala,
+             (dados['top'][i]+dados['height'][i]/2)/escala)
+            for i,t in enumerate(dados['text']) if str(t).strip().casefold()=='ok']
+
+
+def _contexto_coluna(imagem, registrar=None):
     contextos = []
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
+        motivo_falha='campos_periodo_nao_confirmados'
         try:
             dados = (tela._ler_dados_ocr(imagem,escala) if motor=='tesseract'
                      else tela.ler_dados_ocr_windows(imagem,escala))
@@ -76,13 +91,17 @@ def _contexto_coluna(imagem):
             campos = medir_campos(imagem,resolver_rotulos_resumo(imagem,dados,escala,
                                                                titulo_confirmado=True))
             palavras = _palavras(dados,escala)
-            fechar = _rotulo(palavras,'Fechar')
-            centro = (fechar['x']+fechar['w']/2,fechar['y']+fechar['h']/2)
             altura = max(c['retangulo'][3] for c in campos.values())
             direita = max(c['retangulo'][0]+c['retangulo'][2] for c in campos.values())
+            motivo_falha='bordas_botoes_nao_confirmadas'
             caixas = [c for c in _retangulos(imagem,altura) if c[0] > direita]
+            motivo_falha='rotulo_fechar_nao_confirmado'
+            fechar = _rotulo(palavras,'Fechar')
+            centro = (fechar['x']+fechar['w']/2,fechar['y']+fechar['h']/2)
             fechar_caixas = [c for c in caixas if _dentro(centro,c)]
             if len(fechar_caixas)!=1:
+                _registrar(registrar,'coluna','borda_fechar_nao_confirmada',motor=motor,escala=escala,
+                    caixas=[list(c) for c in caixas],fechar=list(centro),quantidade=len(fechar_caixas))
                 continue
             botao_fechar = fechar_caixas[0]
             # Fechar só delimita a coluna observada. Nenhum deslocamento
@@ -96,24 +115,30 @@ def _contexto_coluna(imagem):
                 and c[1] <= campos['final']['retangulo'][1]]
             if candidatos:
                 contextos.append((tuple(sorted(candidatos)),botao_fechar))
+            _registrar(registrar,'coluna','candidatos_medidos' if candidatos else 'sem_candidato_ok',
+                motor=motor,escala=escala,fechar=list(botao_fechar),candidatos=[list(c) for c in candidatos])
         except Exception:
+            _registrar(registrar,'coluna',motivo_falha,motor=motor,escala=escala)
             continue
     if not contextos or len(set(contextos))!=1:
+        _registrar(registrar,'coluna','coluna_ausente_ou_conflitante',quantidade=len(contextos))
         return None
     return contextos[0]
 
 
-def achar_ok_resumo(imagem):
+def achar_ok_resumo(imagem, registrar=None):
     """Devolve centro do botão inequívoco ou None; nunca clica/gera."""
     try:
         for aviso in AVISOS:
             for escala in (2,4):
                 if (tela.achar_texto_ou_no_centro(imagem,aviso,escala=escala) is not None
                         or tela.achar_texto_windows(imagem,aviso,escala=escala) is not None):
+                    _registrar(registrar,'contexto','aviso_reconhecido')
                     return None
         if formulario_resumo_reconhecido(imagem) is None:
+            _registrar(registrar,'contexto','formulario_nao_reconhecido')
             return None
-        contexto = _contexto_coluna(imagem)
+        contexto = _contexto_coluna(imagem,registrar)
         if contexto is None:
             return None
         candidatos,fechar = contexto
@@ -121,21 +146,31 @@ def achar_ok_resumo(imagem):
         # medida indica outro contexto e não autoriza a emissão.
         for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
             try:
-                pos = (tela.achar_texto_ou_no_centro(imagem,'OK',escala=escala)
-                       if motor=='tesseract' else tela.achar_texto_windows(imagem,'OK',escala=escala))
-                if pos is not None:
+                for pos in _oks_exatos(imagem,motor,escala):
                     if not any(_dentro(pos,c) for c in candidatos):
+                        _registrar(registrar,'contexto','outro_ok_exato',motor=motor,escala=escala)
                         return None
             except Exception:
                 continue
         # O fallback lê cada retângulo medido, mesmo quando tela cheia
         # não segmentou OK. Aceita somente o texto inteiro, sem correções.
-        if _texto_recorte(imagem,fechar) != {'fechar'}:
+        textos_fechar=_texto_recorte(imagem,fechar)
+        if textos_fechar != {'fechar'}:
+            _registrar(registrar,'texto','texto_fechar_nao_confirmado',
+                texto_esperado_lido='fechar' in textos_fechar,leituras_distintas=len(textos_fechar))
             return None
-        confirmados = [c for c in candidatos if _texto_recorte(imagem,c) == {'ok'}]
+        confirmados=[]
+        for c in candidatos:
+            textos=_texto_recorte(imagem,c)
+            if textos=={'ok'}:confirmados.append(c)
+            _registrar(registrar,'texto','ok_lido' if textos=={'ok'} else 'texto_ok_nao_confirmado',
+                caixa=list(c),texto_esperado_lido='ok' in textos,leituras_distintas=len(textos))
         if len(confirmados)!=1:
+            _registrar(registrar,'texto','texto_ok_ausente_ou_ambiguo',quantidade=len(confirmados))
             return None
         x,y,w,h = confirmados[0]
+        _registrar(registrar,'fim','ok_confirmado',caixa=[x,y,w,h])
         return (x+w//2,y+h//2)
     except Exception:
+        _registrar(registrar,'fim','leitura_ok_nao_confirmada')
         return None

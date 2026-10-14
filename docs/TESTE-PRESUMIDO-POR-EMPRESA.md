@@ -32,6 +32,18 @@ RESUMO_LEITURA_CAMPOS com ambas datas. Se não confirmar, compartilhar essa
 saída limitada antes de nova emissão. Se confirmar, reiniciar servidor e
 testar o Resumo individual para verificar prévia, PDF e retorno ao painel.
 
+Se preencher_periodo confirmar mas gerar_previa falhar em reconhecer OK:
+
+```bat
+python scripts\revisar_periodo_resumo.py --ultima-falha --conferir-ok
+```
+
+Agora --ultima-falha também considera erro_ok_resumo.png, sempre usando a
+captura mais recente. Compartilhar RESUMO_BOTAO e RESUMO_BOTAO_OK para separar
+rótulo Fechar, bordas, coluna, outro OK verdadeiro e texto não confirmado.
+Esse diagnóstico não clica nem emite; aguardar confirmação do botão antes
+de repetir o teste individual.
+
 ## Primeiro: os três Livros Fiscais
 
 1. Atualizar a main, fechar/reabrir o servidor e recarregar o painel com Ctrl+F5.

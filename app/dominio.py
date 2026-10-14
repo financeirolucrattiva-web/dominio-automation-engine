@@ -1797,7 +1797,7 @@ def _ler_campos_resumo():
 
 def _achar_ok_resumo(imagem):
     from app.botoes_formulario import achar_ok_resumo
-    return achar_ok_resumo(imagem)
+    return achar_ok_resumo(imagem,registrar=lambda d:print('RESUMO_BOTAO '+json.dumps(d,ensure_ascii=False),flush=True))
 
 
 def _diagnosticar_periodo_resumo(fase, campo, esperado, campos=None, tentativa=0):
