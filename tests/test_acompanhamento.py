@@ -319,7 +319,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.fechar_sped = self.stack.enter_context(patch.object(d, "_fechar_tela_geracao", return_value=True))
         self.stack.enter_context(patch.object(d.tela, "recortar_a_partir_de", return_value=("frame", 0, 0)))
         d.tela.achar_texto.side_effect = lambda imagem, texto, **kwargs: (100, 130) if texto == "Empresas" else (100, 100)
-        d.tela.achar_texto_ou_no_centro.side_effect = lambda imagem, texto, **kwargs: None if texto == self.confirmacao_sped else (100, 100)
+        d.tela.achar_texto_ou_no_centro.side_effect = lambda imagem, texto, **kwargs: None if texto in (self.confirmacao_sped,'Arquivo gerado com sucesso') else (100, 100)
 
     def executar_sped(self):
         return self.dominio.gerar_sped(self.item_sped, self.confirmacao_sped)
@@ -337,6 +337,8 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.carregar_referencia.return_value = {"referencia": "sintetica"}
         self.assertIs(self.dominio.gerar_efd_contribuicoes(), True)
         self.assertEqual(self.rotina.eventos[-1]["routine_id"], "efd_contribuicoes")
+        self.espera.assert_called_once_with('Arquivo gerado com sucesso',escala=2,
+            escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True)
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "confirmado" and e["evidence"] == "tela_principal_reconhecida" for e in self.rotina.eventos))
 
     def test_efd_gerada_fechar_falha_e_limpeza_confirma_sem_regerar(self):
@@ -348,6 +350,17 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(self.espera.call_count,1)
         self.assertEqual(self.rotina.eventos[-1]['status'],'concluido')
         self.assertEqual(tuple(self.rotina.confirmadas),self.rotina.ETAPAS)
+
+    def test_efd_aviso_informativo_preserva_leituras_na_segunda_espera(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.espera.side_effect=[('frame',(100,100),True),('frame',(100,100),False)]
+        self.stack.enter_context(patch.object(self.dominio,'_ler_texto_caixa',return_value='aviso sintetico'))
+        self.stack.enter_context(patch.object(self.dominio,'_fechar_caixa_erro'))
+        self.stack.enter_context(patch.object(self.dominio.erros,'decidir',return_value=self.dominio.erros.CONTINUAR))
+        self.assertTrue(self.dominio.gerar_efd_contribuicoes())
+        self.assertEqual(self.espera.call_count,2)
+        self.assertEqual(self.espera.call_args_list[0],self.espera.call_args_list[1])
+        self.assertEqual(self.rotina.tentativa,1)
 
     def test_efd_limpeza_nao_promove_falha_antes_da_geracao(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')

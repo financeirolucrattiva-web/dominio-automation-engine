@@ -203,7 +203,8 @@ class AcompanhamentoRotina:
         self.finalizada = True
 
 
-def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):
+def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
+                       comparacao_exata=False):
     """Tira print repetidamente até um dos `detectores` achar alguma
     coisa, ou esgotar as tentativas — nunca por tempo fixo sozinho
     (mesmo princípio de sempre neste projeto).
@@ -215,10 +216,9 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):
     ou `None`.
 
     Pula a chamada de todos os detectores (que geralmente envolvem OCR,
-    a parte mais lenta) quando a tela está idêntica à tentativa
-    anterior (`tela.assinatura_tela()`/`tela_mudou()`, seção 0.58) —
-    rodar os detectores de novo sobre a mesma imagem nunca mudaria a
-    resposta.
+    a parte mais lenta) quando a assinatura perceptual indica uma tela
+    semelhante à anterior (seção 0.58). `comparacao_exata=True` compara
+    pixels: um aviso pequeno pode mudar sem alterar essa assinatura.
 
     Devolve `(imagem, nome_estado, posicao)` quando um detector achar,
     ou `(None, None, None)` se esgotar as tentativas sem achar nada.
@@ -229,8 +229,15 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2):
     for tentativa in range(1, tentativas + 1):
         ponto_seguro()
         imagem = tela.capturar_tela()
-        assinatura_atual = tela.assinatura_tela(imagem)
-        if not tela.tela_mudou(assinatura_anterior, assinatura_atual):
+        if comparacao_exata:
+            import hashlib
+            assinatura_atual = (imagem.mode, imagem.size,
+                                hashlib.blake2b(imagem.tobytes(), digest_size=16).digest())
+            mudou = assinatura_atual != assinatura_anterior
+        else:
+            assinatura_atual = tela.assinatura_tela(imagem)
+            mudou = tela.tela_mudou(assinatura_anterior, assinatura_atual)
+        if not mudou:
             print(f"Tela igual à tentativa anterior, pulando checagem (tentativa {tentativa}/{tentativas})...")
             time.sleep(intervalo)
             continue

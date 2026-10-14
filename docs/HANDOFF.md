@@ -1,5 +1,38 @@
 # Domínio Automation Engine — handoff
 
+## Resumo perde uma leitura; operador interrompe a espera da EFD — 14/10/2026
+
+Novo log: uma leitura do Resumo confirmou ambas as datas de agosto/2026.
+O campo inicial já estava correto, mas a leitura seguinte, antes do campo
+final, não encontrou a geometria. A rotina encerrou antes de reconhecer OK.
+Não confundir esta tentativa com o problema de OK da seção anterior.
+Agora tenta até três capturas novas antes de cada campo, com ponto de
+cancelamento e intervalo curto. Não usa a captura anterior para liberar
+OK: a leitura mais recente precisa confirmar ambos os valores solicitados.
+Três falhas de leitura ou período divergente continuam bloqueando emissão.
+
+Na EFD, o log ficou na espera do resultado e terminou em exceção. O operador
+confirmou que interrompeu porque ficou esperando. Não houve marcador de
+geração reconhecida nessa tentativa; não classificar como falha de fechamento
+nem promover a execução a sucesso com base no relato ou em arquivo anterior.
+
+Revisão encontrou duas limitações da espera: somente Tesseract2x e assinatura
+perceptual8x8, que pode pular um aviso pequeno com pixels diferentes. Somente
+na espera EFD, comparar pixels por digest, tentar Tesseract2x/4x e Windows2x/4x
+em tela/centro antes de classificar erros. O corpo positivo é o já observado
+em0.21, “Arquivo gerado com sucesso”; “sucesso” isolado não confirma geração.
+O título positivo também é Aviso: todas as opiniões de sucesso precedem
+a classificação do título. Avisos desconhecidos continuam em erros.decidir.
+As opções sobrevivem à segunda espera após aviso informativo. A busca EFD
+não imprime OCR livre. Não gerar novamente para resolver a espera.
+
+Sem novo log de Livros nesta mensagem. Marcação dos três livros e validação
+dos PDFs mantêm as travas existentes. Correção de código precisa de novo teste
+individual no Windows, agosto/2026 apenas na empresa já confirmada fechada.
+
+Validação desta revisão: 552 testes passaram; sintaxe Python e diff
+conferidos. Nenhuma emissão real foi executada nesta sessão de nuvem.
+
 ## Resumo confirma datas mas não encontra OK; EFD gerada e livros parciais — 14/10/2026
 
 Novo log Windows do Resumo: antes de digitar, ambos campos já confirmavam
