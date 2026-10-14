@@ -1,8 +1,15 @@
 # Testar o Presumido por empresa e depois em lote
 
-Atualização: 13/10/2026. Agosto/2026 foi confirmado fechado pelo operador
+Atualização: 14/10/2026. Agosto/2026 foi confirmado fechado pelo operador
 somente para a empresa do primeiro teste. Setembro/2026 foi informado
 aberto. A confirmação precisa ser feita para cada empresa/competência.
+
+Última revisão: o Resumo tenta novas capturas quando perde a leitura antes
+do campo final. A EFD relê mudanças pequenas no aviso e busca a mensagem
+completa de geração em mais escalas/motores. Ainda precisam de teste real.
+Na tentativa anterior, o operador interrompeu a EFD enquanto ela aguardava;
+esse resultado não comprova sucesso nem falha de geração. Não iniciar lote
+até conferir cada rotina isoladamente nessa empresa.
 
 ## Primeiro: os três Livros Fiscais
 

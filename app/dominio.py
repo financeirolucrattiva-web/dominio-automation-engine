@@ -200,7 +200,8 @@ def _sugerir_diagnostico(alvo, imagem):
         print(f"Palpite da IA sobre o que houve: {sugestao}")
 
 
-def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, tentativas=90, intervalo=2):
+def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, tentativas=90, intervalo=2,
+                    escalas_adicionais=(), ocr_windows=False, comparacao_exata=False):
     """Espera pelo menos `espera_minima` segundos e depois fica
     verificando a tela por estado (a cada `intervalo` segundos, até
     `tentativas` vezes) em vez de confiar num tempo fixo — achado real
@@ -242,11 +243,10 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     **Otimização de velocidade (seção 0.58):** antes de rodar OCR (a
     parte mais lenta de cada tentativa), compara a assinatura da tela
     atual (`tela.assinatura_tela()`) com a da tentativa anterior — se
-    forem iguais (`tela.tela_mudou()` devolve False), a tela não mudou
-    nada desde a última vez que o OCR já disse "não achei", então rodar
-    OCR de novo sobre a mesma imagem não traria resposta diferente;
-    pula direto pra espera do próximo intervalo. Só roda OCR quando a
-    tela muda de verdade (ou na primeira tentativa) — sem isso, cada
+    forem semelhantes (`tela.tela_mudou()` devolve False), pula direto
+    pra espera do próximo intervalo. `comparacao_exata=True` evita essa
+    aproximação quando um aviso pequeno precisa ser reconhecido.
+    Só roda OCR quando a comparação indicar mudança (ou na primeira tentativa) — sem isso, cada
     segundo parado numa tela de "processando" gastava um ciclo de OCR
     completo à toa.
 
@@ -260,14 +260,30 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
     o motor novo diretamente.
     """
     titulos = (texto_erro,) if isinstance(texto_erro, str) else (texto_erro or ())
+    escalas = tuple(dict.fromkeys((escala, *escalas_adicionais)))
+    def procurar(imagem, texto, debug=False):
+        for ampliacao in escalas:
+            pos = tela.achar_texto_ou_no_centro(imagem,texto,escala=ampliacao,
+                debug=debug and not escalas_adicionais and not ocr_windows)
+            if pos is not None:return pos
+        if ocr_windows:
+            for ampliacao in escalas:
+                pos = tela.achar_texto_windows(imagem,texto,escala=ampliacao)
+                if pos is not None:return pos
+                centro,dx,dy = tela.recortar_centro(imagem)
+                pos = tela.achar_texto_windows(centro,texto,escala=ampliacao)
+                if pos is not None:return (pos[0]+dx,pos[1]+dy)
+        return None
     detectores = [
-        ("sucesso", lambda img: tela.achar_texto_ou_no_centro(img, alvo, escala=escala, debug=True)),
+        ("sucesso", lambda img: procurar(img,alvo,debug=True)),
     ] + [
-        ("erro", lambda img, t=titulo: tela.achar_texto_ou_no_centro(img, t, escala=escala))
+        ("erro", lambda img, t=titulo: procurar(img,t))
         for titulo in titulos
     ]
+    opcoes_espera = {'comparacao_exata':True} if comparacao_exata else {}
     imagem, estado, pos = estados.esperar_por_estado(
         detectores, espera_minima=espera_minima, tentativas=tentativas, intervalo=intervalo,
+        **opcoes_espera,
     )
     if estado is None:
         return None, None, False
@@ -630,7 +646,13 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     # de um botão só, "OK" ilegível pro OCR de novo — seção 0.13) e
     # checar que ela realmente sumiu.
     print("Aguardando o resultado da geração (verificando por estado)...")
-    imagem, ancora_confirm, houve_erro = esperar_e_achar(texto_confirmacao, escala=2)
+    leitura_confirmacao = ({'escalas_adicionais':(4,), 'ocr_windows':True, 'comparacao_exata':True}
+                          if acompanhamento.rotina == 'efd_contribuicoes' else {})
+    if acompanhamento.rotina == 'efd_contribuicoes':
+        # Corpo completo observado em 0.21; "sucesso" isolado pode estar
+        # em um aviso desconhecido. O título positivo também é "Aviso".
+        texto_confirmacao = 'Arquivo gerado com sucesso'
+    imagem, ancora_confirm, houve_erro = esperar_e_achar(texto_confirmacao, escala=2, **leitura_confirmacao)
     if houve_erro:
         # Domínio mostrou um erro/aviso (ex.: caminho de arquivo
         # inválido) em vez da confirmação de sucesso. Não adianta
@@ -653,7 +675,7 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
             # deve seguir sozinha. Volta a esperar pela confirmação de
             # verdade, sem reabrir nada.
             print("Aviso dispensado — voltando a esperar a confirmação de sucesso.")
-            imagem, ancora_confirm, houve_erro_de_novo = esperar_e_achar(texto_confirmacao, escala=2)
+            imagem, ancora_confirm, houve_erro_de_novo = esperar_e_achar(texto_confirmacao, escala=2, **leitura_confirmacao)
             if houve_erro_de_novo or ancora_confirm is None:
                 print("Depois do aviso, ainda não veio a confirmação de sucesso. Parando este documento.")
                 salvar(tela.capturar_tela(), f"{prefixo}erro_apos_aviso.png")
@@ -697,7 +719,8 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     ainda_aberto = None
     for _ in range(3):
         time.sleep(1)
-        ainda_aberto = tela.achar_texto_ou_no_centro(tela.capturar_tela(), texto_confirmacao, escala=2, debug=True)
+        ainda_aberto = tela.achar_texto_ou_no_centro(tela.capturar_tela(), texto_confirmacao,
+            escala=2, debug=acompanhamento.rotina != 'efd_contribuicoes')
         if ainda_aberto is None:
             break
     if ainda_aberto is not None:
@@ -1844,12 +1867,18 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     # Tab apenas retira a seleção azul inicial para OCR; a posição do
     # campo seguinte não é presumida. Cada data é localizada novamente.
     interacao.pressionar_tecla("tab")
+    from .controle_execucao import ponto_seguro
     for papel, valor in (("inicial", data_inicial), ("final", data_final)):
-        try:
-            campos = _ler_campos_resumo()
-        except ValueError:
-            print("Resumo: datas não localizadas por OCR; nenhum offset foi presumido.")
-            _diagnosticar_periodo_resumo('antes_digitacao', papel, valor)
+        for tentativa in range(3):
+            ponto_seguro()
+            try:
+                campos = _ler_campos_resumo()
+                break
+            except ValueError:
+                _diagnosticar_periodo_resumo('leitura_antes_digitacao_nao_confirmada',papel,valor,tentativa=tentativa+1)
+                if tentativa < 2:time.sleep(.3)
+        else:
+            print("Resumo: três leituras sem localizar datas; nenhum offset foi presumido.")
             return _falhar_periodo_resumo(acompanhamento, 'campos_resumo_nao_localizados', prefixo)
         _diagnosticar_periodo_resumo('antes_digitacao', papel, valor, campos)
         if campos[papel]['valor'] == valor:

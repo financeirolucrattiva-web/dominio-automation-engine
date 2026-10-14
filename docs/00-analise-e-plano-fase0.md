@@ -4523,6 +4523,42 @@ individual, agosto/2026 na empresa confirmada, sem lote completo ainda.
 
 ---
 
+### 0.105 Resumo com OCR transitório e espera EFD interrompida (14/10/2026)
+
+**Achado real:** novo log do Resumo confirmou as duas datas de agosto/2026;
+o campo inicial foi preservado. Antes do campo final, a captura seguinte
+não reconheceu a geometria e a rotina encerrou sem clicar OK. Na EFD, a
+espera não reconheceu sucesso e terminou em exceção. O operador esclareceu:
+interrompeu porque ficou esperando. Não há confirmação de geração observada
+pelo motor nessa tentativa nem evidência nova sobre marcação dos Livros.
+
+**Causa comprovada no código:** a leitura antes de cada campo do Resumo
+abortava na primeira falha de OCR. Na espera EFD, havia só leitura2x e
+comparação perceptual8x8: “tela igual” significava semelhante, não pixels
+idênticos. Um aviso pequeno pode mudar sem ultrapassar o limiar do hash.
+O log sem captura do aviso não prova qual dessas limitações ocorreu no PC.
+A exceção final é compatível com a interrupção informada; não inferir
+falha de fechamento ou geração fiscal concluída.
+
+**Correção:** até três capturas novas antes de cada campo do Resumo, sem
+reutilizar valores antigos para liberar OK. Releitura divergente continua
+bloqueando emissão. Somente espera EFD usa digest dos pixels, Tesseract2x/4x
+e Windows2x/4x em tela/centro. Buscar corpo completo já observado em0.21,
+“Arquivo gerado com sucesso”, antes dos títulos de erro: Aviso também é
+o título do resultado positivo. Mensagem desconhecida continua no catálogo
+de erros. Segunda espera após aviso informativo mantém as mesmas opções;
+nenhum segundo clique de geração é acrescentado. OCR livre não é impresso
+nessa busca. Cancelamento e timeout não promovem sucesso.
+
+**Validação:** regressões sintéticas para perda transitória antes do campo
+final, três falhas sem reaproveitar a data anterior, divergência bloqueando
+OK, aviso pequeno com mesma assinatura perceptual, pixels iguais sem OCR
+repetido, cancelamento, fallback4x/Windows/centro, título Aviso e palavra
+sucesso em mensagem desconhecida. Suíte completa: 552 testes passaram;
+sintaxe Python e diff conferidos. Teste real Windows ainda pendente.
+
+---
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

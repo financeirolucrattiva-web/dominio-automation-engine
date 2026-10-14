@@ -220,6 +220,32 @@ class TestResumoFluxo(unittest.TestCase):
         self.d.estados.esperar_por_estado.assert_not_called(); self.icone.assert_not_called()
         self.assertEqual(self.rotina.eventos[-1]['evidence'],'periodo_resumo_divergente')
 
+    def test_leitura_transitoria_antes_final_rele_sem_redigitar_datas_confirmadas(self):
+        atuais=campos_periodo(dados_ocr())
+        self.campos.side_effect=[atuais,ValueError('Captura incompleta'),atuais]
+        self.assertTrue(self.executar()[0])
+        self.assertEqual(self.campos.call_count,3)
+        self.ok.assert_called_once()
+        self.assertFalse(any(c.args[0] in ('01082026','31082026')
+                             for c in self.d.interacao.digitar.call_args_list))
+
+    def test_tres_leituras_incompletas_antes_final_nao_usam_inicial_antiga(self):
+        self.campos.side_effect=[campos_periodo(dados_ocr()),
+                                ValueError('Captura incompleta'),
+                                ValueError('Captura incompleta'),
+                                ValueError('Captura incompleta')]
+        self.assertEqual(self.executar(),(False,None))
+        self.assertEqual(self.campos.call_count,4)
+        self.ok.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'campos_resumo_nao_localizados')
+
+    def test_releitura_antes_final_diverge_inicial_e_bloqueia_ok(self):
+        novos=campos_periodo(dados_ocr()); novos['inicial']['valor']='01/07/2026'
+        self.campos.side_effect=[campos_periodo(dados_ocr()),ValueError('Captura incompleta'),novos]
+        self.assertEqual(self.executar(),(False,None))
+        self.ok.assert_not_called()
+        self.assertEqual(self.rotina.eventos[-1]['evidence'],'periodo_resumo_divergente')
+
     def test_fluxo_publica_pdf_real_nomeado_e_exige_retorno_visual(self):
         ok, arquivo = self.executar()
         self.assertTrue(ok)

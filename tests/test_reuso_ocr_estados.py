@@ -115,5 +115,37 @@ class TestEsperaComReuso(unittest.TestCase):
         self.assertEqual(chamadas, 1)
 
 
+class TestEsperaPixels(unittest.TestCase):
+    def test_aviso_pequeno_com_mesma_assinatura_perceptual_e_relido(self):
+        antes=Image.new('RGB',(100,100),'white'); depois=antes.copy()
+        depois.putpixel((50,50),(0,0,0))
+        self.assertFalse(tela.tela_mudou(tela.assinatura_tela(antes),tela.assinatura_tela(depois)))
+        detector=Mock(side_effect=[None,(20,30)])
+        with patch.object(tela,'capturar_tela',side_effect=[antes,depois]), \
+                patch.object(estados.time,'sleep'), patch.object(estados,'ponto_seguro'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            resultado=estados.esperar_por_estado([('sucesso',detector)],espera_minima=0,
+                tentativas=2,intervalo=0,comparacao_exata=True)
+        self.assertEqual(resultado[1:],('sucesso',(20,30)))
+        self.assertEqual(detector.call_count,2)
+
+    def test_pixels_identicos_nao_repetem_ocr_e_esgotamento_nao_confirma(self):
+        imagem=Image.new('RGB',(100,100),'white'); detector=Mock(return_value=None)
+        with patch.object(tela,'capturar_tela',side_effect=[imagem,imagem.copy()]), \
+                patch.object(estados.time,'sleep'), patch.object(estados,'ponto_seguro'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            resultado=estados.esperar_por_estado([('sucesso',detector)],espera_minima=0,
+                tentativas=2,intervalo=0,comparacao_exata=True)
+        self.assertEqual(resultado,(None,None,None)); detector.assert_called_once()
+
+    def test_cancelamento_durante_espera_propaga_sem_sucesso(self):
+        detector=Mock()
+        with patch.object(estados.time,'sleep'), \
+                patch.object(estados,'ponto_seguro',side_effect=KeyboardInterrupt), \
+                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(KeyboardInterrupt):
+            estados.esperar_por_estado([('sucesso',detector)],comparacao_exata=True)
+        detector.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
