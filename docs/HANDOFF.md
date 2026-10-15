@@ -28,7 +28,8 @@ recusa de título isolado, releitura de imagem estática e rastros de ação
 única/erro. Nova rodada Windows permanece necessária para confirmar cliques,
 PDF e retorno. Se faltar o protocolo, verificar servidor/atalho/instalação
 que realmente executou; não repetir emissão só para coletar outro log antigo.
-O relatório HTML foi aberto em Chromium com imagens e marcadores sintéticos.
+O relatório HTML foi validado em Chromium via HTTP local com imagens e
+marcadores sintéticos; abertura do arquivo no Windows ainda precisa da rodada.
 Releitura do menu compartilhado também beneficia outras rotinas; não repete ações.
 
 ## Exceção antes de verificar formulário; guarda OCR e progresso — 15/10/2026

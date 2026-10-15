@@ -4799,7 +4799,7 @@ O rastro não decide ação, repete clique ou valida documento por imagem velha.
 **Validação:** 645 testes; fixtures de OCR real, controles/ROI, versão em memória,
 ação única, falha de gravação e releitura estática. Execução corrigida no
 Windows ainda precisa de confirmação; EFD e Livros mantêm seus geradores.
-HTML local validado em Chromium; releitura de menu é compartilhada e não
+HTML validado em Chromium via HTTP local; releitura de menu é compartilhada e não
 repete cliques em nenhuma rotina.
 
 ## 1. Análise do projeto
