@@ -183,7 +183,11 @@ def validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado=None):
     datas = re.findall(r"PERIODO:?([0-9]{2}/[0-9]{2}/[0-9]{4})(?:ATE|A|[-–])([0-9]{2}/[0-9]{2}/[0-9]{4})", cabecalho)
     if datas != [(inicio, fim)]:
         raise ValueError("O cabeçalho do Resumo não confirma o período solicitado.")
-    encontrados = set(re.findall(r"CNPJ:?([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})", cabecalho))
+    # O texto extraído do PDF pode trazer os rótulos separados dos valores
+    # ("CNPJ:", "Insc. Est.:" e só depois os números). Prioriza o rótulo e, sem ele,
+    # exige um único CNPJ formatado no cabeçalho (mesma regra dos livros).
+    rotulados = re.findall(r"CNPJ:?([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})", cabecalho)
+    encontrados = set(rotulados or re.findall(r"(?<![0-9])[0-9]{2}\.[0-9]{3}\.[0-9]{3}/[0-9]{4}-[0-9]{2}", cabecalho))
     cnpjs = {re.sub(r"\D", "", valor) for valor in encontrados}
     if len(cnpjs) != 1:
         raise ValueError("CNPJ do cabeçalho do Resumo ausente ou ambíguo.")

@@ -299,7 +299,8 @@ def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
 
 def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, tentativas=90, intervalo=2,
                     escalas_adicionais=(), ocr_windows=False, comparacao_exata=False,
-                    rever_a_cada=0, limite_segundos=None):
+                    rever_a_cada=0, limite_segundos=None, referencia_inicial=None,
+                    aguardar_estabilidade=False):
     """Espera pelo menos `espera_minima` segundos e depois fica
     verificando a tela por estado (a cada `intervalo` segundos, até
     `tentativas` vezes) em vez de confiar num tempo fixo — achado real
@@ -372,6 +373,10 @@ def esperar_e_achar(alvo, texto_erro=TITULOS_ERRO, escala=2, espera_minima=6, te
         opcoes_espera['rever_a_cada'] = rever_a_cada
     if limite_segundos is not None:
         opcoes_espera['limite_segundos'] = limite_segundos
+    if referencia_inicial is not None:
+        opcoes_espera['referencia_inicial'] = referencia_inicial
+    if aguardar_estabilidade:
+        opcoes_espera['aguardar_estabilidade'] = True
     imagem, estado, pos = estados.esperar_por_estado(
         detectores, espera_minima=espera_minima, tentativas=tentativas, intervalo=intervalo,
         **opcoes_espera,
@@ -1954,19 +1959,23 @@ def _achar_texto_resumo(imagem, alvo):
     return _achar_texto_reforcado(imagem,alvo,escala=2,escalas_adicionais=(4,),ocr_windows=True)
 
 
-def _esperar_tela_resumo(alvo, prefixo):
+def _esperar_tela_resumo(alvo, prefixo, referencia=None):
     imagem, pos, houve_erro = esperar_e_achar(alvo, escala=2, espera_minima=.3, tentativas=20, intervalo=1,
-        escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+        escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True,rever_a_cada=3,limite_segundos=180,
+        referencia_inicial=referencia, aguardar_estabilidade=referencia is not None)
     if houve_erro:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return imagem, None
     return imagem, pos
 
 
-def _esperar_formulario_resumo(prefixo, rastro=None):
+def _esperar_formulario_resumo(prefixo, rastro=None, referencia=None):
     from app.leitura_resumo import formulario_resumo_reconhecido
     opcoes=dict(espera_minima=.3,tentativas=20,intervalo=1,
                 comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+    if referencia is not None:
+        # Sem OCR enquanto a tela é a de antes do clique; lê só quando estabilizar.
+        opcoes.update(referencia_inicial=referencia,aguardar_estabilidade=True)
     print('RESUMO_ESPERA comparacao_exata=True; rever_a_cada=3; limite_segundos=180',flush=True)
     if rastro is not None:rastro.evento('opcoes_espera_formulario',**opcoes)
     def reconhecer(img):
@@ -2070,8 +2079,9 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     if pos is None:
         print("Resumo: item Resumo por Acumulador não reconhecido no submenu completo.")
         return False, None
+    antes_do_formulario = tela.capturar_tela()
     acao('resumo_acumulador','clique',pos,lambda:interacao.clicar_com_desvio(*pos))
-    imagem, pos = _esperar_formulario_resumo(prefixo,rastro=rastro)
+    imagem, pos = _esperar_formulario_resumo(prefixo,rastro=rastro,referencia=antes_do_formulario)
     if pos is None:
         print("Resumo: formulário não confirmado após clicar no item do submenu.")
         salvar(tela.capturar_tela(), f"{prefixo}erro_formulario_resumo.png")
@@ -2142,6 +2152,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         salvar(imagem, f"{prefixo}erro_ok_resumo.png")
         return False, None
     print('RESUMO_OK reconhecido=True; enviando o botão confirmado.',flush=True)
+    antes_do_ok = imagem  # formulário de antes do OK: nenhum OCR até a tela mudar
     acao('ok','clique',pos,lambda:interacao.clicar(*pos))
 
     def previa(imagem):
@@ -2152,7 +2163,8 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     detectores = [(titulo, lambda img, t=titulo: _achar_texto_resumo(img,t)) for titulo in TITULOS_ERRO]
     imagem, estado, pos = estados.esperar_por_estado(detectores + [("previa", previa)],
                                                     espera_minima=.3, tentativas=90, intervalo=1,
-                                                    comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+                                                    comparacao_exata=True,rever_a_cada=3,limite_segundos=180,
+                                                    referencia_inicial=antes_do_ok, aguardar_estabilidade=True)
     if estado in TITULOS_ERRO:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return False, None
@@ -2183,7 +2195,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         salvar(imagem, f"{prefixo}erro_icone_pdf_resumo.png")
         return False, None
     acao('pdf','clique',pos,lambda:interacao.clicar(*pos))
-    imagem, pos = _esperar_tela_resumo("Salvar em PDF", prefixo)
+    imagem, pos = _esperar_tela_resumo("Salvar em PDF", prefixo, referencia=imagem)
     if pos is None or _achar_texto_resumo(imagem,"File name") is None:
         salvar(tela.capturar_tela(), f"{prefixo}erro_salvar_resumo.png")
         return False, None
@@ -2225,8 +2237,13 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
                                                      cnpj_esperado=cnpj, nome_empresa=empresa[0])
                     break
                 anterior = assinatura
+        except ValueError as erro:
+            # O arquivo já está estável: uma divergência de conteúdo (título, período,
+            # CNPJ) é definitiva; repetir só gastaria ~30 s. O PDF fica na saída p/ diagnóstico.
+            print(str(erro), flush=True)
+            return False, None
         except Exception as erro:
-            print(str(erro) if isinstance(erro, ValueError) else f"Resumo: PDF ainda não confirmado ({type(erro).__name__}).")
+            print(f"Resumo: PDF ainda não confirmado ({type(erro).__name__}).")
         time.sleep(1)
     else:
         print("Resumo: exportação não confirmada; nenhum arquivo anterior comprova sucesso.")

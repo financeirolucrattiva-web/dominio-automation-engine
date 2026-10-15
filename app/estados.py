@@ -203,8 +203,14 @@ class AcompanhamentoRotina:
         self.finalizada = True
 
 
+def _hash_exato(imagem):
+    import hashlib
+    return (imagem.mode, imagem.size, hashlib.blake2b(imagem.tobytes(), digest_size=16).digest())
+
+
 def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
-                       comparacao_exata=False, rever_a_cada=0, limite_segundos=None):
+                       comparacao_exata=False, rever_a_cada=0, limite_segundos=None,
+                       referencia_inicial=None, aguardar_estabilidade=False):
     """Tira print repetidamente até um dos `detectores` achar alguma
     coisa, ou esgotar as tentativas — nunca por tempo fixo sozinho
     (mesmo princípio de sempre neste projeto).
@@ -223,6 +229,13 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
     idênticos; OCR negativo não vira evidência permanente. `limite_segundos`
     limita o tempo real da espera, incluindo as leituras, quando informado.
 
+    `referencia_inicial`: a captura de ANTES da ação (clique) que provoca o estado
+    esperado. Enquanto a tela continuar idêntica a ela, nenhum OCR roda (é só
+    esperar a tela mudar). `aguardar_estabilidade`: depois que a tela mudou, só lê
+    quando duas capturas consecutivas forem idênticas (renderização concluída),
+    ou após 4 capturas seguidas diferentes (animação de "Processando"): evita
+    gastar uma leitura inteira de OCR (~15-25 s) numa tela ainda em transição.
+
     Devolve `(imagem, nome_estado, posicao)` quando um detector achar,
     ou `(None, None, None)` se esgotar as tentativas sem achar nada.
     """
@@ -231,16 +244,37 @@ def esperar_por_estado(detectores, espera_minima=6, tentativas=90, intervalo=2,
     time.sleep(espera_minima)
     assinatura_anterior = None
     sem_reler = 0
-    for tentativa in range(1, tentativas + 1):
+    referencia_hash = _hash_exato(referencia_inicial) if referencia_inicial is not None else None
+    captura_anterior = None
+    sem_reler_capturas = 0
+    if (referencia_inicial is not None or aguardar_estabilidade) and limite_segundos is None:
+        # As esperas baratas (sem OCR) não contam como tentativa; o tempo real limita.
+        limite_segundos = tentativas * max(intervalo, 1) + 60
+    tentativa = 0
+    while tentativa < tentativas:
+        tentativa += 1
         ponto_seguro()
         if limite_segundos is not None and time.monotonic() - inicio >= limite_segundos:
             print("Limite de espera atingido sem confirmação visual; geração não será repetida.", flush=True)
             return None, None, None
         imagem = tela.capturar_tela()
+        if referencia_inicial is not None or aguardar_estabilidade:
+            bruta = _hash_exato(imagem)
+            if referencia_inicial is not None and bruta == referencia_hash:
+                # Nada mudou desde antes da ação: não há o que ler ainda.
+                tentativa -= 1
+                time.sleep(min(intervalo, 0.5))
+                continue
+            if aguardar_estabilidade and assinatura_anterior is None and sem_reler_capturas < 4:
+                estavel = bruta == captura_anterior
+                captura_anterior = bruta
+                if not estavel:
+                    sem_reler_capturas += 1
+                    tentativa -= 1
+                    time.sleep(min(intervalo, 0.4))
+                    continue
         if comparacao_exata:
-            import hashlib
-            assinatura_atual = (imagem.mode, imagem.size,
-                                hashlib.blake2b(imagem.tobytes(), digest_size=16).digest())
+            assinatura_atual = _hash_exato(imagem)
             mudou = assinatura_atual != assinatura_anterior
         else:
             assinatura_atual = tela.assinatura_tela(imagem)

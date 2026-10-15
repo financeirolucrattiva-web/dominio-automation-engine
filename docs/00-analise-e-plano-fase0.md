@@ -4959,6 +4959,58 @@ principal) segue com as conferências de sempre.
 outros programas ficam; nenhuma tecla; espera/ausência de janela; ordem fechar→foco).
 Não validado ao vivo: título real da janela do Acrobat e o tempo até ela abrir.
 
+### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
+
+**Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF
+55 s, conferir PDF 33 s, depois falha. O PDF exportado ("Empresa 70 - SPRAYAGRO.pdf",
+saída do Domínio) tem o texto extraído com rótulos separados dos valores
+(`CNPJ:`, `Insc. Est.:` e só depois `62.994.636/0001-53`), e a conferência exigia o
+número logo após `CNPJ:`: recusava um PDF correto. Os 33 s eram 30 repetições de
+uma divergência determinística.
+
+**Correção:** `validar_resumo_acumulador` prioriza o rótulo e, sem ele, exige um único
+CNPJ formatado no cabeçalho (mesma regra dos livros); validado no PDF real (aceita;
+período e CNPJ errados continuam recusados). Divergência de conteúdo num arquivo já
+estável encerra na hora (não repete mais 30 vezes).
+
+**Tempo:** cada espera avaliava a tela (OCR de ~15-25 s) já na primeira captura, antes
+de a tela mudar, e de novo depois. `esperar_por_estado` ganhou `referencia_inicial`
+(captura de antes do clique: nenhum OCR enquanto for idêntica) e
+`aguardar_estabilidade` (lê quando duas capturas seguidas são iguais, ou após 4
+diferentes, por causa de animações); as esperas baratas não consomem tentativas e o
+prazo real limita. Usado nas esperas do Resumo (formulário, prévia, "Salvar em PDF") e dos
+Livros (formulário, prévia, menu PDF, "Procurar Pasta"). Opções desligadas por
+padrão: o resto do projeto não muda.
+
+**Não validado ao vivo:** o ganho de tempo real. O Acrobat aberto pela exportação
+deve ser fechado pela 0.120, ainda sem rodada real.
+
+### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
+
+**Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF
+55 s, conferir PDF 33 s, depois falha. O PDF exportado ("Empresa 70 - SPRAYAGRO.pdf",
+saída do Domínio) tem o texto extraído com rótulos separados dos valores
+(`CNPJ:`, `Insc. Est.:` e só depois `62.994.636/0001-53`), e a conferência exigia o
+número logo após `CNPJ:`: recusava um PDF correto. Os 33 s eram 30 repetições de
+uma divergência determinística.
+
+**Correção:** `validar_resumo_acumulador` prioriza o rótulo e, sem ele, exige um único
+CNPJ formatado no cabeçalho (mesma regra dos livros); validado no PDF real (aceita;
+período e CNPJ errados continuam recusados). Divergência de conteúdo num arquivo já
+estável encerra na hora (não repete mais 30 vezes).
+
+**Tempo:** cada espera avaliava a tela (OCR de ~15-25 s) já na primeira captura, antes
+de a tela mudar, e de novo depois. `esperar_por_estado` ganhou `referencia_inicial`
+(captura de antes do clique: nenhum OCR enquanto for idêntica) e
+`aguardar_estabilidade` (lê quando duas capturas seguidas são iguais, ou após 4
+diferentes, por causa de animações); as esperas baratas não consomem tentativas e o
+prazo real limita. Usado nas esperas do Resumo (formulário, prévia, "Salvar em PDF") e dos
+Livros (formulário, prévia, menu PDF, "Procurar Pasta"). Opções desligadas por
+padrão: o resto do projeto não muda.
+
+**Não validado ao vivo:** o ganho de tempo real. O Acrobat aberto pela exportação
+deve ser fechado pela 0.120, ainda sem rodada real.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

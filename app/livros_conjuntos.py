@@ -64,17 +64,17 @@ def _ler_periodo(imagem=None):
         salvar_recorte=lambda recorte,nome: dominio.salvar(recorte,'livros_data_'+nome+'.png'))
 
 
-def _aguardar_formulario(dominio, prefixo):
+def _aguardar_formulario(dominio, prefixo, referencia=None):
     def detectar(imagem):
         try:
             _ler_selecao(imagem)
             return (0, 0)
         except ValueError:
             return None
-    return _aguardar(dominio, 'formulario', detectar, prefixo, tentativas=20)
+    return _aguardar(dominio, 'formulario', detectar, prefixo, tentativas=20, referencia=referencia)
 
 
-def _aguardar(dominio, nome, detector, prefixo, tentativas=90):
+def _aguardar(dominio, nome, detector, prefixo, tentativas=90, referencia=None):
     detectores = [(titulo, lambda img, t=titulo:
                    tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in dominio.TITULOS_ERRO]
     # Pixels exatos e releitura a cada 3 tentativas mesmo com a tela parada: uma
@@ -83,7 +83,9 @@ def _aguardar(dominio, nome, detector, prefixo, tentativas=90):
     imagem, estado, pos = estados.esperar_por_estado(
         detectores + [(nome, detector)], espera_minima=.3,
         tentativas=tentativas, intervalo=1,
-        comparacao_exata=True, rever_a_cada=3, limite_segundos=max(90, tentativas*3))
+        comparacao_exata=True, rever_a_cada=3, limite_segundos=max(90, tentativas*3),
+        # Sem OCR enquanto a tela é a de antes do clique; lê só quando ela estabilizar.
+        referencia_inicial=referencia, aguardar_estabilidade=referencia is not None)
     if estado in dominio.TITULOS_ERRO:
         texto = dominio._ler_texto_caixa(imagem, pos)
         acao = dominio.erros.decidir(texto, documento='Livros Fiscais')
@@ -344,8 +346,9 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     interacao.passar_mouse(*pos)
     pos = dominio._esperar_item_menu('relatorios/livros','Livros Fiscais',prefixo+'erro_menu_livros_fiscais.png')
     if pos is None:return False
+    antes_do_formulario=tela.capturar_tela()
     interacao.clicar_com_desvio(*pos)
-    if _aguardar_formulario(dominio,prefixo) is None:
+    if _aguardar_formulario(dominio,prefixo,referencia=antes_do_formulario) is None:
         return False
     referencia=formulario_livros.marcar_tres_livros(_ler_selecao,interacao.clicar,tentativas=8,intervalo=.5,
                                                        ler_rapido=_selecao_por_pixels)
@@ -356,6 +359,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     acompanhamento.iniciar('gerar_previa')
     pos=_achar_ok(imagem)
     if pos is None:return False
+    antes_do_ok=imagem  # formulário de antes do OK
     interacao.clicar(*pos)
     def previa(imagem):
         if tela.achar_texto(imagem,'CNPJ',escala=2) is None:return None
@@ -366,7 +370,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         # lê como frase; com o rótulo CNPJ já achado, a palavra REGISTRO sozinha basta
         # (mesma âncora do fluxo individual); o PDF exportado ainda é conferido por tipo.
         return tela.achar_texto(imagem,'REGISTRO',escala=2)
-    imagem=_aguardar(dominio,'previa',previa,prefixo)
+    imagem=_aguardar(dominio,'previa',previa,prefixo,referencia=antes_do_ok)
     if imagem is None:return False
     # A prévia cobre o cabeçalho do Domínio: sem o código legível, a identidade
     # vem do nome conferido antes + CNPJ/período da prévia. Código legível e
@@ -396,13 +400,15 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     acompanhamento.iniciar('exportar_pdf')
     pos=tela.achar_icone_robusto(imagem,Path(__file__).parent/'icones/salvar_pdf.png')
     if pos is None:return False
+    antes_do_menu=imagem  # prévia de antes do clique no ícone PDF
     interacao.clicar(*pos)
-    imagem=_aguardar(dominio,'menu_pdf',_achar_opcao_pdf,prefixo,tentativas=15)
+    imagem=_aguardar(dominio,'menu_pdf',_achar_opcao_pdf,prefixo,tentativas=15,referencia=antes_do_menu)
     if imagem is None:return False
     pos=_achar_opcao_pdf(imagem)
     if pos is None:return False
+    antes_da_pasta=imagem  # menu PDF aberto, antes de escolher a opção
     interacao.clicar_com_desvio(*pos)
-    imagem=_aguardar(dominio,'pasta',lambda img:tela.achar_texto_ou_no_centro(img,'Procurar Pasta',escala=4),prefixo,tentativas=15)
+    imagem=_aguardar(dominio,'pasta',lambda img:tela.achar_texto_ou_no_centro(img,'Procurar Pasta',escala=4),prefixo,tentativas=15,referencia=antes_da_pasta)
     if imagem is None:return False
     from app.seletor_pasta import selecionar_pasta
     leitores_antes=dominio._linha_base_leitores_pdf()
