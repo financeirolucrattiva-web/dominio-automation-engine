@@ -185,6 +185,41 @@ def validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado=None):
     return cnpj
 
 
+def validar_previa_resumo(texto, inicio, fim, cnpj_esperado=None, nome_empresa=None):
+    """Conferência da PRÉVIA do Resumo, lida por OCR da tela inteira.
+
+    O OCR da tela cheia costuma perder os rótulos pequenos ("Período:",
+    "CNPJ:") e trocar a pontuação do CNPJ. Esta conferência não depende
+    desses rótulos, mas continua exigindo título, exatamente o par de datas
+    pedido e um único CNPJ. A conferência rígida do PDF exportado
+    (`validar_resumo_acumulador`) continua valendo antes do nome final.
+    """
+    compacto = _compactar(texto)
+    limites = [compacto.find(m) for m in ("ENTRADAS", "SAIDAS", "CODIGODESCRICAO") if m in compacto]
+    cabecalho = compacto[:min(limites)] if limites else compacto[:2500]
+    if "RESUMOPORACUMULADOR" not in cabecalho:
+        raise ValueError("A prévia não confirma o título Resumo por Acumulador.")
+    datas = re.findall(r"([0-9]{2}/[0-9]{2}/[0-9]{4})(?:ATE|A|[-–])([0-9]{2}/[0-9]{2}/[0-9]{4})", cabecalho)
+    if datas != [(inicio, fim)]:
+        raise ValueError("A prévia do Resumo não confirma o período solicitado.")
+    # CNPJ: busca no texto com espaços preservados; compactado, o número da
+    # página gruda nos dígitos do CNPJ.
+    sem_acento = "".join(c for c in unicodedata.normalize("NFKD", texto.upper()) if not unicodedata.combining(c))
+    espacado = " ".join(sem_acento.split())
+    corte = re.search(r"ENTRADAS|SAIDAS|CODIGO DESCRICAO", espacado)
+    espacado = espacado[:corte.start()] if corte else espacado[:2500]
+    encontrados = re.findall(r"(?<![0-9])([0-9]{2}[.,]?[0-9]{3}[.,]?[0-9]{3}/?[0-9]{4}-?[0-9]{2})(?![0-9])", espacado)
+    cnpjs = {re.sub(r"\D", "", valor) for valor in encontrados}
+    if len(cnpjs) != 1:
+        raise ValueError("CNPJ da prévia do Resumo ausente ou ambíguo.")
+    cnpj = cnpjs.pop()
+    if cnpj_esperado is not None and re.sub(r"\D", "", str(cnpj_esperado)) != cnpj:
+        raise ValueError("O CNPJ da prévia não corresponde à empresa esperada.")
+    if nome_empresa and _compactar(nome_empresa) not in cabecalho:
+        raise ValueError("O nome da empresa na prévia não confere com a empresa conferida antes de abrir o Resumo.")
+    return cnpj
+
+
 def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=None):
     """Lê um PDF novo e completo; publica sem sobrescrever arquivos prévios."""
     from pypdf import PdfReader

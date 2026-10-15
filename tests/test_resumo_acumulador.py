@@ -61,6 +61,31 @@ class TestResumoDados(unittest.TestCase):
         titulo_primeiro = "RESUMO POR ACUMULADOR " + TEXTO.replace("RESUMO POR ACUMULADOR ", "")
         self.assertEqual(arquivos.validar_resumo_acumulador(" ".join(titulo_primeiro), "01/08/2026", "31/08/2026"), CNPJ)
 
+    def test_previa_tolera_rotulos_perdidos_e_pontuacao_do_cnpj_mas_pdf_continua_rigido(self):
+        # OCR de tela cheia da prévia real: sem "CNPJ:"/"Período:" e com vírgula no CNPJ.
+        previa = ("EMPRESA FICTICIA Página 1/1 12.345,678/0001-95 Emissão 15/10/2026 Hora 15:19:43 "
+                  "01/08/2026 até 31/08/2026 RESUMO POR ACUMULADOR ENTRADAS Código Descrição")
+        self.assertEqual(arquivos.validar_previa_resumo(previa, "01/08/2026", "31/08/2026", CNPJ,
+                                                        nome_empresa="Empresa Fictícia"), CNPJ)
+        with self.assertRaises(ValueError):
+            arquivos.validar_resumo_acumulador(previa, "01/08/2026", "31/08/2026", CNPJ)
+
+    def test_previa_recusa_periodo_nome_titulo_e_cnpj_errados_ou_ambiguos(self):
+        base = "EMPRESA FICTICIA 12.345.678/0001-95 01/08/2026 ate 31/08/2026 RESUMO POR ACUMULADOR ENTRADAS"
+        casos = {
+            "periodo": base.replace("31/08/2026", "30/09/2026"),
+            "titulo": base.replace("RESUMO POR ACUMULADOR", "OUTRO RELATORIO"),
+            "dois_cnpjs": base.replace("12.345.678/0001-95", "12.345.678/0001-95 98.765.432/0001-10"),
+            "sem_cnpj": base.replace("12.345.678/0001-95", ""),
+        }
+        for nome, texto in casos.items():
+            with self.subTest(nome), self.assertRaises(ValueError):
+                arquivos.validar_previa_resumo(texto, "01/08/2026", "31/08/2026")
+        with self.assertRaises(ValueError):
+            arquivos.validar_previa_resumo(base, "01/08/2026", "31/08/2026", nome_empresa="Outra Empresa")
+        with self.assertRaises(ValueError):
+            arquivos.validar_previa_resumo(base, "01/08/2026", "31/08/2026", "00000000000000")
+
     def test_periodo_empresa_titulo_ambiguos_ou_so_na_tabela_nao_passam(self):
         for texto in (TEXTO.replace("01/08/2026 ate 31/08/2026", "01/09/2026 ate 30/09/2026"),
                       TEXTO.replace("RESUMO POR ACUMULADOR", "REGISTRO DE ENTRADAS"),
@@ -354,6 +379,12 @@ class TestResumoFluxo(unittest.TestCase):
         self.icone.assert_not_called()
         self.esc.assert_called_once()
         self.assertEqual(self.rotina.eventos[-1]["status"], "falha")
+
+    def test_previa_sem_cabecalho_do_dominio_legivel_segue_para_o_icone_pdf(self):
+        # Na prévia o relatório cobre o cabeçalho: o código não é legível e não deve abortar.
+        self.empresa.side_effect = [("Empresa Fictícia", "52"), None]
+        self.executar()
+        self.icone.assert_called()
 
     def test_codigo_trocado_na_previa_nao_exporta(self):
         self.empresa.side_effect = [("Empresa Fictícia", "52"), ("Outra", "99")]
