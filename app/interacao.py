@@ -74,6 +74,8 @@ def _api_janelas():
         "GetClassNameW": ([wintypes.HWND, wintypes.LPWSTR, ctypes.c_int], ctypes.c_int),
         "GetWindowThreadProcessId": ([wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.DWORD),
         "SetForegroundWindow": ([wintypes.HWND], wintypes.BOOL),
+        "BringWindowToTop": ([wintypes.HWND], wintypes.BOOL),
+        "AttachThreadInput": ([wintypes.DWORD, wintypes.DWORD, wintypes.BOOL], wintypes.BOOL),
         "ShowWindow": ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
         "EnumWindows": ([callback, wintypes.LPARAM], wintypes.BOOL),
     }
@@ -132,6 +134,56 @@ def janela_dominio_em_foco(janela):
         return False
 
 
+def _trazer_para_frente(api, hwnd):
+    """Traz o HWND já identificado para a frente, sem enviar teclas a outro programa.
+
+    O Windows costuma recusar SetForegroundWindow quando o processo chamador
+    não está em primeiro plano (por exemplo, com o painel aberto no navegador
+    do mesmo PC). Na segunda tentativa a entrada é anexada, só durante a
+    chamada, à thread que está na frente.
+    """
+    def esperar():
+        for _ in range(10):
+            if api.GetForegroundWindow() == hwnd:
+                return True
+            time.sleep(0.05)
+        return False
+
+    if api.GetForegroundWindow() == hwnd:
+        return True
+    api.SetForegroundWindow(hwnd)
+    if esperar():
+        return True
+    try:
+        frente = api.GetForegroundWindow()
+        minha_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+        thread_frente = api.GetWindowThreadProcessId(frente, None) if frente else 0
+        if not thread_frente or thread_frente == minha_thread:
+            return False
+        api.AttachThreadInput(minha_thread, thread_frente, True)
+        try:
+            api.BringWindowToTop(hwnd)
+            api.SetForegroundWindow(hwnd)
+        finally:
+            api.AttachThreadInput(minha_thread, thread_frente, False)
+    except Exception:
+        return False
+    return esperar()
+
+
+def descrever_primeiro_plano(pid_dominio=None):
+    """Texto de diagnóstico sem título nem conteúdo: só a classe da janela em foco."""
+    try:
+        api, _ = _api_janelas()
+        dados = _dados_janela(api, api.GetForegroundWindow())
+        if dados is None:
+            return "janela em foco: nenhuma visível"
+        mesmo = "" if pid_dominio is None else f"; mesmo processo do Domínio: {dados['pid'] == pid_dominio}"
+        return f"janela em foco: classe {dados['classe']}{mesmo}"
+    except Exception:
+        return "janela em foco: não foi possível descrever"
+
+
 def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_conteudo=None):
     """Retoma HWND identificado e confirma foco antes de cada Esc.
 
@@ -173,13 +225,9 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
         hwnd = atual["hwnd"]
         if api.IsIconic(hwnd):
             api.ShowWindow(hwnd, 9)  # SW_RESTORE, não fechamento.
-        if api.GetForegroundWindow() != hwnd:
-            api.SetForegroundWindow(hwnd)
-        for _ in range(10):
-            if api.GetForegroundWindow() == hwnd:
-                break
-            time.sleep(0.05)
-        else:
+        if not _trazer_para_frente(api, hwnd):
+            print("Não consegui trazer o Domínio para a frente; "
+                  + descrever_primeiro_plano(atual["pid"]) + ". Nenhuma tecla foi enviada.", flush=True)
             return False
         for numero_esc in range(vezes):
             conferida = _dados_janela(api, hwnd)

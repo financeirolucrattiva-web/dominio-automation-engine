@@ -220,6 +220,37 @@ def validar_previa_resumo(texto, inicio, fim, cnpj_esperado=None, nome_empresa=N
     return cnpj
 
 
+def validar_previa_livro(texto, inicio, fim, cnpj_esperado=None, nome_empresa=None):
+    """Conferência alternativa da PRÉVIA dos Livros Fiscais (OCR da tela cheia).
+
+    Só é usada quando `validar_livro` não confirma a prévia: o OCR de tela
+    cheia pode ler o cabeçalho em outra ordem e perder rótulos. Mantém as
+    exigências de identidade: título de um dos livros, exatamente o par de
+    datas pedido, um único CNPJ e o nome da empresa conferida. O PDF
+    exportado continua passando pela conferência rígida.
+    """
+    compacto = _compactar(texto)[:2500]
+    titulos = ("REGISTRODEENTRADAS", "REGISTRODESAIDAS")
+    icms = "ICMS" in compacto and any(m in compacto for m in ("REGISTRODEICMS", "APURACAODOICMS", "REGISTRODEAPURACAODOICMS"))
+    if not (any(t in compacto for t in titulos) or icms):
+        raise ValueError("A prévia não confirma o título de um livro fiscal.")
+    datas = set(re.findall(r"([0-9]{2}/[0-9]{2}/[0-9]{4})(?:ATE|A|[-–])([0-9]{2}/[0-9]{2}/[0-9]{4})", compacto))
+    if datas != {(inicio, fim)}:
+        raise ValueError("A prévia do livro não confirma o período solicitado.")
+    sem_acento = "".join(c for c in unicodedata.normalize("NFKD", texto.upper()) if not unicodedata.combining(c))
+    espacado = " ".join(sem_acento.split())[:2500]
+    encontrados = re.findall(r"(?<![0-9])([0-9]{2}[.,]?[0-9]{3}[.,]?[0-9]{3}/?[0-9]{4}-?[0-9]{2})(?![0-9])", espacado)
+    cnpjs = {re.sub(r"\D", "", valor) for valor in encontrados}
+    if len(cnpjs) != 1:
+        raise ValueError("CNPJ da prévia do livro ausente ou ambíguo.")
+    cnpj = cnpjs.pop()
+    if cnpj_esperado is not None and re.sub(r"\D", "", str(cnpj_esperado)) != cnpj:
+        raise ValueError("O CNPJ da prévia não corresponde à empresa esperada.")
+    if nome_empresa and _compactar(nome_empresa) not in compacto:
+        raise ValueError("O nome da empresa na prévia não confere com a empresa conferida.")
+    return cnpj
+
+
 def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=None):
     """Lê um PDF novo e completo; publica sem sobrescrever arquivos prévios."""
     from pypdf import PdfReader

@@ -297,17 +297,29 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         return None
     imagem=_aguardar(dominio,'previa',previa,prefixo)
     if imagem is None:return False
+    # A prévia cobre o cabeçalho do Domínio: sem o código legível, a identidade
+    # vem do nome conferido antes + CNPJ/período da prévia. Código legível e
+    # diferente continua bloqueando.
     atual=tela.ler_empresa_selecionada(imagem)
-    if atual is None or str(int(atual[1]))!=str(int(empresa[1])):return False
+    if atual is not None and str(int(atual[1]))!=str(int(empresa[1])):return False
     cnpj=None
+    textos=[]
     for escala in (2,4):
         texto=tela.ler_texto(imagem,escala=escala)
+        textos.append(texto)
         for tipo in TIPOS:
             try:
                 cnpj=arquivos.validar_livro(texto,tipo,inicial,final,cnpj_esperado)
                 break
             except ValueError:pass
         if cnpj is not None:break
+    if cnpj is None:
+        # Alternativa só se a conferência rígida não confirmou a prévia.
+        for texto in textos:
+            try:
+                cnpj=arquivos.validar_previa_livro(texto,inicial,final,cnpj_esperado,nome_empresa=empresa[0])
+                break
+            except ValueError:pass
     if cnpj is None:return False
     acompanhamento.confirmar('ancora_registro_lida')
     acompanhamento.iniciar('exportar_pdf')

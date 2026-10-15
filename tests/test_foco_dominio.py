@@ -88,6 +88,33 @@ class TestFocoDominio(unittest.TestCase):
         self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token()))
         self.press.assert_not_called()
 
+    def test_windows_recusa_primeira_tentativa_e_anexa_entrada_na_segunda(self):
+        original = self.api.GetWindowThreadProcessId.side_effect
+        self.api.GetWindowThreadProcessId.side_effect = (
+            lambda hwnd, pid: 555 if pid is None else original(hwnd, pid))
+        anexado = []
+        self.api.AttachThreadInput.side_effect = lambda a, b, ligar: anexado.append(ligar) or True
+
+        def ativar(hwnd):
+            if True in anexado:  # só obedece com a entrada anexada à thread em primeiro plano
+                self.foreground = hwnd
+            return True
+        self.api.SetForegroundWindow.side_effect = ativar
+        self.assertTrue(self.modulo.pressionar_esc_no_dominio(self.token()))
+        self.assertEqual(anexado, [True, False])  # anexa e sempre desanexa
+        self.assertEqual(self.api.SetForegroundWindow.call_count, 2)
+        self.assertEqual(self.press.call_count, 2)  # só então envia Esc
+
+    def test_sem_segunda_tentativa_possivel_descreve_janela_e_nao_envia_esc(self):
+        self.api.SetForegroundWindow.side_effect = None
+        self.api.SetForegroundWindow.return_value = False
+        self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token()))
+        self.press.assert_not_called()
+        texto = self.modulo.descrever_primeiro_plano(100)
+        self.assertIn("AcrobatWindow", texto)
+        self.assertIn("False", texto)  # processo diferente do Domínio
+        self.assertNotIn("exportacao_ficticia", texto)  # nunca o título
+
     def test_foco_perdido_entre_esc_interrompe_segunda_tecla(self):
         self.press.side_effect = lambda _: setattr(self, "foreground", 99)
         self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token()))

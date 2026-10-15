@@ -4802,6 +4802,36 @@ Windows ainda precisa de confirmação; EFD e Livros mantêm seus geradores.
 HTML validado em Chromium via HTTP local; releitura de menu é compartilhada e não
 repete cliques em nenhuma rotina.
 
+### 0.114 Prévia do Resumo/Livros e recuperação de foco (15/10/2026)
+
+**Evidência:** execução do Resumo parada após reconhecer o formulário (processo
+vivo, sem CPU). A captura da prévia enviada pelo operador mostra que, depois do
+OK, o relatório cobre o cabeçalho do Domínio. Com o código atual, essa captura
+real: (1) faz `ler_empresa_selecionada` devolver `None`, abortando a rotina logo
+após a prévia; (2) é recusada por `validar_resumo_acumulador`, pois o OCR de tela
+cheia perde os rótulos "Período:"/"CNPJ:" e lê o CNPJ com vírgula. O ícone PDF é
+achado no lugar certo (33, 242) e o OK pelo localizador atual.
+
+**Correção:** `arquivos.validar_previa_resumo` e `arquivos.validar_previa_livro`
+(só para a prévia; o PDF exportado continua na conferência rígida): exigem título,
+exatamente o par de datas pedido, um único CNPJ (pontuação tolerante) e o nome da
+empresa conferido antes. Código legível e diferente continua bloqueando; código
+ilegível na prévia não aborta. Livros conjuntos usa a alternativa só quando
+`validar_livro` não confirma a prévia.
+
+**Foco:** nas tarefas de hoje os Livros nunca rodaram: a EFD falhou com
+`dominio_fora_de_foco` e a recuperação não foi confirmada, então o lote marcou os
+Livros como interrompidos. Hipótese (não demonstrada): o Windows recusa
+`SetForegroundWindow` quando o painel está no navegador do mesmo PC. A recuperação
+agora tenta uma segunda vez anexando a entrada à thread em primeiro plano (sem enviar
+teclas a outro programa) e imprime a classe da janela em foco (`FOCO_PERDIDO`,
+sem título nem conteúdo) para identificar a causa no próximo log.
+
+**Validação:** testes novos de validadores/fluxos (prévia sem cabeçalho legível), de
+foco (segunda tentativa, desanexa sempre) e captura real conferida offline
+(aceita a empresa certa; recusa nome e período errados). Sem rodada Windows:
+repetir Resumo e Livros após atualizar e reiniciar o servidor.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

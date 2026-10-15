@@ -176,6 +176,56 @@ class TestConjunto(unittest.TestCase):
         with patch.object(livros,'_ler_periodo',return_value=atual['periodo']),patch.object(livros.time,'sleep'),self.assertRaises(ValueError):
             livros._preencher(INICIO,FIM,interacao)
 
+    def test_previa_dos_livros_tolera_ordem_e_pontuacao_do_ocr_mas_exige_identidade(self):
+        # CNPJ lido ANTES do título, com vírgula: a conferência rígida recusa, a alternativa aceita.
+        previa='EMPRESA FICTICIA Página 1/1 12.345,678/0001-95 '+INICIO+' a '+FIM+' REGISTRO DE ENTRADAS Código CFOP'
+        with self.assertRaises(ValueError):
+            arquivos.validar_livro(previa,'registro_entradas',INICIO,FIM,CNPJ)
+        self.assertEqual(arquivos.validar_previa_livro(previa,INICIO,FIM,CNPJ,nome_empresa='Empresa Fictícia'),CNPJ)
+        casos={'periodo':previa.replace(FIM,'30/09/2026'),
+               'dois_cnpjs':previa.replace('12.345,678/0001-95','12.345,678/0001-95 98.765.432/0001-10'),
+               'sem_titulo':previa.replace('REGISTRO DE ENTRADAS','RELATORIO'),
+               'sem_cnpj':previa.replace('12.345,678/0001-95','')}
+        for nome,texto in casos.items():
+            with self.subTest(nome),self.assertRaises(ValueError):
+                arquivos.validar_previa_livro(texto,INICIO,FIM)
+        with self.assertRaises(ValueError):
+            arquivos.validar_previa_livro(previa,INICIO,FIM,nome_empresa='Outra Empresa')
+        with self.assertRaises(ValueError):
+            arquivos.validar_previa_livro(previa,INICIO,FIM,'00000000000000')
+
+    def test_previa_sem_cabecalho_do_dominio_e_ocr_fora_de_ordem_segue_para_exportar(self):
+        with tempfile.TemporaryDirectory() as pasta,contextlib.ExitStack() as stack:
+            root=Path(pasta);dominio=Mock();interacao=Mock()
+            dominio.competencia_anterior.return_value=(INICIO,FIM)
+            dominio._esperar_item_menu.return_value=(12,30)
+            dominio.TITULOS_ERRO=()
+            dominio.caminho_visto_pela_sessao_remota.side_effect=str
+            dominio.voltar_ao_inicio.return_value=True
+            rotina=AcompanhamentoRotina('livros_fiscais',root/'logs');artefatos=[]
+            formulario={'periodo':{'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}},
+                        'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
+            stack.enter_context(patch.object(livros,'_ler_periodo',return_value=formulario['periodo']))
+            stack.enter_context(patch.object(livros,'_ler_selecao',return_value=formulario))
+            stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
+            stack.enter_context(patch.object(livros,'_aguardar',return_value='frame'))
+            stack.enter_context(patch.object(livros.formulario_livros,'marcar_tres_livros'))
+            previa='EMPRESA FICTICIA 12.345,678/0001-95 '+INICIO+' a '+FIM+' REGISTRO DE ENTRADAS'
+            for nome,valor in [('capturar_tela','frame'),('recortar_topo','frame'),
+                               ('achar_texto',(12,30)),('achar_texto_ou_no_centro',(12,30)),('achar_icone_robusto',(15,340)),('ler_texto',previa)]:
+                stack.enter_context(patch.object(livros.tela,nome,return_value=valor))
+            # Antes de abrir o menu o cabeçalho é legível; na prévia ele está coberto pelo relatório.
+            stack.enter_context(patch.object(livros.tela,'ler_empresa_selecionada',side_effect=[('Empresa Fictícia','52'),None]))
+            interacao.identificar_janela_dominio_atual.return_value={'hwnd':12}
+            stack.enter_context(patch('app.seletor_pasta.selecionar_pasta',return_value=True))
+            def exportar(staging,*args):
+                for i,texto in enumerate(TEXTOS.values()):criar_pdf(staging/f'{i}.pdf',texto)
+                return True
+            stack.enter_context(patch.object(livros,'_aguardar_arquivos',side_effect=exportar))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            self.assertTrue(livros._executar(dominio,interacao,rotina,artefatos,root,INICIO,FIM,'',CNPJ))
+            self.assertEqual({a['tipo'] for a in artefatos},set(TEXTOS))
+
     def test_fluxo_completo_tres_artefatos_e_retorno_azul(self):
         # O fiscal é simulado; publicação/PDF/conteúdo e eventos são reais.
         with tempfile.TemporaryDirectory() as pasta,contextlib.ExitStack() as stack:

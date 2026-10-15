@@ -122,6 +122,10 @@ class ExecutorDominio:
             nonlocal foco_perdido
             # Uma exceção absorvida pelo gerador não libera ações posteriores.
             if foco_perdido or not interacao.janela_dominio_em_foco(janela):
+                if not foco_perdido:
+                    descrever = getattr(interacao, "descrever_primeiro_plano", None)
+                    if callable(descrever):
+                        print("FOCO_PERDIDO " + str(descrever(janela.get("pid") if isinstance(janela, dict) else None)), flush=True)
                 foco_perdido = True
                 erro = FocoPerdidoDuranteExecucao if geracao_iniciada else PrecondicaoRecusada
                 raise erro("dominio_fora_de_foco")
