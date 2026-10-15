@@ -1973,11 +1973,11 @@ def _esperar_formulario_resumo(prefixo, rastro=None, referencia=None):
     from app.leitura_resumo import formulario_resumo_reconhecido
     opcoes=dict(espera_minima=.3,tentativas=20,intervalo=1,
                 comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+    print('RESUMO_ESPERA comparacao_exata=True; rever_a_cada=3; limite_segundos=180',flush=True)
+    if rastro is not None:rastro.evento('opcoes_espera_formulario',**opcoes)  # só valores simples (vai para JSON)
     if referencia is not None:
         # Sem OCR enquanto a tela é a de antes do clique; lê só quando estabilizar.
         opcoes.update(referencia_inicial=referencia,aguardar_estabilidade=True)
-    print('RESUMO_ESPERA comparacao_exata=True; rever_a_cada=3; limite_segundos=180',flush=True)
-    if rastro is not None:rastro.evento('opcoes_espera_formulario',**opcoes)
     def reconhecer(img):
         def registrar(detalhe):
             print('RESUMO_FORMULARIO '+json.dumps(detalhe,ensure_ascii=False),flush=True)

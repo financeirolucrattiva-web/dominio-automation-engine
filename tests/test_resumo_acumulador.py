@@ -369,6 +369,23 @@ class TestResumoFluxo(unittest.TestCase):
         self.d.interacao.pressionar_enter.side_effect=salvar_dois
         self.assertEqual(self.executar(),(False,None))
 
+    def test_espera_do_formulario_com_imagem_de_referencia_grava_rastro_real_sem_quebrar(self):
+        # Regressão: a imagem de referência entrou nas opções gravadas em JSON pelo rastro e
+        # derrubou a rotina logo depois de "RESUMO_ESPERA", antes de qualquer leitura.
+        import tempfile
+        from app.rastro_resumo import RastroResumo
+        referencia=Image.new("RGB",(30,20),"red")
+        with tempfile.TemporaryDirectory() as pasta:
+            rastro=RastroResumo(pasta)
+            with patch.object(self.d.estados,"esperar_por_estado",return_value=("frame","formulario",(3,4))) as espera,                     contextlib.redirect_stdout(io.StringIO()):
+                resultado=self.esperar_formulario_real("",rastro=rastro,referencia=referencia)
+            self.assertEqual(resultado,("frame",(3,4)))
+            self.assertIs(espera.call_args.kwargs["referencia_inicial"],referencia)
+            self.assertTrue(espera.call_args.kwargs["aguardar_estabilidade"])
+            gravado=json.loads((rastro.pasta/"rastro.json").read_text(encoding="utf-8"))
+            opcoes=next(e for e in gravado["eventos"] if e["fase"]=="opcoes_espera_formulario")
+            self.assertNotIn("referencia_inicial",opcoes)
+
     def test_datas_confirmadas_ok_ilegivel_preserva_motivo_e_nao_emite(self):
         self.ok.return_value=None
         self.assertEqual(self.executar(),(False,None))
