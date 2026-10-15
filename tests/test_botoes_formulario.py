@@ -33,6 +33,61 @@ def tela_resumo(dx=0,dy=0,fator=1):
 
 
 class TestBotaoResumo(unittest.TestCase):
+    def test_timeout_na_leitura_inicial_nao_aborta_ok_antes_de_outros_leitores(self):
+        imagem,dados=tela_resumo();self.preparar(imagem,dados)
+        original=self.dados_ocr.side_effect
+        def ler(im,escala):
+            if im.size==imagem.size and escala==2:
+                raise RuntimeError('mensagem privada de timeout')
+            return original(im,escala)
+        self.dados_ocr.side_effect=ler
+        detalhes=[]
+        with patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:{'fechar'} if c[1]>110 else {'ok'}):
+            self.assertIsNotNone(botoes.achar_ok_resumo(imagem,detalhes.append))
+        self.assertTrue(any(d.get('tipo_erro')=='RuntimeError' and d['fase']=='guarda_avisos' for d in detalhes))
+        self.assertNotIn('mensagem privada',str(detalhes))
+
+    def test_todos_leitores_indisponiveis_bloqueiam_antes_de_buscar_botao(self):
+        imagem,dados=tela_resumo();self.preparar(imagem,dados)
+        self.dados_ocr.side_effect=RuntimeError('mensagem privada')
+        self.dados_windows.return_value=None
+        detalhes=[]
+        self.assertIsNone(botoes.achar_ok_resumo(imagem,detalhes.append))
+        self.contexto.assert_not_called()
+        self.assertEqual(detalhes[-1]['motivo'],'sem_leitura_valida')
+
+    def test_so_recorte_central_legivel_nao_equivale_a_tela_inteira_sem_aviso(self):
+        imagem,dados=tela_resumo();self.preparar(imagem,dados)
+        original=self.dados_ocr.side_effect
+        self.dados_ocr.side_effect=lambda im,escala: original(im,escala) if im.size!=imagem.size else (_ for _ in ()).throw(RuntimeError('timeout'))
+        detalhes=[]
+        self.assertIsNone(botoes.achar_ok_resumo(imagem,detalhes.append))
+        self.contexto.assert_not_called()
+        self.assertEqual(detalhes[-1]['leituras_tela_inteira'],0)
+
+    def test_cancelamento_engolido_por_helper_nao_devolve_posicao_de_clique(self):
+        from app.controle_execucao import ControleExecucao, controlar_execucao
+        imagem,dados=tela_resumo();controle=ControleExecucao()
+        def analisar(*args):
+            controle.interromper('reinicio_solicitado')
+            return (300,100)
+        with patch.object(botoes,'_achar_ok_resumo_na_captura',side_effect=analisar), \
+                controlar_execucao(controle),self.assertRaises(botoes.ExecucaoInterrompida):
+            botoes.achar_ok_resumo(imagem)
+
+    def test_aviso_do_segundo_motor_bloqueia_apesar_do_timeout_no_primeiro(self):
+        imagem,dados=tela_resumo();self.preparar(imagem,dados)
+        self.dados_ocr.side_effect=RuntimeError('timeout')
+        self.dados_windows.return_value={'text':['Aviso']}
+        self.assertIsNone(botoes.achar_ok_resumo(imagem))
+        self.contexto.assert_not_called()
+
+    def test_cancelamento_na_guarda_nao_e_transformado_em_erro_ocr(self):
+        imagem,dados=tela_resumo();self.preparar(imagem,dados)
+        self.dados_ocr.side_effect=botoes.ExecucaoInterrompida('reinicio_solicitado')
+        with self.assertRaises(botoes.ExecucaoInterrompida):botoes.achar_ok_resumo(imagem)
+        self.contexto.assert_not_called()
+
     def test_bordas_3d_do_log_real_contam_um_botao_em_qualquer_posicao_escala(self):
         # Somente geometria do log, sem pixels ou dados de cliente.
         bordas=((835,403,82,28),(834,402,79,25),(835,435,82,28),(834,434,79,25))
@@ -175,7 +230,7 @@ class TestBotaoResumo(unittest.TestCase):
 
     def test_aviso_reconhecido_bloqueia_antes_de_buscar_ok(self):
         imagem,dados=tela_resumo(); self.preparar(imagem,dados)
-        self.texto.side_effect=lambda im,t,**kw:(10,10) if t=='Aviso' else None
+        self.dados_windows.return_value={'text':['Aviso']}
         self.assertIsNone(botoes.achar_ok_resumo(imagem))
         self.contexto.assert_not_called()
         self.assertFalse(any(c.args[1]=='OK' for c in self.texto.call_args_list))

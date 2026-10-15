@@ -142,6 +142,8 @@ class TestResumoFluxo(unittest.TestCase):
         self.stack.enter_context(patch.object(self.d.estados, "esperar_por_estado", return_value=("frame", "previa", (30, 40))))
         self.stack.enter_context(patch.object(self.d.tela, "capturar_tela", return_value="frame"))
         self.stack.enter_context(patch.object(self.d.tela, "recortar_topo", return_value="frame"))
+        self.stack.enter_context(patch.object(self.d.tela, "recortar_centro", return_value=("frame",0,0)))
+        self.stack.enter_context(patch.object(self.d.tela, "achar_texto_windows", return_value=None))
         self.empresa = self.stack.enter_context(patch.object(self.d.tela, "ler_empresa_selecionada", return_value=("Empresa Fictícia", "52")))
         self.stack.enter_context(patch.object(self.d.tela, "achar_texto", return_value=(10, 20)))
         self.stack.enter_context(patch.object(self.d.tela, "achar_texto_ou_no_centro", side_effect=lambda img, alvo, **kw: None if alvo == "does not exist" else (10, 20)))
@@ -160,6 +162,17 @@ class TestResumoFluxo(unittest.TestCase):
 
     def executar(self, inicio="01/08/2026", fim="31/08/2026"):
         return self.d.gerar_resumo_acumulador(self.pasta.name, inicio, fim)
+
+    def test_fluxo_ate_pdf_tolera_timeout_ocr_do_rotulo_file_name_em_2x(self):
+        def ler(im,alvo,**kw):
+            if alvo=='does not exist':return None
+            if alvo=='File name' and kw['escala']==2:raise RuntimeError('timeout')
+            return (10,20)
+        self.d.tela.achar_texto_ou_no_centro.side_effect=ler
+        sucesso,caminho=self.executar()
+        self.assertTrue(sucesso)
+        self.assertTrue(Path(caminho).is_file())
+        self.assertIn('conferir_pdf',self.rotina.confirmadas)
 
     def simular_setembro(self, alterar_inicial=True, alterar_final=True, divergir_inicial=False):
         atual=campos_periodo(dados_ocr())

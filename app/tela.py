@@ -29,7 +29,7 @@ import pytesseract
 from pytesseract import Output
 
 from . import arquivos
-from .controle_execucao import ponto_seguro
+from .controle_execucao import ExecucaoInterrompida, ponto_seguro
 from .ocr_limites import LEITOR_WINDOWS, OCRTempoLimite, OCRLeituraOcupada
 
 LIMITE_TESSERACT=8.0
@@ -344,6 +344,8 @@ def achar_texto_windows(imagem, alvo, escala=1, debug=False, max_palavras=4, lan
             print("winocr não instalado — pulando segunda opinião do OCR do Windows.")
         return None
 
+    except ExecucaoInterrompida:
+        raise
     except Exception as erro:
         if debug:
             print(f"OCR do Windows falhou: {erro!r}")
@@ -386,6 +388,8 @@ def ler_dados_ocr_windows(imagem, escala=2):
                 for chave, origem in (("left", "x"), ("top", "y"), ("width", "width"), ("height", "height")):
                     dados[chave].append(rect[origem])
         return dados
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         return None
 

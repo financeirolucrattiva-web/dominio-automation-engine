@@ -9,6 +9,11 @@ Setembro/2026 estava aberto. Confirmar fechamento para cada empresa e mês.
 
 ## Repetir primeiro somente o Resumo
 
+O teste individual agora mostra etapas e progresso a cada cinco segundos,
+aceita 08/2026 ou 2026-08 e usa Ctrl+C cooperativo. A última falha ocorreu
+na guarda inicial de avisos, antes de medir o botão; a leitura por motor
+foi isolada e o diagnóstico agora informa o tipo da exceção.
+
 O último log já confirmou ambas datas; o bloqueio era a duplicação das
 bordas de Fechar. A correção mantém as datas e deduplica as bordas medidas
 antes de procurar OK. Com servidor parado, usar **ferramentas/Testar Resumo

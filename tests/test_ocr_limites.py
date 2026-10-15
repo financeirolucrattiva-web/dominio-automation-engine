@@ -12,6 +12,12 @@ from app.controle_execucao import ControleExecucao,ExecucaoInterrompida,controla
 
 
 class TestOCRLimites(unittest.TestCase):
+    def test_apis_windows_nao_escondem_cancelamento_como_motor_indisponivel(self):
+        imagem=Image.new('RGB',(100,30))
+        for ler in (lambda:tela.achar_texto_windows(imagem,'OK'),lambda:tela.ler_dados_ocr_windows(imagem)):
+            with self.subTest(ler=ler),patch.object(tela,'_reconhecer_ocr_windows',side_effect=ExecucaoInterrompida('reinicio_solicitado')):
+                with self.assertRaises(ExecucaoInterrompida):ler()
+
     def test_motor_preso_nao_cria_segunda_thread_e_nao_aceita_resultado_tardio(self):
         leitor=LeitorNativoLimitado(); liberar=threading.Event(); terminou=threading.Event()
         def ler(imagem,lang):
