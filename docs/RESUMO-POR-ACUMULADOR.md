@@ -53,6 +53,15 @@ da prévia e do PDF antes de declarar sucesso.
 
 ## Implementação e limites
 
+O rastreio da execução mostra RESUMO_EXECUCAO com protocolo e identificador,
+e RESUMO_ESPERA com a releitura efetiva. O novo diagnóstico exige título e
+dois controles medidos na mesma região, incluindo recortes ampliados com
+outra segmentação. A melhor captura e a última tela da espera ficam locais,
+antes de fechar as janelas. Abrir capturas/resumo_<id>/indice.html para ver
+as imagens antes/depois e marcas dos cliques; rastro.json identifica código
+carregado e posições. O caminho exato relativo aparece no fim do terminal.
+Esses arquivos podem conter dados fiscais e permanecem somente no PC.
+
 Revisão de 15/10: o novo log localizou exceção na guarda de avisos, antes
 da medição do OK. Leituras independentes e erro por motor são tratados
 sem ignorar avisos nem liberar quando falta leitura da tela inteira.

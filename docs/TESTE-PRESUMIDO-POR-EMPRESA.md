@@ -9,6 +9,13 @@ Setembro/2026 estava aberto. Confirmar fechamento para cada empresa e mês.
 
 ## Repetir primeiro somente o Resumo
 
+Encerrar o processo antigo antes de atualizar: pull não recarrega servidor
+já aberto. A nova rodada deve imprimir RESUMO_EXECUCAO com protocolo
+resumo-rastro-20261015-v1. No fim, abrir o indice.html em capturas/resumo_<id>
+para conferir pontos e capturas. Melhor formulário/última tela são guardados
+antes da recuperação; compartilhar apenas códigos e medidas, sem imagens
+fiscais integrais. Sem o protocolo, o log veio de outro código/processo.
+
 O teste individual agora mostra etapas e progresso a cada cinco segundos,
 aceita 08/2026 ou 2026-08 e usa Ctrl+C cooperativo. A última falha ocorreu
 na guarda inicial de avisos, antes de medir o botão; a leitura por motor

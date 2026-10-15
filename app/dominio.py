@@ -395,7 +395,7 @@ def _esperar_item_menu(contexto, alvo, nome_erro, menu_completo=False):
         # Acompanhamentos tem um submenu longo; o Resumo fica abaixo do recorte legado.
         area = imagem if menu_completo else tela.recortar_area_menu(imagem)
         pixels = area.tobytes() if hasattr(area, "tobytes") else None
-        if tentativa == 0 or pixels is None or pixels != anterior:
+        if tentativa % 3 == 0 or pixels is None or pixels != anterior:
             pos = mapa.localizar(area, contexto, alvo, lambda img, texto: tela.achar_texto(img, texto, escala=2))
             if pos is not None:
                 return pos
@@ -1921,6 +1921,10 @@ def gerar_resumo_acumulador(pasta_destino, data_inicial=None, data_final=None, p
     except BaseException:
         acompanhamento.concluir(False, evidencia="excecao")
         raise
+    finally:
+        rastro=getattr(acompanhamento,'rastro',None)
+        if rastro is not None:
+            rastro.finalizar(acompanhamento.finalizada and acompanhamento.eventos[-1]['status']=='concluido')
 
 
 def _achar_texto_resumo(imagem, alvo):
@@ -1936,14 +1940,21 @@ def _esperar_tela_resumo(alvo, prefixo):
     return imagem, pos
 
 
-def _esperar_formulario_resumo(prefixo):
+def _esperar_formulario_resumo(prefixo, rastro=None):
     from app.leitura_resumo import formulario_resumo_reconhecido
+    opcoes=dict(espera_minima=.3,tentativas=20,intervalo=1,
+                comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+    print('RESUMO_ESPERA comparacao_exata=True; rever_a_cada=3; limite_segundos=180',flush=True)
+    if rastro is not None:rastro.evento('opcoes_espera_formulario',**opcoes)
+    def reconhecer(img):
+        def registrar(detalhe):
+            print('RESUMO_FORMULARIO '+json.dumps(detalhe,ensure_ascii=False),flush=True)
+            if rastro is not None:rastro.leitura(img,detalhe)
+        return formulario_resumo_reconhecido(img,registrar=registrar)
     detectores = [(titulo, lambda img, t=titulo:
                    _achar_texto_resumo(img,t)) for titulo in TITULOS_ERRO]
     imagem, estado, pos = estados.esperar_por_estado(
-        detectores + [('formulario', formulario_resumo_reconhecido)],
-        espera_minima=.3, tentativas=20, intervalo=1,
-        comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
+        detectores + [('formulario', reconhecer)],**opcoes)
     if estado in TITULOS_ERRO:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return imagem, None
@@ -1991,6 +2002,15 @@ def _falhar_periodo_resumo(acompanhamento, motivo, prefixo):
 
 
 def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo, cnpj_esperado, acompanhamento):
+    from .rastro_resumo import RastroResumo
+    from .leitura_resumo import formulario_resumo_reconhecido
+    rastro=RastroResumo(PASTA_CAPTURAS,(_esperar_formulario_resumo,
+        estados.esperar_por_estado,formulario_resumo_reconhecido))
+    acompanhamento.rastro=rastro
+    def acao(alvo,tipo,pos,agir):
+        pyauto=getattr(interacao,'pyautogui',None)
+        rastro.acao(alvo,tipo,pos,tela.capturar_tela,agir,
+                   mouse=getattr(pyauto,'position',None))
     acompanhamento.iniciar("validar_dados")
     if data_inicial is None and data_final is None:
         data_inicial, data_final = competencia_anterior()
@@ -2016,19 +2036,19 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("Resumo: menu Relatórios não reconhecido na barra superior.")
         salvar(imagem, f"{prefixo}erro_menu_relatorios_resumo.png")
         return False, None
-    interacao.clicar(*pos)
+    acao('relatorios','clique',pos,lambda:interacao.clicar(*pos))
     pos = _esperar_item_menu("relatorios", "Acompanhamentos", f"{prefixo}erro_menu_acompanhamentos.png")
     if pos is None:
         print("Resumo: item Acompanhamentos não reconhecido após abrir Relatórios.")
         return False, None
-    interacao.passar_mouse(*pos)
+    acao('acompanhamentos','hover',pos,lambda:interacao.passar_mouse(*pos))
     pos = _esperar_item_menu("relatorios/acompanhamentos", "Resumo por Acumulador",
                             f"{prefixo}erro_menu_resumo.png", menu_completo=True)
     if pos is None:
         print("Resumo: item Resumo por Acumulador não reconhecido no submenu completo.")
         return False, None
-    interacao.clicar_com_desvio(*pos)
-    imagem, pos = _esperar_formulario_resumo(prefixo)
+    acao('resumo_acumulador','clique',pos,lambda:interacao.clicar_com_desvio(*pos))
+    imagem, pos = _esperar_formulario_resumo(prefixo,rastro=rastro)
     if pos is None:
         print("Resumo: formulário não confirmado após clicar no item do submenu.")
         salvar(tela.capturar_tela(), f"{prefixo}erro_formulario_resumo.png")
@@ -2056,7 +2076,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         if campos[papel]['valor'] == valor:
             _diagnosticar_periodo_resumo('campo_ja_confirmado', papel, valor, campos)
             continue
-        interacao.clicar(*campos[papel]["posicao"])
+        acao('data_'+papel,'clique',campos[papel]['posicao'],lambda:interacao.clicar(*campos[papel]['posicao']))
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace("/", ""))
         interacao.pressionar_tecla("tab")
@@ -2083,7 +2103,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         salvar(imagem, f"{prefixo}erro_ok_resumo.png")
         return False, None
     print('RESUMO_OK reconhecido=True; enviando o botão confirmado.',flush=True)
-    interacao.clicar(*pos)
+    acao('ok','clique',pos,lambda:interacao.clicar(*pos))
 
     def previa(imagem):
         if (_achar_texto_resumo(imagem,"CNPJ") is not None and
@@ -2118,7 +2138,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("Resumo: ícone PDF não reconhecido; não foi usada coordenada fixa.")
         salvar(imagem, f"{prefixo}erro_icone_pdf_resumo.png")
         return False, None
-    interacao.clicar(*pos)
+    acao('pdf','clique',pos,lambda:interacao.clicar(*pos))
     imagem, pos = _esperar_tela_resumo("Salvar em PDF", prefixo)
     if pos is None or _achar_texto_resumo(imagem,"File name") is None:
         salvar(tela.capturar_tela(), f"{prefixo}erro_salvar_resumo.png")
@@ -2141,7 +2161,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     else:
         salvar(imagem, f"{prefixo}erro_nome_temporario_resumo.png")
         return False, None
-    interacao.pressionar_enter()
+    acao('salvar_pdf','tecla',None,interacao.pressionar_enter)
     anterior = None
     for tentativa in range(30):
         imagem = tela.capturar_tela()
