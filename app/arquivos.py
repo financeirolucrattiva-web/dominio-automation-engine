@@ -185,6 +185,15 @@ def validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado=None):
     return cnpj
 
 
+def _nome_confere(nome, compacto):
+    """O nome lido do cabeçalho do Domínio traz ruído ("SPRAYAGRO �", pois o
+    hífen antes do código vira um caractere estranho). Compara só as palavras
+    úteis (2+ letras/dígitos); todas precisam aparecer no texto compactado."""
+    sem_acento = "".join(c for c in unicodedata.normalize("NFKD", nome.upper()) if not unicodedata.combining(c))
+    palavras = [p for p in re.split(r"[^A-Z0-9]+", sem_acento) if len(p) >= 2]
+    return bool(palavras) and all(p in compacto for p in palavras)
+
+
 def validar_previa_resumo(texto, inicio, fim, cnpj_esperado=None, nome_empresa=None):
     """Conferência da PRÉVIA do Resumo, lida por OCR da tela inteira.
 
@@ -215,7 +224,7 @@ def validar_previa_resumo(texto, inicio, fim, cnpj_esperado=None, nome_empresa=N
     cnpj = cnpjs.pop()
     if cnpj_esperado is not None and re.sub(r"\D", "", str(cnpj_esperado)) != cnpj:
         raise ValueError("O CNPJ da prévia não corresponde à empresa esperada.")
-    if nome_empresa and _compactar(nome_empresa) not in cabecalho:
+    if nome_empresa and not _nome_confere(nome_empresa, cabecalho):
         raise ValueError("O nome da empresa na prévia não confere com a empresa conferida antes de abrir o Resumo.")
     return cnpj
 
@@ -246,7 +255,7 @@ def validar_previa_livro(texto, inicio, fim, cnpj_esperado=None, nome_empresa=No
     cnpj = cnpjs.pop()
     if cnpj_esperado is not None and re.sub(r"\D", "", str(cnpj_esperado)) != cnpj:
         raise ValueError("O CNPJ da prévia não corresponde à empresa esperada.")
-    if nome_empresa and _compactar(nome_empresa) not in compacto:
+    if nome_empresa and not _nome_confere(nome_empresa, compacto):
         raise ValueError("O nome da empresa na prévia não confere com a empresa conferida.")
     return cnpj
 

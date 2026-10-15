@@ -70,6 +70,17 @@ class TestResumoDados(unittest.TestCase):
         with self.assertRaises(ValueError):
             arquivos.validar_resumo_acumulador(previa, "01/08/2026", "31/08/2026", CNPJ)
 
+    def test_nome_do_cabecalho_com_ruido_do_hifen_confere_mas_outro_nome_nao(self):
+        # Caso real: o leitor do cabeçalho devolve "NOME �" (o hífen antes do código vira lixo).
+        previa = ("EMPRESA FICTICIA LTDA Página 1/1 12.345,678/0001-95 Emissão 15/10/2026 "
+                  "01/08/2026 até 31/08/2026 RESUMO POR ACUMULADOR ENTRADAS Código")
+        for nome in ("EMPRESA �", "Empresa Fictícia �", "EMPRESA FICTICIA |"):
+            with self.subTest(nome):
+                self.assertEqual(arquivos.validar_previa_resumo(previa, "01/08/2026", "31/08/2026", CNPJ, nome_empresa=nome), CNPJ)
+        for nome in ("OUTRA �", "EMPRESA OUTRA", "�", "  "):
+            with self.subTest(nome), self.assertRaises(ValueError):
+                arquivos.validar_previa_resumo(previa, "01/08/2026", "31/08/2026", CNPJ, nome_empresa=nome)
+
     def test_previa_recusa_periodo_nome_titulo_e_cnpj_errados_ou_ambiguos(self):
         base = "EMPRESA FICTICIA 12.345.678/0001-95 01/08/2026 ate 31/08/2026 RESUMO POR ACUMULADOR ENTRADAS"
         casos = {
