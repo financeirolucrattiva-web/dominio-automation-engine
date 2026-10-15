@@ -134,6 +134,38 @@ def janela_dominio_em_foco(janela):
         return False
 
 
+def _janela_remota_do_dominio(api, janela, hwnd_frente):
+    """Dados da janela em foco se for outra janela do MESMO cliente GO-Global.
+
+    Diálogos remotos ("Salvar em PDF", "Procurar Pasta") são janelas próprias,
+    com outro HWND, mas mesmo processo e mesma classe da janela principal do
+    Domínio. Outro programa (leitor de PDF, navegador) tem outro processo.
+    """
+    dados = _dados_janela(api, hwnd_frente)
+    if dados is None or dados["hwnd"] == janela["hwnd"]:
+        return None
+    if dados["pid"] != janela["pid"] or dados["classe"] != janela["classe"]:
+        return None
+    return dados
+
+
+def janela_dominio_ou_remota_em_foco(janela):
+    """Foco na janela do Domínio OU em um diálogo remoto do mesmo cliente.
+
+    Só confere, sem mudar foco nem enviar ação. A conferência estrita
+    (`janela_dominio_em_foco`) continua valendo onde a tela principal é exigida.
+    """
+    if janela_dominio_em_foco(janela):
+        return True
+    if janela is None:
+        return False
+    try:
+        api, _ = _api_janelas()
+        return _janela_remota_do_dominio(api, janela, api.GetForegroundWindow()) is not None
+    except Exception:
+        return False
+
+
 def _trazer_para_frente(api, hwnd):
     """Traz o HWND já identificado para a frente, sem enviar teclas a outro programa.
 
@@ -223,6 +255,20 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
                 return False
             atual = candidatas[0]
         hwnd = atual["hwnd"]
+        if janela is not None and _janela_remota_do_dominio(api, janela, api.GetForegroundWindow()) is not None:
+            # Um diálogo remoto do mesmo cliente (ex.: "Salvar em PDF") está na
+            # frente: o Esc vai para ele, sem trocar o foco para a janela principal.
+            if confirmar_conteudo is not None and not confirmar_conteudo():
+                return False
+            for numero_esc in range(vezes):
+                frente = api.GetForegroundWindow()
+                if frente != hwnd and _janela_remota_do_dominio(api, janela, frente) is None:
+                    return False  # o foco saiu do cliente do Domínio
+                if numero_esc == 0:
+                    print("Diálogo remoto do Domínio em foco; enviando Esc.")
+                pressionar_tecla("esc")
+                time.sleep(intervalo)
+            return True
         if api.IsIconic(hwnd):
             api.ShowWindow(hwnd, 9)  # SW_RESTORE, não fechamento.
         if not _trazer_para_frente(api, hwnd):

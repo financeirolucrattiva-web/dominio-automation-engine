@@ -4832,6 +4832,33 @@ foco (segunda tentativa, desanexa sempre) e captura real conferida offline
 (aceita a empresa certa; recusa nome e período errados). Sem rodada Windows:
 repetir Resumo e Livros após atualizar e reiniciar o servidor.
 
+### 0.115 Diálogos remotos, nome do cabeçalho e seleção dos Livros (15/10/2026)
+
+**Evidência (logs do operador):** (1) Resumo: a prévia abriu, mas a conferência do
+nome recusou — o nome lido do cabeçalho vem como `SPRAYAGRO �` (o hífen antes do
+código vira lixo); (2) depois do OK e do ícone PDF, `FOCO_PERDIDO janela em foco:
+classe DisplayClientWindowClass; mesmo processo do Domínio: True`: o diálogo
+"Salvar em PDF" é outra janela do MESMO cliente GO-Global (outro HWND, mesmo pid
+e classe) e a trava de foco comparava o HWND exato; a recuperação falhava igual,
+deixando o diálogo aberto; (3) Livros: após marcar "Registro de Entradas" (negrito
+e grupo Anexar) nenhuma leitura de OCR reconhecia os seis rótulos de uma vez,
+embora a união das leituras os cobrisse.
+
+**Correções:** `arquivos._nome_confere` compara só palavras úteis do nome;
+`interacao.janela_dominio_ou_remota_em_foco` aceita janela do mesmo pid/classe
+(outro processo, como leitor de PDF, continua recusado) e é usada na trava do
+executor; `pressionar_esc_no_dominio` envia Esc ao diálogo remoto sem trocar o
+foco; `formulario_livros.combinar_rotulos` une rótulos de várias leituras da
+mesma captura (posições concordantes ±3 px, ordem vertical e alinhamento
+coerentes), mantidas todas as conferências de pixels (16 caixas, estados).
+
+**Validação:** testes novos (foco/Esc em diálogo remoto, trava do executor,
+combinação com leituras que perdem rótulos diferentes, rejeições) e o nome
+conferido contra a captura real da prévia. Sem rodada Windows desta versão;
+a combinação de rótulos foi validada com os rótulos reconhecidos por variante
+no log do operador, não com uma captura do formulário (a única salva tinha o
+console do servidor na frente).
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

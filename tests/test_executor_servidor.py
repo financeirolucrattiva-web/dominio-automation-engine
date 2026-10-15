@@ -187,6 +187,20 @@ class TestExecutorServidor(unittest.TestCase):
             self.assertEqual(repo.obter_lote(lote["id"])["status"], "concluida_com_falhas")
             self.desktop["interacao"].pressionar_esc_no_dominio.assert_called_once()
 
+    def test_dialogo_remoto_do_mesmo_cliente_nao_conta_como_foco_perdido(self):
+        # Caso real: "Salvar em PDF" é outra janela do cliente GO-Global (mesmo processo/classe).
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_ou_remota_em_foco = Mock(return_value=True)
+        from app.controle_execucao import ponto_seguro
+
+        def gerar(**kwargs):
+            interacao.janela_dominio_em_foco.return_value = False  # o diálogo remoto ficou na frente
+            ponto_seguro()  # não pode levantar
+            return True
+        self.desktop["dominio"].gerar_sped_fiscal.side_effect = gerar
+        self.assertTrue(self.executar())
+        interacao.janela_dominio_ou_remota_em_foco.assert_called()
+
     def test_tela_presa_inicial_recupera_antes_de_trocar_empresa(self):
         d = self.desktop["dominio"]
         d._verificar_retorno_tela_principal.side_effect = ["tela_principal_nao_reconhecida"] * 2 + ["tela_principal_reconhecida"] * 2

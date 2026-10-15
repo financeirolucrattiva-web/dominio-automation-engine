@@ -88,6 +88,31 @@ class TestFocoDominio(unittest.TestCase):
         self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token()))
         self.press.assert_not_called()
 
+    def _com_dialogo_remoto(self):
+        # "Salvar em PDF": outra janela do MESMO cliente (pid e classe iguais), outro HWND.
+        self.janelas[77] = {"titulo": "Salvar em PDF", "classe": "DisplayClientWindowClass", "pid": 100}
+        self.foreground = 77
+
+    def test_dialogo_remoto_do_mesmo_cliente_conta_como_foco_mas_outro_programa_nao(self):
+        self._com_dialogo_remoto()
+        self.assertFalse(self.modulo.janela_dominio_em_foco(self.token()))  # estrita: só a principal
+        self.assertTrue(self.modulo.janela_dominio_ou_remota_em_foco(self.token()))
+        self.foreground = 99  # leitor de PDF: outro processo
+        self.assertFalse(self.modulo.janela_dominio_ou_remota_em_foco(self.token()))
+        self.assertFalse(self.modulo.janela_dominio_ou_remota_em_foco(None))
+
+    def test_esc_vai_para_o_dialogo_remoto_sem_trocar_o_foco(self):
+        self._com_dialogo_remoto()
+        self.assertTrue(self.modulo.pressionar_esc_no_dominio(self.token(), vezes=2))
+        self.assertEqual(self.press.call_count, 2)
+        self.api.SetForegroundWindow.assert_not_called()
+
+    def test_esc_no_dialogo_remoto_para_se_o_foco_sair_do_cliente(self):
+        self._com_dialogo_remoto()
+        self.press.side_effect = lambda _: setattr(self, "foreground", 99)
+        self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token(), vezes=2))
+        self.press.assert_called_once_with("esc")
+
     def test_windows_recusa_primeira_tentativa_e_anexa_entrada_na_segunda(self):
         original = self.api.GetWindowThreadProcessId.side_effect
         self.api.GetWindowThreadProcessId.side_effect = (

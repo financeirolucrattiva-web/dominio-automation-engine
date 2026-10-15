@@ -121,7 +121,10 @@ class ExecutorDominio:
         def conferir_foco():
             nonlocal foco_perdido
             # Uma exceção absorvida pelo gerador não libera ações posteriores.
-            if foco_perdido or not interacao.janela_dominio_em_foco(janela):
+            # Diálogos remotos (Salvar em PDF, Procurar Pasta) são janelas do mesmo
+            # cliente GO-Global, com outro HWND: não contam como foco perdido.
+            em_foco = getattr(interacao, "janela_dominio_ou_remota_em_foco", interacao.janela_dominio_em_foco)
+            if foco_perdido or not em_foco(janela):
                 if not foco_perdido:
                     descrever = getattr(interacao, "descrever_primeiro_plano", None)
                     if callable(descrever):
