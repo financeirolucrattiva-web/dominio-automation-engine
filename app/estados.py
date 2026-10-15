@@ -100,6 +100,7 @@ class AcompanhamentoRotina:
         pasta_logs = Path(pasta_logs) if pasta_logs is not None else Path(__file__).resolve().parent.parent / "data" / "execucoes"
         self.caminho_log = pasta_logs / f"{self.execution_id}.jsonl"
         self.eventos = []
+        self.duracoes = []
         self.tentativa = 1
         self.etapa = None
         self.confirmadas = []
@@ -127,7 +128,11 @@ class AcompanhamentoRotina:
                 observador(dict(evento))
             except Exception:
                 pass
-        print(f"[estado] {etapa}: {status}" + (f" ({evidencia})" if evidencia else ""))
+        segundos = ""
+        if status not in ("inicio",) and etapa not in ("fim",):
+            segundos = f" [{evento['elapsed_seconds']:.0f}s]"
+            self.duracoes.append((etapa, evento["elapsed_seconds"]))
+        print(f"[estado] {etapa}: {status}" + (f" ({evidencia})" if evidencia else "") + segundos)
         try:
             self.caminho_log.parent.mkdir(parents=True, exist_ok=True)
             with self.caminho_log.open("a", encoding="utf-8") as arquivo:
@@ -200,6 +205,9 @@ class AcompanhamentoRotina:
             self._registrar(self.etapa, "falha", evidencia)
         self.inicio_etapa = self.inicio
         self._registrar("fim", "concluido" if sucesso else "falha", "rotina_concluida" if sucesso else evidencia)
+        total = time.monotonic() - self.inicio
+        por_etapa = ", ".join(f"{etapa} {segundos:.0f}s" for etapa, segundos in self.duracoes)
+        print(f"[tempo] {self.rotina}: total {total:.0f}s | {por_etapa}", flush=True)
         self.finalizada = True
 
 

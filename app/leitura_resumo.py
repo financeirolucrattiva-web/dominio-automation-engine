@@ -326,6 +326,14 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
                 contextos.append(medidas)
                 if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,'confirmado':True,
                     'campos':{p:list(c['retangulo']) for p,c in medidas.items()}})
+                # Duas leituras independentes já concordam na geometria (bordas medidas em
+                # pixels): as demais passadas de OCR da tela inteira só repetiriam o trabalho
+                # (~3-6 s cada). Discordância continua sendo recusada pelas leituras abaixo.
+                if (len(contextos)>=2 and
+                        len({tuple(c[p]['retangulo'] for p in ('inicial','final')) for c in contextos})==1):
+                    if registrar:registrar({'fase':'geometria','confirmado':True,'motivo':'duas_leituras_concordam',
+                        'leituras_puladas':True})
+                    break
             except ValueError as erro:
                 if registrar:registrar({'fase':'geometria','motor':motor,'escala':escala,
                     'confirmado':False,'motivo':motivo_geometria(erro),

@@ -4985,6 +4985,24 @@ padrão: o resto do projeto não muda.
 **Não validado ao vivo:** o ganho de tempo real. O Acrobat aberto pela exportação
 deve ser fechado pela 0.120, ainda sem rodada real.
 
+### 0.122 Rastro sem imagem no JSON, tempos no console e leitura das datas mais rápida (15/10/2026)
+
+**Evidência (log do lote):** o Resumo desistiu logo depois de `RESUMO_ESPERA`, antes de
+preencher. Causa: a 0.121 passou a imagem de referência junto das opções da espera, e
+o rastro grava essas opções em JSON (uma imagem não serializa). Corrigido: o rastro
+recebe só os valores simples e a imagem vai apenas para a espera; teste de regressão
+com o `RastroResumo` real (falha com o código antigo, passa com o novo).
+
+**Tempos no console:** cada etapa agora imprime `[Ns]` e, ao final, uma linha
+`[tempo] rotina: total Ns | etapa Ns, ...` para localizar onde o lote gasta tempo.
+
+**Leitura das datas:** `ler_campos` (Resumo e Livros) fazia sempre 6 passadas de OCR da
+tela inteira para achar a geometria dos campos. Passa a parar quando duas leituras
+independentes concordam no mesmo retângulo (bordas medidas em pixels); as leituras
+por campo (duas concordantes por data) e a recusa por geometria conflitante continuam.
+Nas capturas reais: Resumo ~22 s -> 5,8 s e Livros ~22 s -> 7,5 s, mesmos valores.
+Não validado ao vivo no lote completo (Resumo + EFD Contribuições + Livros).
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF
