@@ -237,10 +237,18 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
     return artefatos
 
 
-def _aguardar_arquivos(pasta, capturar, dominio, prefixo):
+def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None):
     anterior = None
     estaveis = 0
+    fechados = set()
     for _ in range(60):
+        if leitores_antes is not None:
+            # O Domínio abre cada PDF no Acrobat, que toma o foco e faria a trava de foco
+            # encerrar a rodada: fecha antes de qualquer checagem de foco.
+            try:
+                dominio._fechar_leitores_pdf_uma_vez(leitores_antes, fechados)
+            except Exception:
+                pass
         ponto_seguro()
         imagem = capturar()
         for titulo in dominio.TITULOS_ERRO:
@@ -397,13 +405,15 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     imagem=_aguardar(dominio,'pasta',lambda img:tela.achar_texto_ou_no_centro(img,'Procurar Pasta',escala=4),prefixo,tentativas=15)
     if imagem is None:return False
     from app.seletor_pasta import selecionar_pasta
+    leitores_antes=dominio._linha_base_leitores_pdf()
     selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(staging),tela.capturar_tela,
                      interacao.clicar,interacao.pressionar_tecla)
-    completa=_aguardar_arquivos(staging,tela.capturar_tela,dominio,prefixo)
+    completa=_aguardar_arquivos(staging,tela.capturar_tela,dominio,prefixo,leitores_antes)
     if completa:
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
     _conferir_conjunto(staging,inicial,final,cnpj,empresa[0],artefatos=artefatos)
+    dominio._fechar_leitores_pdf(leitores_antes)  # garante que nenhum Acrobat ficou na frente
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')

@@ -78,6 +78,7 @@ def _api_janelas():
         "AttachThreadInput": ([wintypes.DWORD, wintypes.DWORD, wintypes.BOOL], wintypes.BOOL),
         "ShowWindow": ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
         "EnumWindows": ([callback, wintypes.LPARAM], wintypes.BOOL),
+        "PostMessageW": ([wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], wintypes.BOOL),
     }
     for nome, (argumentos, retorno) in assinaturas.items():
         funcao = getattr(api, nome)
@@ -164,6 +165,90 @@ def janela_dominio_ou_remota_em_foco(janela):
         return _janela_remota_do_dominio(api, janela, api.GetForegroundWindow()) is not None
     except Exception:
         return False
+
+
+_LEITORES_PDF = ("acrobat.exe", "acrord32.exe")
+_WM_CLOSE = 0x0010
+
+
+def _nome_processo(pid):
+    """Nome do executável (minúsculo) de um processo; vazio se não puder consultar."""
+    kernel = ctypes.windll.kernel32
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    processo = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not processo:
+        return ""
+    try:
+        texto = ctypes.create_unicode_buffer(1024)
+        tamanho = wintypes.DWORD(len(texto))
+        if kernel.QueryFullProcessImageNameW(processo, 0, texto, ctypes.byref(tamanho)):
+            return texto.value.replace("/", "\\").rsplit("\\", 1)[-1].lower()
+    finally:
+        kernel.CloseHandle(processo)
+    return ""
+
+
+def listar_leitores_pdf():
+    """{HWND: título} das janelas visíveis do Adobe Acrobat/Reader com um PDF aberto."""
+    api, callback = _api_janelas()
+    achados = {}
+
+    def enumerar(hwnd, _):
+        dados = _dados_janela(api, hwnd)
+        if dados and ".pdf" in dados["titulo"].casefold() and _nome_processo(dados["pid"]) in _LEITORES_PDF:
+            achados[dados["hwnd"]] = dados["titulo"]
+        return True
+
+    api.EnumWindows(callback(enumerar), 0)
+    return achados
+
+
+def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
+    """Uma varredura: fecha (WM_CLOSE, como o X) janelas de leitor de PDF novas.
+
+    `linha_base`: `listar_leitores_pdf()` tirada ANTES da exportação (as que o
+    operador já tinha abertas nunca são fechadas). `fechadas`: conjunto de HWND
+    já fechados por esta rotina (atualizado aqui). Não envia teclas nem cliques.
+    Devolve os HWND fechados que ainda constavam na listagem desta varredura
+    (feita antes do fechamento); a varredura seguinte confirma que sumiram.
+    """
+    api, _ = _api_janelas()
+    atuais = listar_leitores_pdf()
+    for hwnd in atuais:
+        if hwnd not in linha_base and hwnd not in fechadas:
+            print("Fechando o leitor de PDF aberto pela exportação.", flush=True)
+            api.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
+            fechadas.add(hwnd)
+    return [h for h in fechadas if h in atuais]
+
+
+def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5):
+    """Espera o leitor de PDF aparecer, fecha as janelas novas e confirma que sumiram.
+
+    Espera até `espera` s a primeira janela; depois de fechar, aguarda `calma` s por
+    outras janelas novas. Devolve quantas foram fechadas.
+    """
+    fechadas = set()
+    prazo = time.monotonic() + espera
+    ultima_acao = None
+    quantidade_anterior = 0
+    while True:
+        abertas = fechar_leitores_pdf_uma_vez(linha_base, fechadas)
+        agora = time.monotonic()
+        if len(fechadas) != quantidade_anterior:
+            quantidade_anterior = len(fechadas)
+            ultima_acao = agora
+        if fechadas:
+            if not abertas and agora - ultima_acao >= calma:
+                return len(fechadas)
+            if agora - ultima_acao >= espera:
+                print("O leitor de PDF não fechou no prazo.", flush=True)
+                return len(fechadas)
+        elif agora >= prazo:
+            return 0
+        time.sleep(intervalo)
 
 
 def _trazer_para_frente(api, hwnd):

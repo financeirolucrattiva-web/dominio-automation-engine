@@ -88,6 +88,56 @@ class TestFocoDominio(unittest.TestCase):
         self.assertFalse(self.modulo.pressionar_esc_no_dominio(self.token()))
         self.press.assert_not_called()
 
+    def _com_acrobat(self, *hwnds):
+        for hwnd in hwnds:
+            self.janelas[hwnd] = {"titulo": f"Empresa {hwnd} - SPRAYAGRO.pdf - Adobe Acrobat", "classe": "AcrobatSDIWindow", "pid": 300}
+        self.janelas[88] = {"titulo": "Relatorio.pdf - Adobe Acrobat", "classe": "AcrobatSDIWindow", "pid": 300}
+        self.janelas[89] = {"titulo": "Documento.pdf - Bloco de Notas", "classe": "Notepad", "pid": 400}
+        self.fechadas = []
+        patcher = patch.object(self.modulo, "_nome_processo",
+                               side_effect=lambda pid: {300: "acrobat.exe", 400: "notepad.exe"}.get(pid, "outro.exe"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        def fechar(hwnd, mensagem, a, b):
+            self.fechadas.append((hwnd, mensagem))
+            self.janelas.pop(hwnd, None)
+            return True
+        self.api.PostMessageW.side_effect = fechar
+
+    def test_lista_so_leitor_de_pdf_com_pdf_no_titulo(self):
+        self._com_acrobat(201)
+        self.assertEqual(set(self.modulo.listar_leitores_pdf()), {88, 201})  # nem Domínio nem outro programa
+
+    def test_fecha_so_o_leitor_novo_e_nunca_o_que_ja_estava_aberto(self):
+        self._com_acrobat()
+        base = self.modulo.listar_leitores_pdf()  # o 88 já estava aberto pelo operador
+        self.assertEqual(set(base), {88})
+        self._com_acrobat(201)  # o Domínio abre o PDF exportado
+        fechadas = set()
+        abertas = self.modulo.fechar_leitores_pdf_uma_vez(base, fechadas)
+        self.assertEqual(fechadas, {201})
+        self.assertEqual(self.fechadas, [(201, 0x0010)])  # WM_CLOSE (o X), nada além disso
+        self.assertEqual(abertas, [201])  # a varredura listou antes de fechar; a próxima confirma que sumiu
+        self.assertIn(88, self.janelas)  # o do operador continua
+        self.press.assert_not_called()  # nenhuma tecla enviada
+
+    def test_espera_o_leitor_aparecer_fecha_e_confirma_que_sumiu(self):
+        self._com_acrobat()
+        base = self.modulo.listar_leitores_pdf()
+        self._com_acrobat(201, 202)
+        with patch.object(self.modulo.time, "monotonic", side_effect=iter(range(0, 1000))):
+            quantidade = self.modulo.fechar_leitores_pdf_novos(base, espera=5, intervalo=0, calma=2)
+        self.assertEqual(quantidade, 2)
+        self.assertEqual({h for h, _ in self.fechadas}, {201, 202})
+
+    def test_sem_leitor_novo_devolve_zero_depois_do_prazo(self):
+        self._com_acrobat()
+        base = self.modulo.listar_leitores_pdf()
+        with patch.object(self.modulo.time, "monotonic", side_effect=iter(range(0, 1000))):
+            self.assertEqual(self.modulo.fechar_leitores_pdf_novos(base, espera=3, intervalo=0), 0)
+        self.assertEqual(self.fechadas, [])
+
     def _com_dialogo_remoto(self):
         # "Salvar em PDF": outra janela do MESMO cliente (pid e classe iguais), outro HWND.
         self.janelas[77] = {"titulo": "Salvar em PDF", "classe": "DisplayClientWindowClass", "pid": 100}

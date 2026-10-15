@@ -4937,6 +4937,28 @@ a linha "Client C (M:\)" da lista de unidades casa mesmo com a barra mal lida;
 exclusiva por tentativa; o servidor publica depois, com o nome final, na pasta da empresa).
 Não validado ao vivo: prévia, ícone PDF, menu "um arquivo PDF para cada relatório" e a navegação.
 
+### 0.120 Fechar o leitor de PDF aberto pela exportação (15/10/2026)
+
+**Evidência (captura do operador):** depois de salvar, o Domínio abre o PDF exportado
+no Adobe Acrobat (aba "Empresa 70 - SPRA...") na frente de tudo; a rotina não seguia
+porque o Acrobat é outro processo (a trava de foco recusa) e nada o fechava.
+
+**Correção:** `interacao.listar_leitores_pdf` (janelas visíveis de Acrobat/Reader com
+`.pdf` no título, pelo nome do executável) e `fechar_leitores_pdf_novos`/
+`fechar_leitores_pdf_uma_vez`: fecham com WM_CLOSE (o mesmo efeito do X, sem teclas
+nem cliques) apenas as janelas que **não** estavam abertas antes da exportação
+(linha de base tirada antes do Save/OK); as que o operador já tinha abertas nunca
+são tocadas. Resumo: baseline antes do Save, fecha depois da conferência do PDF.
+Livros individuais: idem. Livros em conjunto: baseline antes do seletor de pasta e
+fechamento dentro da espera pelos 3 PDFs, ANTES de cada checagem de foco (o Acrobat
+na frente faria a trava encerrar a rodada), com um fechamento final de garantia.
+Falha ao fechar nunca derruba a rotina; o passo seguinte (Esc/retorno à tela
+principal) segue com as conferências de sempre.
+
+**Validação:** testes com Win32 simulado (só o leitor novo é fechado; o do operador e
+outros programas ficam; nenhuma tecla; espera/ausência de janela; ordem fechar→foco).
+Não validado ao vivo: título real da janela do Acrobat e o tempo até ela abrir.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

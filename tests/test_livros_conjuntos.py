@@ -207,6 +207,20 @@ class TestConjunto(unittest.TestCase):
         self.assertTrue(opcoes['comparacao_exata']);self.assertEqual(opcoes['rever_a_cada'],3)
         self.assertGreaterEqual(opcoes['limite_segundos'],90)
 
+    def test_espera_dos_pdfs_fecha_o_leitor_antes_de_checar_o_foco(self):
+        # O Acrobat abre na frente e a trava de foco encerraria a rodada: fecha ANTES de ponto_seguro().
+        ordem=[]
+        dominio=Mock();dominio.TITULOS_ERRO=()
+        dominio._fechar_leitores_pdf_uma_vez.side_effect=lambda base,fechados:ordem.append('fechar')
+        with tempfile.TemporaryDirectory() as pasta, \
+                patch.object(livros,'ponto_seguro',side_effect=lambda:ordem.append('foco')), \
+                patch.object(livros.tela,'achar_texto_ou_no_centro',return_value=None), \
+                patch.object(livros.time,'sleep'):
+            root=Path(pasta)
+            for i in range(3):criar_pdf(root/f'{i}.pdf',TEXTOS['registro_entradas'])
+            self.assertTrue(livros._aguardar_arquivos(root,lambda:'frame',dominio,'',{}))
+        self.assertEqual(ordem[:2],['fechar','foco'])
+
     def test_ok_nao_lido_por_ocr_e_calculado_a_partir_de_fechar(self):
         def achar(imagem, alvo, escala=2):
             return {'Fechar': (1158, 264)}.get(alvo)

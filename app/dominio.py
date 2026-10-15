@@ -1269,6 +1269,27 @@ def _verificar_retorno_tela_principal(acompanhamento):
         return "tela_principal_nao_reconhecida"
 
 
+def _linha_base_leitores_pdf():
+    """Janelas de leitor de PDF já abertas antes da exportação (nunca serão fechadas)."""
+    try:
+        return interacao.listar_leitores_pdf()
+    except Exception:
+        return {}
+
+
+def _fechar_leitores_pdf(linha_base):
+    """Fecha o leitor de PDF que o Domínio abre depois de exportar; nunca derruba a rotina."""
+    try:
+        interacao.fechar_leitores_pdf_novos(linha_base)
+    except Exception:
+        print("Não consegui fechar o leitor de PDF aberto pela exportação; confira a tela.", flush=True)
+
+
+def _fechar_leitores_pdf_uma_vez(linha_base, fechados):
+    """Uma varredura de fechamento (usada dentro de esperas que checam o foco)."""
+    return interacao.fechar_leitores_pdf_uma_vez(linha_base, fechados)
+
+
 def _recuperar_interface_livro(acompanhamento):
     """Tenta a saída já usada pela rotina, somente após prévia observada.
 
@@ -1817,6 +1838,7 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
     interacao.selecionar_tudo_alternativo()
     interacao.digitar(caminho_digitado)
     time.sleep(0.3)
+    leitores_antes = _linha_base_leitores_pdf()
     interacao.pressionar_enter()
     time.sleep(1)
 
@@ -1867,6 +1889,7 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         return False, None
 
     acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
+    _fechar_leitores_pdf(leitores_antes)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
     caminho_completo = caminho_final
     print(f"Arquivo gerado e conteúdo confirmado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
 
@@ -2177,6 +2200,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         velho.replace(destino_velho)
         print(f"Resumo: PDF anterior preservado em anteriores/{destino_velho.name}.", flush=True)
     antes = {p.name for p in pasta_destino.glob("*.pdf")}
+    leitores_antes = _linha_base_leitores_pdf()
     acao('salvar_pdf','tecla',None,interacao.pressionar_enter)
     anterior = None
     for tentativa in range(30):
@@ -2208,6 +2232,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("Resumo: exportação não confirmada; nenhum arquivo anterior comprova sucesso.")
         return False, None
     acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
+    _fechar_leitores_pdf(leitores_antes)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
     acompanhamento.iniciar("encerrar")
     if not interacao.pressionar_esc_no_dominio(acompanhamento.janela_dominio, vezes=2, confirmar_conteudo=_confirmar_conteudo_dominio):
         acompanhamento.registrar_encerramento_inconclusivo()
