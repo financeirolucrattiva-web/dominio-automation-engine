@@ -5003,6 +5003,29 @@ por campo (duas concordantes por data) e a recusa por geometria conflitante cont
 Nas capturas reais: Resumo ~22 s -> 5,8 s e Livros ~22 s -> 7,5 s, mesmos valores.
 Não validado ao vivo no lote completo (Resumo + EFD Contribuições + Livros).
 
+### 0.123 Acrobat remoto: reconhecimento pelo título, clique no X e Alt+Tab (15/10/2026)
+
+**Evidência (janela real aberta na máquina do operador):** o Acrobat que o Domínio abre
+depois de exportar não é um processo local. É uma janela do cliente GO-Global
+(`AppController.exe`, classe `DisplayClientWindowClass`) com o título
+`Empresa 70 - SPRAYAGRO.pdf - Adobe Acrobat Reader (32-bit)`. A 0.120 filtrava por
+processo (`acrobat.exe`) e por isso nunca achava nem fechava a janela.
+
+**Correção:** `listar_leitores_pdf` reconhece pelo título (`.pdf` + Adobe Acrobat/Reader),
+independente do processo (a janela real é reconhecida; o Domínio, cujo título não
+tem `.pdf`, nunca entra). O fechamento continua pelo pedido de fechamento da janela
+(WM_CLOSE) apenas para janelas novas (linha de base antes da exportação); se ela persistir
+por 4 s, plano B: clique no X do canto superior direito da janela (a trava de foco aceita
+janelas do mesmo cliente). Pedido do operador: se o Domínio não voltar à frente,
+`voltar_ao_dominio_com_alt_tab` (só com o foco fora do Domínio, conferindo o foco depois de
+cada Alt+Tab, no máximo 3 vezes; respeita pausa/interrupção) e depois o Esc até a tela azul
+(`voltar_ao_inicio`, que agora tenta o Alt+Tab antes dos Esc).
+
+**Validação:** testes com Win32 simulado (reconhecimento pelo título do cliente remoto,
+clique no X em (1416, 16) numa janela de 1440 px, Alt+Tab só quando necessário e com
+limite) e listagem real, somente leitura, da janela aberta. Não validado ao vivo o
+efeito do WM_CLOSE/clique no X sobre o Acrobat remoto.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF

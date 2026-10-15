@@ -1282,12 +1282,16 @@ def _linha_base_leitores_pdf():
         return {}
 
 
-def _fechar_leitores_pdf(linha_base):
+def _fechar_leitores_pdf(linha_base, janela=None):
     """Fecha o leitor de PDF que o Domínio abre depois de exportar; nunca derruba a rotina."""
     try:
         interacao.fechar_leitores_pdf_novos(linha_base)
     except Exception:
         print("Não consegui fechar o leitor de PDF aberto pela exportação; confira a tela.", flush=True)
+    try:
+        interacao.voltar_ao_dominio_com_alt_tab(janela)  # se o Domínio não voltou à frente
+    except Exception:
+        pass
 
 
 def _fechar_leitores_pdf_uma_vez(linha_base, fechados):
@@ -1371,6 +1375,8 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
             return False
         from types import SimpleNamespace
         contexto = SimpleNamespace(janela_dominio=janela)
+        if not interacao.janela_dominio_ou_remota_em_foco(janela):
+            interacao.voltar_ao_dominio_com_alt_tab(janela)  # leitor de PDF/outro programa na frente
         for passo in range(max_esc + max_fechar + 1):
             if not interacao.janela_dominio_em_foco(janela):
                 return False
@@ -1894,7 +1900,7 @@ def _executar_livro_fiscal(rotulo_checkbox, prefixo_arquivo, pasta_destino, data
         return False, None
 
     acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
-    _fechar_leitores_pdf(leitores_antes)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
+    _fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
     caminho_completo = caminho_final
     print(f"Arquivo gerado e conteúdo confirmado: {caminho_completo} ({caminho_completo.stat().st_size} bytes)")
 
@@ -2249,7 +2255,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("Resumo: exportação não confirmada; nenhum arquivo anterior comprova sucesso.")
         return False, None
     acompanhamento.confirmar("pdf_tipo_periodo_cnpj_confirmados")
-    _fechar_leitores_pdf(leitores_antes)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
+    _fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio)  # o Domínio abre o PDF no Acrobat; fecha (X) para seguir
     acompanhamento.iniciar("encerrar")
     if not interacao.pressionar_esc_no_dominio(acompanhamento.janela_dominio, vezes=2, confirmar_conteudo=_confirmar_conteudo_dominio):
         acompanhamento.registrar_encerramento_inconclusivo()

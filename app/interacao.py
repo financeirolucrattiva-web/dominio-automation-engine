@@ -21,7 +21,7 @@ import unicodedata
 from ctypes import wintypes
 
 import pyautogui
-from .controle_execucao import ponto_seguro
+from .controle_execucao import ponto_seguro, ponto_seguro_sem_foco
 
 _SW_MINIMIZE = 6
 
@@ -79,6 +79,7 @@ def _api_janelas():
         "ShowWindow": ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
         "EnumWindows": ([callback, wintypes.LPARAM], wintypes.BOOL),
         "PostMessageW": ([wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], wintypes.BOOL),
+        "GetWindowRect": ([wintypes.HWND, ctypes.POINTER(_Retangulo)], wintypes.BOOL),
     }
     for nome, (argumentos, retorno) in assinaturas.items():
         funcao = getattr(api, nome)
@@ -167,52 +168,60 @@ def janela_dominio_ou_remota_em_foco(janela):
         return False
 
 
-_LEITORES_PDF = ("acrobat.exe", "acrord32.exe")
 _WM_CLOSE = 0x0010
+_MARCAS_LEITOR_PDF = ("adobe acrobat", "acrobat reader", "adobe reader")
 
 
-def _nome_processo(pid):
-    """Nome do executável (minúsculo) de um processo; vazio se não puder consultar."""
-    kernel = ctypes.windll.kernel32
-    kernel.OpenProcess.restype = wintypes.HANDLE
-    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-    processo = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-    if not processo:
-        return ""
-    try:
-        texto = ctypes.create_unicode_buffer(1024)
-        tamanho = wintypes.DWORD(len(texto))
-        if kernel.QueryFullProcessImageNameW(processo, 0, texto, ctypes.byref(tamanho)):
-            return texto.value.replace("/", "\\").rsplit("\\", 1)[-1].lower()
-    finally:
-        kernel.CloseHandle(processo)
-    return ""
+class _Retangulo(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
 
 def listar_leitores_pdf():
-    """{HWND: título} das janelas visíveis do Adobe Acrobat/Reader com um PDF aberto."""
+    """{HWND: título} das janelas visíveis de leitor de PDF (Adobe) com um .pdf no título.
+
+    O leitor NÃO é um processo local: o Acrobat roda no servidor remoto e aparece como
+    janela do cliente GO-Global (AppController.exe, classe DisplayClientWindowClass,
+    título "Empresa 70 - X.pdf - Adobe Acrobat Reader (32-bit)"). Por isso o
+    reconhecimento é pelo título, nunca pelo nome do processo.
+    """
     api, callback = _api_janelas()
     achados = {}
 
     def enumerar(hwnd, _):
         dados = _dados_janela(api, hwnd)
-        if dados and ".pdf" in dados["titulo"].casefold() and _nome_processo(dados["pid"]) in _LEITORES_PDF:
-            achados[dados["hwnd"]] = dados["titulo"]
+        if dados:
+            titulo = dados["titulo"].casefold()
+            if ".pdf" in titulo and any(marca in titulo for marca in _MARCAS_LEITOR_PDF):
+                achados[dados["hwnd"]] = dados["titulo"]
         return True
 
     api.EnumWindows(callback(enumerar), 0)
     return achados
 
 
+def _clicar_x_da_janela(api, hwnd):
+    """Plano B: clica no X do canto superior direito da janela do leitor (se for a da frente)."""
+    retangulo = _Retangulo()
+    api.GetWindowRect(hwnd, ctypes.byref(retangulo))
+    largura, altura = pyautogui.size()
+    if retangulo.right - retangulo.left < 200 or retangulo.bottom - retangulo.top < 150:
+        return False
+    if not _trazer_para_frente(api, hwnd):
+        return False
+    x = min(retangulo.right, largura) - 24
+    y = max(retangulo.top, 0) + 16
+    print(f"Clicando no X da janela do leitor de PDF: ({x}, {y}).", flush=True)
+    clicar(x, y)
+    return True
+
+
 def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
-    """Uma varredura: fecha (WM_CLOSE, como o X) janelas de leitor de PDF novas.
+    """Uma varredura: pede o fechamento (WM_CLOSE, como o X) de leitores de PDF novos.
 
     `linha_base`: `listar_leitores_pdf()` tirada ANTES da exportação (as que o
-    operador já tinha abertas nunca são fechadas). `fechadas`: conjunto de HWND
-    já fechados por esta rotina (atualizado aqui). Não envia teclas nem cliques.
-    Devolve os HWND fechados que ainda constavam na listagem desta varredura
-    (feita antes do fechamento); a varredura seguinte confirma que sumiram.
+    operador já tinha abertas nunca são fechadas). `fechadas`: HWND já pedidos
+    (atualizado aqui). Não envia teclas. Devolve os HWND pedidos que ainda
+    constavam na listagem desta varredura; a seguinte confirma que sumiram.
     """
     api, _ = _api_janelas()
     atuais = listar_leitores_pdf()
@@ -224,31 +233,63 @@ def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
     return [h for h in fechadas if h in atuais]
 
 
-def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5):
+def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5, espera_clique=4):
     """Espera o leitor de PDF aparecer, fecha as janelas novas e confirma que sumiram.
 
-    Espera até `espera` s a primeira janela; depois de fechar, aguarda `calma` s por
-    outras janelas novas. Devolve quantas foram fechadas.
+    Pede o fechamento (WM_CLOSE); se a janela continuar depois de `espera_clique` s,
+    clica no X dela (plano B). Aguarda `calma` s por outras janelas novas. Devolve
+    quantas foram fechadas.
     """
+    api, _ = _api_janelas()
     fechadas = set()
+    pedido_em = {}
+    clicadas = set()
     prazo = time.monotonic() + espera
     ultima_acao = None
     quantidade_anterior = 0
     while True:
         abertas = fechar_leitores_pdf_uma_vez(linha_base, fechadas)
         agora = time.monotonic()
+        for hwnd in fechadas:
+            pedido_em.setdefault(hwnd, agora)
+        for hwnd in abertas:
+            if hwnd not in clicadas and agora - pedido_em[hwnd] >= espera_clique:
+                clicadas.add(hwnd)
+                try:
+                    _clicar_x_da_janela(api, hwnd)
+                except Exception:
+                    print("Não consegui clicar no X do leitor de PDF.", flush=True)
         if len(fechadas) != quantidade_anterior:
             quantidade_anterior = len(fechadas)
             ultima_acao = agora
         if fechadas:
             if not abertas and agora - ultima_acao >= calma:
                 return len(fechadas)
-            if agora - ultima_acao >= espera:
+            if agora - ultima_acao >= espera + espera_clique:
                 print("O leitor de PDF não fechou no prazo.", flush=True)
                 return len(fechadas)
         elif agora >= prazo:
             return 0
         time.sleep(intervalo)
+
+
+def voltar_ao_dominio_com_alt_tab(janela, tentativas=3, espera=0.8):
+    """Recuperação: Alt+Tab até o Domínio (ou um diálogo dele) voltar à frente.
+
+    Só envia a tecla se o foco NÃO está no Domínio, confere o foco depois de cada
+    Alt+Tab e para assim que voltar (repetir sem conferir alternaria de novo).
+    Respeita pausa/interrupção, mas não a trava de foco (é o que a recuperação corrige).
+    """
+    if janela is None:
+        return False
+    for _ in range(tentativas):
+        if janela_dominio_ou_remota_em_foco(janela):
+            return True
+        ponto_seguro_sem_foco()
+        print("Domínio fora de foco; Alt+Tab para voltar a ele.", flush=True)
+        pyautogui.hotkey("alt", "tab")
+        time.sleep(espera)
+    return janela_dominio_ou_remota_em_foco(janela)
 
 
 def _trazer_para_frente(api, hwnd):

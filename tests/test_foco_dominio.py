@@ -89,21 +89,62 @@ class TestFocoDominio(unittest.TestCase):
         self.press.assert_not_called()
 
     def _com_acrobat(self, *hwnds):
+        self.janelas.pop(99, None)  # o leitor de PDF fictício do fixture (que agora também seria listado por título)
         for hwnd in hwnds:
             self.janelas[hwnd] = {"titulo": f"Empresa {hwnd} - SPRAYAGRO.pdf - Adobe Acrobat", "classe": "AcrobatSDIWindow", "pid": 300}
         self.janelas[88] = {"titulo": "Relatorio.pdf - Adobe Acrobat", "classe": "AcrobatSDIWindow", "pid": 300}
         self.janelas[89] = {"titulo": "Documento.pdf - Bloco de Notas", "classe": "Notepad", "pid": 400}
         self.fechadas = []
-        patcher = patch.object(self.modulo, "_nome_processo",
-                               side_effect=lambda pid: {300: "acrobat.exe", 400: "notepad.exe"}.get(pid, "outro.exe"))
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
         def fechar(hwnd, mensagem, a, b):
             self.fechadas.append((hwnd, mensagem))
             self.janelas.pop(hwnd, None)
             return True
         self.api.PostMessageW.side_effect = fechar
+
+    def test_leitor_remoto_do_go_global_e_reconhecido_pelo_titulo_nao_pelo_processo(self):
+        self.janelas.pop(99, None)
+        # Caso real: o Acrobat roda no servidor remoto e aparece como janela do cliente GO-Global.
+        self.janelas[461] = {"titulo": "Empresa 70 - SPRAYAGRO.pdf - Adobe Acrobat Reader (32-bit)",
+                             "classe": "DisplayClientWindowClass", "pid": 100}
+        self.assertEqual(self.modulo.listar_leitores_pdf(), {461: self.janelas[461]["titulo"]})  # o Domínio (42) não entra
+
+    def test_plano_b_clica_no_x_se_a_janela_do_leitor_nao_fechar_com_wm_close(self):
+        self.janelas.pop(99, None)
+        self.janelas[461] = {"titulo": "Empresa 70 - SPRAYAGRO.pdf - Adobe Acrobat Reader (32-bit)",
+                             "classe": "DisplayClientWindowClass", "pid": 100}
+        self.foreground = 461
+        self.api.PostMessageW.return_value = True  # o pedido é aceito mas a janela continua
+        def retangulo(hwnd, ref):
+            r = ref._obj; r.left, r.top, r.right, r.bottom = 0, 0, 1440, 850
+            return True
+        self.api.GetWindowRect.side_effect = retangulo
+        self.modulo.pyautogui.size = Mock(return_value=(1440, 900))
+        clicado = []
+        def clicar(x, y):
+            clicado.append((x, y)); self.janelas.pop(461, None)  # o clique no X fecha
+        with patch.object(self.modulo, "clicar", side_effect=clicar),                 patch.object(self.modulo.time, "monotonic", side_effect=iter(range(0, 1000))):
+            quantidade = self.modulo.fechar_leitores_pdf_novos({}, espera=5, intervalo=0, calma=1, espera_clique=2)
+        self.assertEqual(quantidade, 1)
+        self.assertEqual(clicado, [(1416, 16)])  # X do canto superior direito (como no print do operador)
+
+    def test_alt_tab_so_quando_o_foco_nao_esta_no_dominio_e_para_ao_voltar(self):
+        self.foreground = 99  # outro programa na frente
+        def alt_tab(*teclas):
+            self.teclas = teclas; self.foreground = 42
+        self.modulo.pyautogui.hotkey = Mock(side_effect=alt_tab)
+        self.assertTrue(self.modulo.voltar_ao_dominio_com_alt_tab(self.token(), espera=0))
+        self.modulo.pyautogui.hotkey.assert_called_once_with("alt", "tab")
+        self.modulo.pyautogui.hotkey.reset_mock()
+        self.assertTrue(self.modulo.voltar_ao_dominio_com_alt_tab(self.token(), espera=0))  # já no Domínio
+        self.modulo.pyautogui.hotkey.assert_not_called()
+        self.assertFalse(self.modulo.voltar_ao_dominio_com_alt_tab(None))
+
+    def test_alt_tab_desiste_depois_de_algumas_tentativas_sem_repetir_indefinidamente(self):
+        self.foreground = 99
+        self.modulo.pyautogui.hotkey = Mock()  # o foco não volta
+        self.assertFalse(self.modulo.voltar_ao_dominio_com_alt_tab(self.token(), tentativas=3, espera=0))
+        self.assertEqual(self.modulo.pyautogui.hotkey.call_count, 3)
 
     def test_lista_so_leitor_de_pdf_com_pdf_no_titulo(self):
         self._com_acrobat(201)

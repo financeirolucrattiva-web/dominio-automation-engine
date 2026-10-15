@@ -419,7 +419,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
     _conferir_conjunto(staging,inicial,final,cnpj,empresa[0],artefatos=artefatos)
-    dominio._fechar_leitores_pdf(leitores_antes)  # garante que nenhum Acrobat ficou na frente
+    dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio)  # garante que nenhum Acrobat ficou na frente
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')

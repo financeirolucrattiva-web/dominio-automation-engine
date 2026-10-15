@@ -113,6 +113,14 @@ def verificar_antes_de_agir(verificar):
         _VERIFICAR_ACAO.reset(token)
 
 
+def ponto_seguro_sem_foco():
+    """Só pausa/interrupção; usado pela recuperação, que existe justamente para
+    devolver o foco ao Domínio e por isso não pode ser barrada pela trava de foco."""
+    controle = _ATUAL.get()
+    if controle is not None:
+        controle.ponto_seguro()
+
+
 def ponto_seguro():
     controle = _ATUAL.get()
     if controle is not None:
