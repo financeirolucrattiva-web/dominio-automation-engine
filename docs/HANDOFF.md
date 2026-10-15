@@ -1,5 +1,27 @@
 # Domínio Automation Engine — handoff
 
+## Adobe remoto não fecha e Alt+Tab não retorna — 15/10/2026
+
+Operador confirmou falha de ambos na versão 8c2f23e. A recuperação aceitava
+o Acrobat como Domínio por compartilhar PID/classe do GO-Global. Agora
+confere o HWND principal já vinculado, identidade e título; tenta ativá-lo
+diretamente e só depois Alt+Tab limitado. O retorno e a recuperação de lote
+usam a conferência estrita antes de Esc/OCR. Esc não é enviado ao Adobe
+remoto apenas por compartilhar o cliente.
+
+Fechamento preserva leitores da linha de base. Tenta WM_CLOSE, depois
+Alt+F4 somente no Adobe novo e em foco; se persistir, X com retângulo atual
+inteiro dentro da tela. Nunca usa Alt+F4 no Domínio. Reconfere alvo após
+checkpoints/pausa e movimento do mouse. Baseline indisponível não autoriza
+fechar leitores; timeout não conta janelas persistentes como fechadas.
+Pausa/interrupção são verificadas antes das ações de fechamento/ativação;
+cancelamento é propagado, inclusive pela limpeza e espera dos três livros.
+
+Validação: 721 testes passaram, com Win32 e teclado/mouse simulados, sem iniciar rotina fiscal ou
+alcançar o desktop do operador. O efeito das novas tentativas no Adobe
+remoto ainda precisa do teste manual. Após pull, reiniciar o servidor:
+processo Python aberto mantém funções antigas em memória.
+
 ## Formulário não reconhecido: versão em execução, recortes e rastro visual — 15/10/2026
 
 Novo log fez uma leitura e pulou as 19 seguintes. Isso difere da main

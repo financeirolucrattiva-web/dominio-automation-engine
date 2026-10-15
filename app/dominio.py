@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import arquivos, empresas, erros, estados, ia, interacao, tela, tela_principal, visao
 from .formulario_resumo import campos_periodo
+from .controle_execucao import ponto_seguro_sem_foco, ExecucaoInterrompida
 
 PASTA_CAPTURAS = Path(__file__).resolve().parent.parent / "capturas"
 
@@ -1278,20 +1279,30 @@ def _linha_base_leitores_pdf():
     """Janelas de leitor de PDF já abertas antes da exportação (nunca serão fechadas)."""
     try:
         return interacao.listar_leitores_pdf()
+    except ExecucaoInterrompida:
+        raise
     except Exception:
-        return {}
+        return None  # inventário indisponível não equivale a nenhum PDF aberto
 
 
 def _fechar_leitores_pdf(linha_base, janela=None):
-    """Fecha o leitor de PDF que o Domínio abre depois de exportar; nunca derruba a rotina."""
+    """Fecha só leitores novos e reconfirma a janela principal; propaga Parar."""
+    ponto_seguro_sem_foco()
     try:
         interacao.fechar_leitores_pdf_novos(linha_base)
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         print("Não consegui fechar o leitor de PDF aberto pela exportação; confira a tela.", flush=True)
     try:
         alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
         if alt_tab is not None:
-            alt_tab(janela)  # se o Domínio não voltou à frente
+            voltou = alt_tab(janela)
+            if not voltou:
+                print("FOCO_DOMINIO nao_confirmado; não libero ações na próxima rotina.", flush=True)
+            return voltou
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         pass
 
@@ -1344,6 +1355,7 @@ def fechar_aba_ativa(janela):
     ação; quem chama confere a tela principal depois.
     """
     try:
+        ponto_seguro_sem_foco()
         if not interacao.janela_dominio_em_foco(janela):
             return False
         pos = tela.achar_texto(tela.capturar_tela(), "Fechar", escala=2)
@@ -1355,6 +1367,8 @@ def fechar_aba_ativa(janela):
             interacao.pressionar_atalho("ctrl", "f4")
         time.sleep(1)
         return True
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         return False
 
@@ -1368,6 +1382,7 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
     tela principal a cada passo. Devolve True só com a tela confirmada.
     """
     try:
+        ponto_seguro_sem_foco()
         if tela_principal.carregar_referencia() is None:
             print("Sem referência calibrada da tela principal; não envio teclas às cegas para fechar telas.")
             return False
@@ -1377,12 +1392,12 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
             return False
         from types import SimpleNamespace
         contexto = SimpleNamespace(janela_dominio=janela)
-        em_foco = getattr(interacao, "janela_dominio_ou_remota_em_foco", interacao.janela_dominio_em_foco)
-        if not em_foco(janela):
+        if not interacao.janela_dominio_em_foco(janela):
             alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
-            if alt_tab is not None:
-                alt_tab(janela)  # leitor de PDF/outro programa na frente
+            if alt_tab is None or not alt_tab(janela):
+                return False
         for passo in range(max_esc + max_fechar + 1):
+            ponto_seguro_sem_foco()
             if not interacao.janela_dominio_em_foco(janela):
                 return False
             if _verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
@@ -1395,6 +1410,8 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
                 if not fechar_aba_ativa(janela):
                     return False
         return False
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         return False
 

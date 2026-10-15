@@ -21,7 +21,7 @@ import unicodedata
 from ctypes import wintypes
 
 import pyautogui
-from .controle_execucao import ponto_seguro, ponto_seguro_sem_foco
+from .controle_execucao import ponto_seguro, ponto_seguro_sem_foco, ExecucaoInterrompida
 
 _SW_MINIMIZE = 6
 
@@ -118,6 +118,16 @@ def identificar_janela_dominio_atual():
     return None
 
 
+def _identidade_dominio_confere(api, janela):
+    atual = _dados_janela(api, janela["hwnd"])
+    if atual is None or any(atual[chave] != janela[chave] for chave in ("pid", "classe")):
+        return False
+    if _titulo_dominio(janela["titulo"]):
+        return _titulo_dominio(atual["titulo"])
+    return (atual["classe"] == "DisplayClientWindowClass"
+            and not atual["titulo"].strip() and atual["titulo"] == janela["titulo"])
+
+
 def janela_dominio_em_foco(janela):
     """Confere o HWND associado à rotina, sem mudar foco nem enviar ação."""
     if janela is None:
@@ -126,12 +136,7 @@ def janela_dominio_em_foco(janela):
         api, _ = _api_janelas()
         if api.GetForegroundWindow() != janela["hwnd"]:
             return False
-        atual = _dados_janela(api, janela["hwnd"])
-        if atual is None or any(atual[chave] != janela[chave] for chave in ("pid", "classe")):
-            return False
-        if _titulo_dominio(janela["titulo"]):
-            return _titulo_dominio(atual["titulo"])
-        return atual["classe"] == "DisplayClientWindowClass" and not atual["titulo"].strip() and atual["titulo"] == janela["titulo"]
+        return _identidade_dominio_confere(api, janela)
     except Exception:
         return False
 
@@ -141,7 +146,8 @@ def _janela_remota_do_dominio(api, janela, hwnd_frente):
 
     Diálogos remotos ("Salvar em PDF", "Procurar Pasta") são janelas próprias,
     com outro HWND, mas mesmo processo e mesma classe da janela principal do
-    Domínio. Outro programa (leitor de PDF, navegador) tem outro processo.
+    Domínio. O Acrobat remoto TAMBÉM pode ter esse PID/classe: esta relação
+    permite acompanhar a exportação, mas não confirma o retorno ao Domínio.
     """
     dados = _dados_janela(api, hwnd_frente)
     if dados is None or dados["hwnd"] == janela["hwnd"]:
@@ -176,6 +182,11 @@ class _Retangulo(ctypes.Structure):
     _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
 
+def _titulo_leitor_pdf(titulo):
+    texto = titulo.casefold()
+    return ".pdf" in texto and any(marca in texto for marca in _MARCAS_LEITOR_PDF)
+
+
 def listar_leitores_pdf():
     """{HWND: título} das janelas visíveis de leitor de PDF (Adobe) com um .pdf no título.
 
@@ -190,28 +201,73 @@ def listar_leitores_pdf():
     def enumerar(hwnd, _):
         dados = _dados_janela(api, hwnd)
         if dados:
-            titulo = dados["titulo"].casefold()
-            if ".pdf" in titulo and any(marca in titulo for marca in _MARCAS_LEITOR_PDF):
+            if _titulo_leitor_pdf(dados["titulo"]):
                 achados[dados["hwnd"]] = dados["titulo"]
         return True
 
-    api.EnumWindows(callback(enumerar), 0)
+    if not api.EnumWindows(callback(enumerar), 0):
+        raise OSError("Não foi possível enumerar as janelas do leitor de PDF.")
     return achados
 
 
-def _clicar_x_da_janela(api, hwnd):
-    """Plano B: clica no X do canto superior direito da janela do leitor (se for a da frente)."""
-    retangulo = _Retangulo()
-    api.GetWindowRect(hwnd, ctypes.byref(retangulo))
-    largura, altura = pyautogui.size()
-    if retangulo.right - retangulo.left < 200 or retangulo.bottom - retangulo.top < 150:
+def _focar_leitor_pdf(api, hwnd):
+    ponto_seguro_sem_foco()
+    antes = _dados_janela(api, hwnd)
+    if antes is None or not _titulo_leitor_pdf(antes["titulo"]):
         return False
     if not _trazer_para_frente(api, hwnd):
         return False
-    x = min(retangulo.right, largura) - 24
-    y = max(retangulo.top, 0) + 16
+    ponto_seguro_sem_foco()
+    return api.GetForegroundWindow() == hwnd and _dados_janela(api, hwnd) == antes
+
+
+def _fechar_leitor_pdf_com_atalho(api, hwnd):
+    """Alt+F4 somente no leitor reconhecido e confirmado em primeiro plano."""
+    if not _focar_leitor_pdf(api, hwnd):
+        return False
+    leitor = _dados_janela(api, hwnd)
+    ponto_seguro_sem_foco()
+    if (leitor is None or not _titulo_leitor_pdf(leitor["titulo"])
+            or api.GetForegroundWindow() != hwnd or _dados_janela(api, hwnd) != leitor):
+        return False
+    print("Fechando o leitor de PDF identificado com Alt+F4.", flush=True)
+    pyautogui.hotkey("alt", "f4")
+    return True
+
+
+def _clicar_x_da_janela(api, hwnd):
+    """Última tentativa no leitor identificado; não desloca X fora da tela."""
+    if not _focar_leitor_pdf(api, hwnd):
+        return False
+    leitor = _dados_janela(api, hwnd)
+    retangulo = _Retangulo()
+    if not api.GetWindowRect(hwnd, ctypes.byref(retangulo)):
+        return False
+    largura, altura = pyautogui.size()
+    if retangulo.right - retangulo.left < 200 or retangulo.bottom - retangulo.top < 150:
+        return False
+    if not (0 <= retangulo.left < retangulo.right <= largura
+            and 0 <= retangulo.top < retangulo.bottom <= altura):
+        return False
+    x = retangulo.right - 24
+    y = retangulo.top + 16
+    ponto_seguro_sem_foco()
+    if (leitor is None or not _titulo_leitor_pdf(leitor["titulo"])
+            or api.GetForegroundWindow() != hwnd or _dados_janela(api, hwnd) != leitor):
+        return False
     print(f"Clicando no X da janela do leitor de PDF: ({x}, {y}).", flush=True)
-    clicar(x, y)
+    # O leitor local pode ser outro processo; a autorização é este HWND de
+    # Adobe novo, não a trava de foco usada nas ações fiscais do Domínio.
+    pyautogui.moveTo(x, y, duration=0.3)
+    ponto_seguro_sem_foco()
+    if api.GetForegroundWindow() != hwnd or _dados_janela(api, hwnd) != leitor:
+        return False
+    atual = _Retangulo()
+    if (not api.GetWindowRect(hwnd, ctypes.byref(atual))
+            or (atual.left, atual.top, atual.right, atual.bottom)
+            != (retangulo.left, retangulo.top, retangulo.right, retangulo.bottom)):
+        return False
+    pyautogui.click(x, y)
     return True
 
 
@@ -223,10 +279,17 @@ def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
     (atualizado aqui). Não envia teclas. Devolve os HWND pedidos que ainda
     constavam na listagem desta varredura; a seguinte confirma que sumiram.
     """
+    ponto_seguro_sem_foco()
+    if linha_base is None:
+        return []  # sem inventário anterior, nenhum leitor pode ser fechado
     api, _ = _api_janelas()
     atuais = listar_leitores_pdf()
     for hwnd in atuais:
         if hwnd not in linha_base and hwnd not in fechadas:
+            ponto_seguro_sem_foco()
+            dados = _dados_janela(api, hwnd)
+            if dados is None or dados["titulo"] != atuais[hwnd] or not _titulo_leitor_pdf(dados["titulo"]):
+                continue
             print("Fechando o leitor de PDF aberto pela exportação.", flush=True)
             api.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
             fechadas.add(hwnd)
@@ -236,27 +299,41 @@ def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
 def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5, espera_clique=4):
     """Espera o leitor de PDF aparecer, fecha as janelas novas e confirma que sumiram.
 
-    Pede o fechamento (WM_CLOSE); se a janela continuar depois de `espera_clique` s,
-    clica no X dela (plano B). Aguarda `calma` s por outras janelas novas. Devolve
-    quantas foram fechadas.
+    WM_CLOSE, depois Alt+F4 no leitor confirmado; se persistir, tenta o X.
+    Aguarda `calma` s por outras janelas novas. Devolve só as que sumiram.
     """
+    ponto_seguro_sem_foco()
+    if linha_base is None:
+        return 0
     api, _ = _api_janelas()
     fechadas = set()
     pedido_em = {}
     clicadas = set()
+    atalhos = set()
     prazo = time.monotonic() + espera
     ultima_acao = None
     quantidade_anterior = 0
     while True:
+        ponto_seguro_sem_foco()
         abertas = fechar_leitores_pdf_uma_vez(linha_base, fechadas)
         agora = time.monotonic()
         for hwnd in fechadas:
             pedido_em.setdefault(hwnd, agora)
         for hwnd in abertas:
-            if hwnd not in clicadas and agora - pedido_em[hwnd] >= espera_clique:
+            if hwnd not in atalhos and agora - pedido_em[hwnd] >= espera_clique:
+                atalhos.add(hwnd)
+                try:
+                    _fechar_leitor_pdf_com_atalho(api, hwnd)
+                except ExecucaoInterrompida:
+                    raise
+                except Exception:
+                    print("Não consegui fechar o leitor de PDF pelo teclado.", flush=True)
+            elif hwnd not in clicadas and agora - pedido_em[hwnd] >= espera_clique + 2:
                 clicadas.add(hwnd)
                 try:
                     _clicar_x_da_janela(api, hwnd)
+                except ExecucaoInterrompida:
+                    raise
                 except Exception:
                     print("Não consegui clicar no X do leitor de PDF.", flush=True)
         if len(fechadas) != quantidade_anterior:
@@ -264,32 +341,51 @@ def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5, e
             ultima_acao = agora
         if fechadas:
             if not abertas and agora - ultima_acao >= calma:
-                return len(fechadas)
+                return len(fechadas) - len(abertas)
             if agora - ultima_acao >= espera + espera_clique:
                 print("O leitor de PDF não fechou no prazo.", flush=True)
-                return len(fechadas)
+                return len(fechadas) - len(abertas)
         elif agora >= prazo:
             return 0
         time.sleep(intervalo)
 
 
 def voltar_ao_dominio_com_alt_tab(janela, tentativas=3, espera=0.8):
-    """Recuperação: Alt+Tab até o Domínio (ou um diálogo dele) voltar à frente.
+    """Recupera o HWND exato do Domínio; Adobe remoto não comprova retorno.
 
     Só envia a tecla se o foco NÃO está no Domínio, confere o foco depois de cada
     Alt+Tab e para assim que voltar (repetir sem conferir alternaria de novo).
     Respeita pausa/interrupção, mas não a trava de foco (é o que a recuperação corrige).
     """
+    ponto_seguro_sem_foco()
     if janela is None:
         return False
-    for _ in range(tentativas):
-        if janela_dominio_ou_remota_em_foco(janela):
+    try:
+        api, _ = _api_janelas()
+        if not _identidade_dominio_confere(api, janela):
+            return False
+        if janela_dominio_em_foco(janela):
             return True
-        ponto_seguro_sem_foco()
-        print("Domínio fora de foco; Alt+Tab para voltar a ele.", flush=True)
-        pyautogui.hotkey("alt", "tab")
-        time.sleep(espera)
-    return janela_dominio_ou_remota_em_foco(janela)
+        if api.IsIconic(janela["hwnd"]):
+            ponto_seguro_sem_foco()
+            api.ShowWindow(janela["hwnd"], 9)
+        print("Recuperando a janela identificada do Domínio.", flush=True)
+        _trazer_para_frente(api, janela["hwnd"])
+        for _ in range(tentativas):
+            ponto_seguro_sem_foco()
+            if janela_dominio_em_foco(janela):
+                print("FOCO_DOMINIO confirmado", flush=True)
+                return True
+            if not _identidade_dominio_confere(api, janela):
+                return False
+            print("Domínio fora de foco; Alt+Tab para voltar a ele.", flush=True)
+            pyautogui.hotkey("alt", "tab")
+            time.sleep(espera)
+        return janela_dominio_em_foco(janela)
+    except ExecucaoInterrompida:
+        raise
+    except Exception:
+        return False
 
 
 def _trazer_para_frente(api, hwnd):
@@ -302,17 +398,20 @@ def _trazer_para_frente(api, hwnd):
     """
     def esperar():
         for _ in range(10):
+            ponto_seguro_sem_foco()
             if api.GetForegroundWindow() == hwnd:
                 return True
             time.sleep(0.05)
         return False
 
+    ponto_seguro_sem_foco()
     if api.GetForegroundWindow() == hwnd:
         return True
     api.SetForegroundWindow(hwnd)
     if esperar():
         return True
     try:
+        ponto_seguro_sem_foco()
         frente = api.GetForegroundWindow()
         minha_thread = ctypes.windll.kernel32.GetCurrentThreadId()
         thread_frente = api.GetWindowThreadProcessId(frente, None) if frente else 0
@@ -324,6 +423,8 @@ def _trazer_para_frente(api, hwnd):
             api.SetForegroundWindow(hwnd)
         finally:
             api.AttachThreadInput(minha_thread, thread_frente, False)
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         return False
     return esperar()
@@ -349,6 +450,7 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
     Não clica, fecha leitor PDF ou infere janela apenas pela classe.
     Retorna False se não conseguir confirmar foco; nunca garante fechamento.
     """
+    ponto_seguro_sem_foco()
     try:
         api, callback = _api_janelas()
         candidatas = []
@@ -381,15 +483,20 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
                 return False
             atual = candidatas[0]
         hwnd = atual["hwnd"]
-        if janela is not None and _janela_remota_do_dominio(api, janela, api.GetForegroundWindow()) is not None:
+        remota = (_janela_remota_do_dominio(api, janela, api.GetForegroundWindow())
+                  if janela is not None else None)
+        if remota is not None and not _titulo_leitor_pdf(remota["titulo"]):
             # Um diálogo remoto do mesmo cliente (ex.: "Salvar em PDF") está na
             # frente: o Esc vai para ele, sem trocar o foco para a janela principal.
             if confirmar_conteudo is not None and not confirmar_conteudo():
                 return False
             for numero_esc in range(vezes):
+                ponto_seguro_sem_foco()
                 frente = api.GetForegroundWindow()
                 if frente != hwnd and _janela_remota_do_dominio(api, janela, frente) is None:
                     return False  # o foco saiu do cliente do Domínio
+                if _titulo_leitor_pdf((_dados_janela(api, frente) or {}).get("titulo", "")):
+                    return False  # mesmo PID/classe não autoriza Esc no Acrobat
                 if numero_esc == 0:
                     print("Diálogo remoto do Domínio em foco; enviando Esc.")
                 pressionar_tecla("esc")
@@ -402,6 +509,7 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
                   + descrever_primeiro_plano(atual["pid"]) + ". Nenhuma tecla foi enviada.", flush=True)
             return False
         for numero_esc in range(vezes):
+            ponto_seguro_sem_foco()
             conferida = _dados_janela(api, hwnd)
             if conferida is None or any(conferida[chave] != atual[chave] for chave in ("pid", "classe")):
                 return False
@@ -431,6 +539,8 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
             pressionar_tecla("esc")
             time.sleep(intervalo)
         return True
+    except ExecucaoInterrompida:
+        raise
     except Exception:
         return False
 

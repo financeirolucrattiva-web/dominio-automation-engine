@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 from app import executor_servidor, trava_execucao
 from app.servidor import PrecondicaoRecusada, RepositorioTarefas, ServicoExecucao
-from app.controle_execucao import ponto_seguro
+from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao, ponto_seguro
 from test_servidor import aguardar, eventos_confirmados, pedido
 
 
@@ -34,6 +34,7 @@ class TestExecutorServidor(unittest.TestCase):
         interacao._minimizar_console_proprio = Mock()
         interacao.identificar_janela_dominio_atual = Mock(return_value={"hwnd": 123})
         interacao.janela_dominio_em_foco = Mock(return_value=True)
+        interacao.voltar_ao_dominio_com_alt_tab = Mock(return_value=False)
         interacao.pressionar_esc_no_dominio = Mock(return_value=True)
         self.desktop["tela"].capturar_tela = Mock()
         self.desktop["tela"].ler_empresa_selecionada = Mock(return_value=("EMPRESA SINTÉTICA", "52"))
@@ -171,7 +172,7 @@ class TestExecutorServidor(unittest.TestCase):
             def recuperar_foco(*args, **kwargs):
                 foco.return_value = True  # confirmação sintética do HWND conhecido
                 return True
-            self.desktop["interacao"].pressionar_esc_no_dominio.side_effect = recuperar_foco
+            self.desktop["interacao"].voltar_ao_dominio_com_alt_tab.side_effect = recuperar_foco
             with patch.object(executor_servidor.sys, "platform", "win32"), patch.multiple("app", create=True, **self.desktop):
                 servico = ServicoExecucao(repo, executor_servidor.ExecutorDominio(), modo="simulacao")
                 servico.iniciar()
@@ -185,7 +186,8 @@ class TestExecutorServidor(unittest.TestCase):
                     servico.encerrar()
             self.assertEqual(chamadas, ["sped_fiscal", "efd_contribuicoes"])
             self.assertEqual(repo.obter_lote(lote["id"])["status"], "concluida_com_falhas")
-            self.desktop["interacao"].pressionar_esc_no_dominio.assert_called_once()
+            self.desktop["interacao"].voltar_ao_dominio_com_alt_tab.assert_called_once_with({"hwnd": 123})
+            self.desktop["interacao"].pressionar_esc_no_dominio.assert_not_called()
 
     def test_dialogo_remoto_do_mesmo_cliente_nao_conta_como_foco_perdido(self):
         # Caso real: "Salvar em PDF" é outra janela do cliente GO-Global (mesmo processo/classe).
@@ -270,6 +272,88 @@ class TestExecutorServidor(unittest.TestCase):
         self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
         self.assertTrue(self.recuperar())
         self.desktop["interacao"].pressionar_esc_no_dominio.assert_not_called()
+        self.desktop["interacao"].voltar_ao_dominio_com_alt_tab.assert_not_called()
+
+    def test_recuperacao_leitor_remoto_exige_foco_principal_antes_do_esc(self):
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_em_foco.return_value = False
+        interacao.janela_dominio_ou_remota_em_foco = Mock(return_value=True)
+        self.desktop["dominio"]._verificar_retorno_tela_principal.side_effect = [
+            "tela_principal_nao_reconhecida", "tela_principal_reconhecida"]
+        ordem = []
+
+        def recuperar(janela):
+            self.assertEqual(janela, {"hwnd": 123})
+            ordem.append("recuperar")
+            interacao.janela_dominio_em_foco.return_value = True
+            return True
+
+        interacao.voltar_ao_dominio_com_alt_tab.side_effect = recuperar
+        interacao.pressionar_esc_no_dominio.side_effect = lambda *a, **kw: ordem.append("esc") or True
+        self.assertTrue(self.recuperar())
+        self.assertEqual(ordem, ["recuperar", "esc"])
+        interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with({"hwnd": 123})
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+
+    def test_recuperacao_de_foco_negada_nao_envia_esc_nem_confere_empresa(self):
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_em_foco.return_value = False
+        interacao.janela_dominio_ou_remota_em_foco = Mock(return_value=True)
+        interacao.voltar_ao_dominio_com_alt_tab.return_value = False
+        self.assertFalse(self.recuperar())
+        interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with({"hwnd": 123})
+        interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.desktop["dominio"].fechar_aba_ativa.assert_not_called()
+        self.desktop["tela"].ler_empresa_selecionada.assert_not_called()
+        self.desktop["dominio"]._verificar_retorno_tela_principal.assert_not_called()
+
+    def test_recuperacao_positiva_sem_hwnd_principal_nao_envia_esc(self):
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_em_foco.return_value = False
+        interacao.janela_dominio_ou_remota_em_foco = Mock(return_value=True)
+        interacao.voltar_ao_dominio_com_alt_tab.return_value = True
+        self.assertFalse(self.recuperar())
+        interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with({"hwnd": 123})
+        interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.desktop["dominio"].fechar_aba_ativa.assert_not_called()
+        self.desktop["tela"].ler_empresa_selecionada.assert_not_called()
+
+    def test_cancelamento_na_recuperacao_e_propagado_sem_esc(self):
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_em_foco.return_value = False
+        interacao.janela_dominio_ou_remota_em_foco = Mock(return_value=True)
+        interacao.voltar_ao_dominio_com_alt_tab.side_effect = ExecucaoInterrompida("teste")
+        with self.assertRaises(ExecucaoInterrompida):
+            self.recuperar()
+        interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.desktop["dominio"].fechar_aba_ativa.assert_not_called()
+        self.desktop["tela"].ler_empresa_selecionada.assert_not_called()
+
+    def test_cancelamento_previo_impede_recuperacao_e_esc(self):
+        interacao = self.desktop["interacao"]
+        interacao.janela_dominio_em_foco.return_value = False
+        controle = ControleExecucao()
+        controle.interromper("teste")
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            self.recuperar()
+        interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+        interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.desktop["dominio"].fechar_aba_ativa.assert_not_called()
+
+    def test_cancelamento_entre_passos_de_recuperacao_impede_segundo_esc(self):
+        controle = ControleExecucao()
+        self.desktop["dominio"]._verificar_retorno_tela_principal.return_value = "tela_principal_nao_reconhecida"
+        interacao = self.desktop["interacao"]
+
+        def primeiro_esc(*args, **kwargs):
+            controle.interromper("teste")
+            return True
+
+        interacao.pressionar_esc_no_dominio.side_effect = primeiro_esc
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            self.recuperar()
+        interacao.pressionar_esc_no_dominio.assert_called_once()
+        self.desktop["dominio"].fechar_aba_ativa.assert_not_called()
 
     def test_recuperacao_fecha_uma_tela_por_vez_e_confere_empresa(self):
         d = self.desktop["dominio"]

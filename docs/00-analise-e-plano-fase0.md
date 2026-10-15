@@ -5026,6 +5026,39 @@ clique no X em (1416, 16) numa janela de 1440 px, Alt+Tab só quando necessário
 limite) e listagem real, somente leitura, da janela aberta. Não validado ao vivo o
 efeito do WM_CLOSE/clique no X sobre o Acrobat remoto.
 
+### 0.124 Falha real ao fechar Adobe e recuperar o Domínio (15/10/2026)
+
+**Evidência:** operador informou que o Adobe não fechou e Alt+Tab não voltou
+ao Domínio. Revisão da 8c2f23e reproduziu com Win32 simulado: Acrobat remoto
+com mesmo PID/classe fazia o helper devolver True sem enviar Alt+Tab; o
+retorno azul depois recusava o HWND diferente. Também havia fechamento
+WM_CLOSE mesmo após interrupção e clique deslocado quando o X estava fora
+da tela primária.
+
+**Correção:** retorno exige HWND/identidade/título do Domínio original;
+ativação direta da janela validada precede Alt+Tab limitado, com conferência
+estrita após cada tentativa. Integrado ao retorno normal e recuperação do
+executor de lote. Esc distingue diálogo remoto de leitor Adobe.
+
+Só os leitores ausentes na linha de base recebem fechamento. Após WM_CLOSE
+sem efeito, tenta Alt+F4 exclusivamente no Adobe identificado e em primeiro
+plano. Se persistir, X com retângulo obtido após ativação e sem limitar
+coordenada fora da tela para dentro dela. Reconfere HWND/PID/classe/título e
+foco após checkpoint/pausa e antes do clique/atalho. Sem inventário anterior
+não fecha leitores. Janela persistente não conta como fechada. Checkpoints
+antes de cada ação e propagação explícita de ExecucaoInterrompida impedem
+limpeza/ativação posterior ao Parar; cancelamento também sai da espera dos
+três PDFs.
+
+**Validação:** regressões com Win32/teclado/mouse simulados para Acrobat com
+mesmo PID/classe, Alt+Tab que não recupera, HWND reutilizado, PDF anterior
+preservado, pausa mudando foco/alvo, cancelamento entre leitores e durante
+limpeza, X fora da tela, timeout e continuidade do lote após recuperação.
+Suíte completa: 721 testes passaram; sintaxe e diff --check também.
+Nenhuma emissão ou interação com o desktop real foi iniciada. Efeito de
+Alt+F4/X no Adobe remoto ainda não validado ao vivo. Reiniciar servidor após
+atualizar; pull não recarrega código de processo aberto.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF
