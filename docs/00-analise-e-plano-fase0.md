@@ -4918,6 +4918,25 @@ Validado com a captura real (Entradas marcada: leitura completa 8,8 s; por pixel
 pixels reais da caixa marcada colados em Saídas/ICMS são reconhecidos como marcados;
 captura com console por cima é recusada). Não validado ao vivo.
 
+### 0.119 Livros: espera da prévia reavalia tela parada; lista de unidades (15/10/2026)
+
+**Evidência (log + captura da falha):** com as três caixas marcadas, período lido e OK
+calculado a partir de Fechar, a rotina esperou a prévia por 64+ tentativas, todas
+"Tela igual à tentativa anterior". A prévia já estava aberta (visível na captura
+da falha, que mostra a visão de tarefas do Windows, de quando o operador alternou
+de janela e a trava de foco encerrou a rodada aos 77 s). A espera dos Livros só
+reavaliava a tela quando ela mudava, então uma leitura de OCR negativa numa tela
+estática virava resultado permanente (o Resumo já usava `rever_a_cada`).
+
+**Correção:** a espera dos Livros usa pixels exatos, relê a cada 3 tentativas mesmo
+com tela parada e tem prazo próprio; a âncora da prévia aceita a palavra REGISTRO
+sozinha (título espaçado) quando o CNPJ já foi achado. Seletor "Procurar Pasta":
+a linha "Client C (M:\)" da lista de unidades casa mesmo com a barra mal lida;
+"Servidor (C:\)" e "Client Z \\server\... (Z:\)" não casam. Destino:
+`M:\Users\<usuario>\dominio-automation-engine\saida\LIVROS<12 dígitos>` (pasta
+exclusiva por tentativa; o servidor publica depois, com o nome final, na pasta da empresa).
+Não validado ao vivo: prévia, ícone PDF, menu "um arquivo PDF para cada relatório" e a navegação.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
