@@ -5,6 +5,8 @@ import types
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
+
 with patch('ctypes.windll', Mock(), create=True), patch.dict('sys.modules', {'app.interacao': types.ModuleType('app.interacao')}):
     spec = importlib.util.spec_from_file_location('app._limpeza_teste', Path(__file__).resolve().parents[1]/'app/dominio.py')
     dominio = importlib.util.module_from_spec(spec)
@@ -38,6 +40,83 @@ class TestVoltarAoInicio(unittest.TestCase):
     def test_ja_na_tela_principal_nao_envia_nada(self):
         self.assertTrue(dominio.voltar_ao_inicio())
         self.interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.interacao.pressionar_atalho.assert_not_called()
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+
+    def test_leitor_remoto_na_frente_recupera_hwnd_principal_antes_do_esc(self):
+        self.interacao.janela_dominio_em_foco.return_value = False
+        self.interacao.janela_dominio_ou_remota_em_foco.return_value = True
+        self.verificar.side_effect = [NAO, OK]
+        ordem = []
+
+        def recuperar(janela):
+            self.assertEqual(janela, JANELA)
+            ordem.append("recuperar")
+            self.interacao.janela_dominio_em_foco.return_value = True
+            return True
+
+        self.interacao.voltar_ao_dominio_com_alt_tab.side_effect = recuperar
+        self.interacao.pressionar_esc_no_dominio.side_effect = lambda *a, **kw: ordem.append("esc") or True
+        self.assertTrue(dominio.voltar_ao_inicio(JANELA))
+        self.assertEqual(ordem, ["recuperar", "esc"])
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with(JANELA)
+
+    def test_recuperacao_de_foco_falha_nao_envia_esc_nem_fecha_aba(self):
+        self.interacao.janela_dominio_em_foco.return_value = False
+        self.interacao.janela_dominio_ou_remota_em_foco.return_value = True
+        self.interacao.voltar_ao_dominio_com_alt_tab.return_value = False
+        self.assertFalse(dominio.voltar_ao_inicio(JANELA))
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with(JANELA)
+        self.verificar.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.interacao.clicar.assert_not_called()
+        self.interacao.pressionar_atalho.assert_not_called()
+
+    def test_helper_positivo_sem_foco_estrito_nao_autoriza_limpeza(self):
+        self.interacao.janela_dominio_em_foco.return_value = False
+        self.interacao.janela_dominio_ou_remota_em_foco.return_value = True
+        self.interacao.voltar_ao_dominio_com_alt_tab.return_value = True
+        self.assertFalse(dominio.voltar_ao_inicio(JANELA))
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with(JANELA)
+        self.verificar.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.interacao.clicar.assert_not_called()
+
+    def test_cancelamento_na_recuperacao_e_propagado_sem_esc(self):
+        self.interacao.janela_dominio_em_foco.return_value = False
+        self.interacao.janela_dominio_ou_remota_em_foco.return_value = True
+        self.interacao.voltar_ao_dominio_com_alt_tab.side_effect = ExecucaoInterrompida("teste")
+        with self.assertRaises(ExecucaoInterrompida):
+            dominio.voltar_ao_inicio(JANELA)
+        self.verificar.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.interacao.clicar.assert_not_called()
+        self.interacao.pressionar_atalho.assert_not_called()
+
+    def test_cancelamento_previo_impede_ativacao_e_limpeza(self):
+        self.interacao.janela_dominio_em_foco.return_value = False
+        controle = ControleExecucao()
+        controle.interromper("teste")
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            dominio.voltar_ao_inicio(JANELA)
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+        self.interacao.clicar.assert_not_called()
+        self.interacao.pressionar_atalho.assert_not_called()
+
+    def test_cancelamento_entre_passos_impede_segundo_esc(self):
+        controle = ControleExecucao()
+        self.verificar.return_value = NAO
+
+        def primeiro_esc(*args, **kwargs):
+            controle.interromper("teste")
+            return True
+
+        self.interacao.pressionar_esc_no_dominio.side_effect = primeiro_esc
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            dominio.voltar_ao_inicio(JANELA)
+        self.interacao.pressionar_esc_no_dominio.assert_called_once()
+        self.interacao.clicar.assert_not_called()
         self.interacao.pressionar_atalho.assert_not_called()
 
     def test_esc_um_por_vez_ate_reconhecer(self):
@@ -97,6 +176,43 @@ class TestVoltarAoInicio(unittest.TestCase):
     def test_limpar_ao_encerrar_falha_nao_levanta(self):
         self.verificar.side_effect = RuntimeError("falha qualquer")
         self.assertFalse(dominio._limpar_ao_encerrar(SimpleNamespace(janela_dominio=JANELA, eventos=[])))
+
+    def test_linha_base_indisponivel_nao_equivale_a_nenhum_leitor_aberto(self):
+        self.interacao.listar_leitores_pdf.side_effect = OSError("inventario indisponivel")
+        self.assertIsNone(dominio._linha_base_leitores_pdf())
+        self.interacao.fechar_leitores_pdf_novos.assert_not_called()
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+
+    def test_cancelamento_no_inventario_de_leitores_e_propagado(self):
+        self.interacao.listar_leitores_pdf.side_effect = ExecucaoInterrompida("teste")
+        with self.assertRaises(ExecucaoInterrompida):
+            dominio._linha_base_leitores_pdf()
+        self.interacao.fechar_leitores_pdf_novos.assert_not_called()
+
+    def test_cancelamento_no_fechamento_pdf_nao_tenta_alt_tab_depois(self):
+        self.interacao.fechar_leitores_pdf_novos.side_effect = ExecucaoInterrompida("teste")
+        with self.assertRaises(ExecucaoInterrompida):
+            dominio._fechar_leitores_pdf({}, JANELA)
+        self.interacao.fechar_leitores_pdf_novos.assert_called_once_with({})
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+
+    def test_cancelamento_antes_do_fechamento_pdf_nao_envia_acao(self):
+        controle = ControleExecucao()
+        controle.interromper("teste")
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            dominio._fechar_leitores_pdf({}, JANELA)
+        self.interacao.fechar_leitores_pdf_novos.assert_not_called()
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_not_called()
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
+
+    def test_cancelamento_ao_retornar_do_pdf_nao_e_ocultado(self):
+        self.interacao.voltar_ao_dominio_com_alt_tab.side_effect = ExecucaoInterrompida("teste")
+        with self.assertRaises(ExecucaoInterrompida):
+            dominio._fechar_leitores_pdf({}, JANELA)
+        self.interacao.fechar_leitores_pdf_novos.assert_called_once_with({})
+        self.interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with(JANELA)
+        self.interacao.pressionar_esc_no_dominio.assert_not_called()
 
 
 if __name__ == "__main__":

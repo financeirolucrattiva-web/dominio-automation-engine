@@ -249,6 +249,8 @@ def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None):
             # encerrar a rodada: fecha antes de qualquer checagem de foco.
             try:
                 dominio._fechar_leitores_pdf_uma_vez(leitores_antes, fechados)
+            except ExecucaoInterrompida:
+                raise
             except Exception:
                 pass
         ponto_seguro()

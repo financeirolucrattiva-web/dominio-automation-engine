@@ -221,6 +221,16 @@ class TestConjunto(unittest.TestCase):
             self.assertTrue(livros._aguardar_arquivos(root,lambda:'frame',dominio,'',{}))
         self.assertEqual(ordem[:2],['fechar','foco'])
 
+    def test_parar_no_fechamento_do_pdf_sai_da_espera_sem_capturar_ou_repetir(self):
+        from app.controle_execucao import ExecucaoInterrompida
+        dominio=Mock(); dominio.TITULOS_ERRO=()
+        dominio._fechar_leitores_pdf_uma_vez.side_effect=ExecucaoInterrompida('parar')
+        capturar=Mock()
+        with tempfile.TemporaryDirectory() as pasta, self.assertRaises(ExecucaoInterrompida):
+            livros._aguardar_arquivos(Path(pasta),capturar,dominio,'',{})
+        capturar.assert_not_called()
+        dominio._fechar_leitores_pdf_uma_vez.assert_called_once()
+
     def test_ok_nao_lido_por_ocr_e_calculado_a_partir_de_fechar(self):
         def achar(imagem, alvo, escala=2):
             return {'Fechar': (1158, 264)}.get(alvo)

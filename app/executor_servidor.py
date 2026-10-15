@@ -11,7 +11,7 @@ import time
 from types import SimpleNamespace
 
 from app.servidor import PrecondicaoRecusada, validar_pedido
-from app.controle_execucao import verificar_antes_de_agir, verificar_retomada, ponto_seguro
+from app.controle_execucao import verificar_antes_de_agir, verificar_retomada, ponto_seguro, ponto_seguro_sem_foco
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,6 +46,13 @@ class ExecutorDominio:
         from app import dominio, interacao, tela_principal
         if tela_principal.carregar_referencia() is None:
             return False
+        ponto_seguro_sem_foco()
+        if not interacao.janela_dominio_em_foco(janela):
+            recuperar = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
+            if recuperar is None or not recuperar(janela):
+                return False
+            if not interacao.janela_dominio_em_foco(janela):
+                return False
         contexto = SimpleNamespace(janela_dominio=janela)
         # Cada Esc usa a janela já reconhecida e volta a conferir o foco.
         # A tela azul interrompe a limpeza imediatamente, sem fechar Domínio.
