@@ -165,6 +165,53 @@ class TestLeituraFormularioLivros(unittest.TestCase):
         self.assertTrue(eventos[-1]['confirmado'])
         self.assertEqual(eventos[-1]['preparo'],'binaria')
 
+    def test_rotulos_que_cada_leitura_perde_sao_combinados_na_mesma_captura(self):
+        # Caso real: com Entradas marcada (negrito + grupo Anexar) cada OCR perdia 1-2 rótulos.
+        from app import tela
+        imagem,dados,_=formulario(('registro_entradas',))
+        def sem(dados_, tokens, fator=1):
+            novo={k:[] for k in dados_}
+            for i,t in enumerate(dados_['text']):
+                if t in tokens: continue
+                for k in dados_:
+                    novo[k].append(dados_[k][i]*(fator if k!='text' else 1))
+            return novo
+        a=sem(dados,{'Saídas','ICMS'})              # leitura 1 (escala 2): perde Saídas e ICMS
+        b=sem(dados,{'Entradas','capa'},fator=2)    # leitura 2 (escala 4): perde Entradas e Contra capa
+        eventos=[]
+        with patch.object(tela,'_ler_dados_ocr',side_effect=[a,b]), \
+                patch.object(tela,'ler_dados_ocr_formulario',return_value=None,create=True), \
+                patch.object(tela,'ler_dados_ocr_windows',return_value=None):
+            resultado=ler_selecao_com_ocr(imagem,eventos.append)
+        self.assertTrue(resultado['livros']['registro_entradas']['marcada'])
+        self.assertFalse(resultado['livros']['registro_saidas']['marcada'])
+        self.assertEqual(eventos[-1]['motor'],'combinado')
+        self.assertTrue(eventos[-1]['confirmado'])
+        # Sem leitura complementar, continua recusando.
+        with patch.object(tela,'_ler_dados_ocr',return_value=a), \
+                patch.object(tela,'ler_dados_ocr_formulario',return_value=None,create=True), \
+                patch.object(tela,'ler_dados_ocr_windows',return_value=None):
+            with self.assertRaises(ValueError):
+                ler_selecao_com_ocr(imagem)
+
+    def test_combinacao_recusa_rotulo_com_posicoes_discordantes_ou_ordem_incoerente(self):
+        from app.formulario_livros import combinar_rotulos, FRASES_SELECAO, ORDEM_VERTICAL
+        def leitura(**ajustes):
+            base={c:{'x':291.0,'y':20.0+30*i,'w':80.0,'h':10.0} for i,c in enumerate(ORDEM_VERTICAL)}
+            base['titulo']['x']=30.0
+            base.update(ajustes); return base
+        self.assertIsNotNone(combinar_rotulos([leitura()]))
+        # Mesmo rótulo em dois lugares diferentes: descarta tudo.
+        self.assertIsNone(combinar_rotulos([leitura(), leitura(registro_icms={'x':291.0,'y':200.0,'w':80.0,'h':10.0})]))
+        # Rótulo faltando em todas as leituras.
+        parcial=leitura(); del parcial['registro_saidas']
+        self.assertIsNone(combinar_rotulos([parcial]))
+        # Ordem vertical invertida (Saídas acima de Entradas).
+        self.assertIsNone(combinar_rotulos([leitura(registro_saidas={'x':291.0,'y':50.0,'w':80.0,'h':10.0},
+                                                    registro_entradas={'x':291.0,'y':80.0,'w':80.0,'h':10.0})]))
+        # Opções desalinhadas horizontalmente.
+        self.assertIsNone(combinar_rotulos([leitura(registro_icms={'x':340.0,'y':110.0,'w':80.0,'h':10.0})]))
+
     def test_motor_indisponivel_nao_imprime_excecao_ou_dados_livres(self):
         from app import tela
         imagem,_,_=formulario(); eventos=[]

@@ -121,35 +121,78 @@ def _periodo(palavras):
     return resultado
 
 
-def ler_selecao(imagem, dados, escala=2, registrar=None):
+def ler_selecao(imagem, dados, escala=2, registrar=None, rotulos_prontos=None):
     """Confere apenas Emitir, sem depender de datas reconhecidas.
 
     A imagem original fornece bordas e marcas. Dados de OCR podem vir de
     uma cópia preparada, mas suas coordenadas devem conservar a geometria.
+    `rotulos_prontos`: rótulos já combinados de várias leituras da mesma
+    captura (`combinar_rotulos`); `dados` pode ser None nesse caso.
     O retorno nunca autoriza OK: o período precisa ser conferido à parte.
     """
-    palavras = _palavras(dados, escala)
+    palavras = _palavras(dados, escala) if dados is not None else []
     diagnostico = {'fase':'selecao', 'confirmado':False, 'rotulos':{},
                   'caixas_detectadas':None, 'caixas_emitir':None, 'livros':{}}
     try:
-        return _ler_selecao(imagem, palavras, diagnostico)
+        return _ler_selecao(imagem, palavras, diagnostico, rotulos_prontos)
     finally:
         if registrar:
             registrar(diagnostico)
 
 
-def _ler_selecao(imagem, palavras, diagnostico):
-    frases = {'titulo':'Livros Fiscais', **ROTULOS,
-              'primeira_opcao':'Termos de abertura e encerramento',
-              'ultima_opcao':'Contra capa'}
+FRASES_SELECAO = {'titulo':'Livros Fiscais', **ROTULOS,
+                  'primeira_opcao':'Termos de abertura e encerramento',
+                  'ultima_opcao':'Contra capa'}
+ORDEM_VERTICAL = ('titulo', 'primeira_opcao', 'registro_entradas', 'registro_saidas',
+                  'registro_icms', 'ultima_opcao')
+
+
+def _rotulos_da_leitura(palavras):
+    """Rótulos reconhecidos de UMA leitura de OCR (os não reconhecidos faltam)."""
     rotulos = {}
-    for chave, frase in frases.items():
+    for chave, frase in FRASES_SELECAO.items():
         try:
-            rotulo = _rotulo(palavras, frase)
+            rotulos[chave] = _rotulo(palavras, frase)
+        except ValueError:
+            pass
+    return rotulos
+
+
+def combinar_rotulos(leituras, tolerancia=3):
+    """Une rótulos de várias leituras de OCR da MESMA captura.
+
+    Cada leitura de OCR perde rótulos diferentes (negrito, grupo Anexar). Um
+    rótulo só entra se todas as leituras que o acharam concordam na posição
+    (±tolerância px); discordância o descarta. Devolve None se algum rótulo
+    faltar, ou se a ordem vertical/alinhamento forem incoerentes.
+    """
+    combinados = {}
+    for chave in FRASES_SELECAO:
+        caixas = [leitura[chave] for leitura in leituras if chave in leitura]
+        if not caixas:
+            return None
+        base = caixas[0]
+        if any(abs(c['x']-base['x']) > tolerancia or abs(c['y']-base['y']) > tolerancia for c in caixas):
+            return None
+        combinados[chave] = base
+    ys = [combinados[chave]['y'] for chave in ORDEM_VERTICAL]
+    xs = [combinados[chave]['x'] for chave in ORDEM_VERTICAL[1:]]
+    if any(b <= a for a, b in zip(ys, ys[1:])) or max(xs)-min(xs) > 8:
+        return None
+    return combinados
+
+
+def _ler_selecao(imagem, palavras, diagnostico, rotulos_prontos=None):
+    frases = FRASES_SELECAO
+    rotulos = {}
+    lidos = rotulos_prontos if rotulos_prontos is not None else _rotulos_da_leitura(palavras)
+    for chave in frases:
+        rotulo = lidos.get(chave)
+        if rotulo is not None:
             rotulos[chave] = rotulo
             diagnostico['rotulos'][chave] = {'reconhecido':True,
                 'caixa':[rotulo[k] for k in ('x','y','w','h')]}
-        except ValueError:
+        else:
             diagnostico['rotulos'][chave] = {'reconhecido':False}
     if len(rotulos) != len(frases):
         diagnostico['motivo'] = 'rotulos_selecao_nao_confirmados'
@@ -212,6 +255,7 @@ def ler_selecao_com_ocr(imagem, registrar=None):
     """Varia a leitura dos rótulos sem transformar os pixels das caixas."""
     from app import tela
     ultimo = None
+    lidos = []
     tentativas = [('tesseract',2,'padrao'), ('tesseract',4,'padrao'),
                   ('tesseract',4,'cinza'), ('tesseract',4,'binaria'),
                   ('tesseract',6,'binaria'), ('windows',2,'padrao'),
@@ -233,7 +277,17 @@ def ler_selecao_com_ocr(imagem, registrar=None):
                 registrar_tentativa({'fase':'ocr', 'confirmado':False,
                                      'motivo':'motor_selecao_indisponivel'})
                 continue
-            return ler_selecao(imagem, dados, escala, registrar_tentativa)
+            try:
+                return ler_selecao(imagem, dados, escala, registrar_tentativa)
+            except ValueError:
+                # Esta leitura perdeu rótulos; guarda os que reconheceu e tenta
+                # combiná-los com os das outras leituras da MESMA captura.
+                lidos.append(_rotulos_da_leitura(_palavras(dados, escala)))
+                combinados = combinar_rotulos(lidos)
+                if combinados is not None:
+                    contexto = {'motor':'combinado', 'escala':escala, 'preparo':'rotulos_unidos'}
+                    return ler_selecao(imagem, None, escala, registrar_tentativa, rotulos_prontos=combinados)
+                raise
         except ValueError as erro:
             ultimo = erro
         except Exception:
