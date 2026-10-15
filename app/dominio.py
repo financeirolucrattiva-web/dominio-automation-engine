@@ -1289,7 +1289,9 @@ def _fechar_leitores_pdf(linha_base, janela=None):
     except Exception:
         print("Não consegui fechar o leitor de PDF aberto pela exportação; confira a tela.", flush=True)
     try:
-        interacao.voltar_ao_dominio_com_alt_tab(janela)  # se o Domínio não voltou à frente
+        alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
+        if alt_tab is not None:
+            alt_tab(janela)  # se o Domínio não voltou à frente
     except Exception:
         pass
 
@@ -1375,8 +1377,11 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
             return False
         from types import SimpleNamespace
         contexto = SimpleNamespace(janela_dominio=janela)
-        if not interacao.janela_dominio_ou_remota_em_foco(janela):
-            interacao.voltar_ao_dominio_com_alt_tab(janela)  # leitor de PDF/outro programa na frente
+        em_foco = getattr(interacao, "janela_dominio_ou_remota_em_foco", interacao.janela_dominio_em_foco)
+        if not em_foco(janela):
+            alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
+            if alt_tab is not None:
+                alt_tab(janela)  # leitor de PDF/outro programa na frente
         for passo in range(max_esc + max_fechar + 1):
             if not interacao.janela_dominio_em_foco(janela):
                 return False
