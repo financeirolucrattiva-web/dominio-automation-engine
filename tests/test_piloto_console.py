@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 from app.controle_execucao import ponto_seguro
 from app.servidor import RepositorioTarefas, ServicoExecucao
-from scripts import explorar_presumido, testar_livros_fiscais
+from scripts import explorar_presumido, explorar_resumo_acumulador, testar_livros_fiscais
 from scripts.piloto_console import (acompanhar_lote, acompanhar_tarefa,
     encerrar_servico, periodo_competencia, salvar_diagnostico,
     solicitar_cancelamento)
@@ -163,6 +163,32 @@ class TestPilotoConsole(unittest.TestCase):
         bat=(raiz/'atalhos/ferramentas/Executar Presumido por Empresa.bat').read_text()
         self.assertIn('-u scripts\\explorar_presumido.py',bat)
         self.assertNotIn('--apuracao-confirmada',bat)
+
+    def test_resumo_isolado_usa_monitor_sem_iniciar_efd_ou_livros(self):
+        s=explorar_resumo_acumulador;servico=MagicMock()
+        servico.solicitar.return_value={'id':'resumo_teste'}
+        final={'id':'resumo_teste','status':'concluida','motivo':None}
+        with patch.object(s,'ROOT',self.raiz),patch.object(s.sys,'platform','win32'), \
+             patch.object(s.time,'sleep'),patch.object(s,'ServicoExecucao',return_value=servico), \
+             patch.object(s,'ExecutorDominio'),patch.object(s,'acompanhar_tarefa',return_value=final) as monitor, \
+             patch.object(s,'salvar_diagnostico_tarefa'),patch.object(s,'encerrar_servico') as encerrar, \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(s.main(['--empresa','52','--competencia','08/2026','--apuracao-confirmada']),0)
+        pedido=servico.solicitar.call_args.args[0]
+        self.assertEqual(pedido['capacidade'],'resumo_acumulador')
+        self.assertEqual((pedido['inicio'],pedido['fim']),('2026-08-01','2026-08-31'))
+        servico.solicitar.assert_called_once()
+        monitor.assert_called_once();encerrar.assert_called_once_with(servico)
+
+    def test_resumo_cancelado_antes_do_inicio_nao_cria_tarefa(self):
+        s=explorar_resumo_acumulador;servico=MagicMock();cancelamento=threading.Event();cancelamento.set()
+        with patch.object(s,'ROOT',self.raiz),patch.object(s.sys,'platform','win32'), \
+             patch.object(s.time,'sleep'),patch.object(s,'ServicoExecucao',return_value=servico), \
+             patch.object(s,'ExecutorDominio'),patch.object(s,'encerrar_servico') as encerrar, \
+             patch.object(s,'solicitar_cancelamento',return_value=contextlib.nullcontext(cancelamento)), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(s.main(['--empresa','52','--competencia','2026-08','--apuracao-confirmada']),130)
+        servico.solicitar.assert_not_called();encerrar.assert_called_once_with(servico)
 
     def test_cli_encerra_worker_mesmo_se_historico_falhar_na_limpeza(self):
         servico=MagicMock()

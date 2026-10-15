@@ -1923,8 +1923,13 @@ def gerar_resumo_acumulador(pasta_destino, data_inicial=None, data_final=None, p
         raise
 
 
+def _achar_texto_resumo(imagem, alvo):
+    return _achar_texto_reforcado(imagem,alvo,escala=2,escalas_adicionais=(4,),ocr_windows=True)
+
+
 def _esperar_tela_resumo(alvo, prefixo):
-    imagem, pos, houve_erro = esperar_e_achar(alvo, escala=2, espera_minima=.3, tentativas=20, intervalo=1)
+    imagem, pos, houve_erro = esperar_e_achar(alvo, escala=2, espera_minima=.3, tentativas=20, intervalo=1,
+        escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
     if houve_erro:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return imagem, None
@@ -1934,10 +1939,11 @@ def _esperar_tela_resumo(alvo, prefixo):
 def _esperar_formulario_resumo(prefixo):
     from app.leitura_resumo import formulario_resumo_reconhecido
     detectores = [(titulo, lambda img, t=titulo:
-                   tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in TITULOS_ERRO]
+                   _achar_texto_resumo(img,t)) for titulo in TITULOS_ERRO]
     imagem, estado, pos = estados.esperar_por_estado(
         detectores + [('formulario', formulario_resumo_reconhecido)],
-        espera_minima=.3, tentativas=20, intervalo=1)
+        espera_minima=.3, tentativas=20, intervalo=1,
+        comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
     if estado in TITULOS_ERRO:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return imagem, None
@@ -2080,13 +2086,14 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     interacao.clicar(*pos)
 
     def previa(imagem):
-        if (tela.achar_texto(imagem, "CNPJ", escala=2) is not None and
-                tela.achar_texto(imagem, "Período", escala=2) is not None):
-            return tela.achar_texto(imagem, "RESUMO POR ACUMULADOR", escala=2)
+        if (_achar_texto_resumo(imagem,"CNPJ") is not None and
+                _achar_texto_resumo(imagem,"Período") is not None):
+            return _achar_texto_resumo(imagem,"RESUMO POR ACUMULADOR")
         return None
-    detectores = [(titulo, lambda img, t=titulo: tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in TITULOS_ERRO]
+    detectores = [(titulo, lambda img, t=titulo: _achar_texto_resumo(img,t)) for titulo in TITULOS_ERRO]
     imagem, estado, pos = estados.esperar_por_estado(detectores + [("previa", previa)],
-                                                    espera_minima=.3, tentativas=90, intervalo=1)
+                                                    espera_minima=.3, tentativas=90, intervalo=1,
+                                                    comparacao_exata=True,rever_a_cada=3,limite_segundos=180)
     if estado in TITULOS_ERRO:
         _tratar_aviso_resumo(imagem, pos, prefixo)
         return False, None
@@ -2113,7 +2120,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         return False, None
     interacao.clicar(*pos)
     imagem, pos = _esperar_tela_resumo("Salvar em PDF", prefixo)
-    if pos is None or tela.achar_texto_ou_no_centro(imagem, "File name", escala=2) is None:
+    if pos is None or _achar_texto_resumo(imagem,"File name") is None:
         salvar(tela.capturar_tela(), f"{prefixo}erro_salvar_resumo.png")
         return False, None
     pasta_destino = Path(pasta_destino).resolve()
@@ -2128,7 +2135,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     interacao.digitar(caminho_visto_pela_sessao_remota(temporario))
     for tentativa in range(5):
         imagem = tela.capturar_tela()
-        if tela.achar_texto_ou_no_centro(imagem, temporario.name, escala=2) is not None:
+        if _achar_texto_resumo(imagem,temporario.name) is not None:
             break
         time.sleep(.3)
     else:
@@ -2138,7 +2145,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     anterior = None
     for tentativa in range(30):
         imagem = tela.capturar_tela()
-        if tela.achar_texto_ou_no_centro(imagem, "does not exist", escala=2) is not None:
+        if not temporario.exists() and _achar_texto_resumo(imagem,"does not exist") is not None:
             salvar(imagem, f"{prefixo}erro_caminho_resumo.png")
             return False, None
         try:

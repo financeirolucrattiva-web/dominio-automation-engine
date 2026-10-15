@@ -8,6 +8,7 @@ import math
 import unicodedata
 
 from app import tela
+from app.controle_execucao import ExecucaoInterrompida, ponto_seguro
 from app.formulario_livros import _palavras, _rotulo
 from app.leitura_resumo import (formulario_resumo_reconhecido, medir_campos,
                                 resolver_rotulos_resumo)
@@ -111,6 +112,8 @@ def _texto_recorte(imagem, caixa):
             try:
                 # Sem whitelist: não apagar outros caracteres para fabricar OK.
                 observar(tela.ler_dados_ocr_linha_rotulo(recorte,escala,preparo))
+            except ExecucaoInterrompida:
+                raise
             except Exception:
                 continue
     if len(votos)>1 or contradicao:return {'contradicao'}
@@ -119,6 +122,45 @@ def _texto_recorte(imagem, caixa):
 
 def _registrar(registrar, fase, motivo, **detalhe):
     if registrar:registrar({'fase':fase,'motivo':motivo,**detalhe})
+
+
+def _conferir_avisos(imagem, registrar=None):
+    """Uma falha de OCR não impede as outras opiniões desta captura.
+
+    None significa que nenhuma leitura funcionou, e continua bloqueando
+    emissão. Não transforma indisponibilidade dos motores em ausência de aviso.
+    """
+    centro, _, _ = tela.recortar_centro(imagem)
+    validas = 0
+    validas_tela = 0
+    for regiao, area in (('tela', imagem), ('centro', centro)):
+        for motor, escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
+            ponto_seguro()
+            try:
+                dados = (tela._ler_dados_ocr(area,escala) if motor == 'tesseract'
+                         else tela.ler_dados_ocr_windows(area,escala))
+                if dados is None:
+                    continue
+                textos = dados['text']
+                if not isinstance(textos,list) or any(not isinstance(t,str) for t in textos):
+                    raise ValueError('Leitura OCR inválida.')
+                validas += 1
+                if regiao == 'tela':validas_tela += 1
+                texto = ' '.join(textos).casefold()
+                # Mesmos títulos conhecidos; nada depende de posição de clique.
+                if any(aviso.casefold() in texto for aviso in AVISOS):
+                    _registrar(registrar,'contexto','aviso_reconhecido',
+                        motor=motor,escala=escala,regiao=regiao)
+                    return True
+            except ExecucaoInterrompida:
+                raise
+            except Exception as erro:
+                _registrar(registrar,'guarda_avisos','leitura_indisponivel',
+                    motor=motor,escala=escala,regiao=regiao,tipo_erro=type(erro).__name__)
+    ponto_seguro()
+    _registrar(registrar,'guarda_avisos','leituras_concluidas' if validas_tela else 'sem_leitura_valida',
+        leituras_validas=validas,leituras_tela_inteira=validas_tela)
+    return False if validas_tela else None
 
 
 def _oks_exatos(imagem, motor, escala):
@@ -189,6 +231,8 @@ def _contexto_coluna(imagem, registrar=None, leituras=None):
                 contextos.append((tuple(sorted(candidatos)),botao_fechar))
             _registrar(registrar,'coluna','candidatos_medidos' if candidatos else 'sem_candidato_ok',
                 motor=motor,escala=escala,fechar=list(botao_fechar),candidatos=[list(c) for c in candidatos])
+        except ExecucaoInterrompida:
+            raise
         except Exception:
             _registrar(registrar,'coluna',motivo_falha,motor=motor,escala=escala)
             continue
@@ -201,28 +245,31 @@ def _contexto_coluna(imagem, registrar=None, leituras=None):
 def achar_ok_resumo(imagem, registrar=None):
     """Uma análise, uma captura: descarta o OCR ao retornar, sem clicar."""
     _registrar(registrar,'inicio','analise_ok_iniciada')
+    ponto_seguro()
     with tela.reutilizar_ocr():
-        return _achar_ok_resumo_na_captura(imagem,registrar)
+        resultado = _achar_ok_resumo_na_captura(imagem,registrar)
+    ponto_seguro()
+    return resultado
 
 
 def _achar_ok_resumo_na_captura(imagem, registrar=None):
     """Devolve centro do botão inequívoco ou None; nunca clica/gera."""
+    fase = 'guarda_avisos'
     try:
-        for aviso in AVISOS:
-            for escala in (2,4):
-                if (tela.achar_texto_ou_no_centro(imagem,aviso,escala=escala) is not None
-                        or tela.achar_texto_windows(imagem,aviso,escala=escala) is not None):
-                    _registrar(registrar,'contexto','aviso_reconhecido')
-                    return None
+        if _conferir_avisos(imagem,registrar) is not False:
+            return None
+        fase = 'verificar_formulario'
         _registrar(registrar,'contexto','verificar_formulario')
         if formulario_resumo_reconhecido(imagem) is None:
             _registrar(registrar,'contexto','formulario_nao_reconhecido')
             return None
         leituras = {}
+        fase = 'medir_coluna'
         contexto = _contexto_coluna(imagem,registrar,leituras)
         if contexto is None:
             return None
         candidatos,fechar = contexto
+        fase = 'conferir_botoes'
         # Procura também pelas leituras comuns; um OK fora da coluna
         # medida indica outro contexto e não autoriza a emissão.
         for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4)):
@@ -231,6 +278,8 @@ def _achar_ok_resumo_na_captura(imagem, registrar=None):
                     if not any(_dentro(pos,c) for c in candidatos):
                         _registrar(registrar,'contexto','outro_ok_exato',motor=motor,escala=escala)
                         return None
+            except ExecucaoInterrompida:
+                raise
             except Exception:
                 continue
         # O fallback lê cada retângulo medido, mesmo quando tela cheia
@@ -252,6 +301,9 @@ def _achar_ok_resumo_na_captura(imagem, registrar=None):
         x,y,w,h = confirmados[0]
         _registrar(registrar,'fim','ok_confirmado',caixa=[x,y,w,h])
         return (x+w//2,y+h//2)
-    except Exception:
-        _registrar(registrar,'fim','leitura_ok_nao_confirmada')
+    except ExecucaoInterrompida:
+        raise
+    except Exception as erro:
+        _registrar(registrar,'fim','leitura_ok_nao_confirmada',
+            origem=fase,tipo_erro=type(erro).__name__)
         return None

@@ -53,6 +53,13 @@ da prévia e do PDF antes de declarar sucesso.
 
 ## Implementação e limites
 
+Revisão de 15/10: o novo log localizou exceção na guarda de avisos, antes
+da medição do OK. Leituras independentes e erro por motor são tratados
+sem ignorar avisos nem liberar quando falta leitura da tela inteira.
+Formulário, prévia e salvamento usam as opiniões adicionais já disponíveis.
+O atalho individual mostra etapas/progresso e permite cancelamento seguro.
+Os prints novos confirmam o mesmo fluxo; execução corrigida ainda pendente.
+
 app.dominio.gerar_resumo_acumulador() usa as primitivas existentes e
 registra oito etapas. As posições das datas são medidas nas caixas OCR
 da captura atual, ao lado dos rótulos, sem offsets copiados dos livros.
@@ -74,13 +81,13 @@ temporário local; conclusão exige retorno calibrado ao painel azul.
 
 Nome: acumulador_empresa_exemplo_AAAA-MM.pdf, usando o cadastro.
 Destino desta etapa: saida/, com download no painel. O destino dos
-livros por empresa continua exclusivo de Entradas/Saídas; o Resumo não
+livros por empresa inclui Entradas, Saídas e ICMS; o Resumo não
 é colocado automaticamente dentro de LIVROS_FISCAIS.
 
 Migração substitui a cópia pendente por resumo_acumulador nos regimes,
 preserva ordem, arquiva passos anteriores e evita duplicação. Não restaura
-rotinas removidas. ICMS continua pendente e bloqueia o lote completo;
-primeiro testar o Resumo individualmente.
+rotinas removidas. A rotina conjunta dos três livros está integrada;
+rotinas custom pendentes continuam bloqueando o lote completo.
 
 ## Correção da abertura após a primeira tentativa
 

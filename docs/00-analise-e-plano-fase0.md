@@ -4748,6 +4748,32 @@ OCR Tesseract real roda em aviso sintético. Suíte e sintaxe verificadas;
 confirmação automática no Windows ainda pendente. Primeiro Resumo individual;
 não regerar EFD já emitida só para mudar o status da tentativa anterior.
 
+### 0.112 Exceção na guarda inicial do Resumo e progresso do teste (15/10/2026)
+
+**Evidência real:** duas datas confirmadas; RESUMO_BOTAO inicia e encerra
+com leitura_ok_nao_confirmada antes de verificar_formulario. Exceção fica
+localizada na guarda de avisos; tipo ainda desconhecido. Novos prints
+reafirmam período → OK → prévia → PDF → Salvar em PDF, sem novo caminho.
+
+**Correção:** guarda lê dados uma vez por motor/escala/região. Uma exceção
+não impede as demais opiniões; qualquer aviso reconhecido vence. Exige
+leitura válida da tela inteira; None do OCR opcional não equivale a
+ausência de aviso. Diagnóstico contém somente tipo/motor/escala/região.
+Cancelamento é propagado nos leitores Windows e botões, com checkpoint
+na saída pública antes de devolver uma posição de clique.
+
+Leituras de formulário, prévia, File name e nome temporário tentam as
+opiniões adicionais já existentes. Esperas relêem estados estáticos por
+intervalo e têm orçamento. PDF exclusivo já presente vai à validação sem
+buscar erro de caminho por OCR em cada tentativa. Atalho individual ganha
+monitor compartilhado, progresso, limite cooperativo e cancelamento.
+
+**Validação:** 636 testes passaram; reproduzem erro antes da conferência, motor alternativo,
+aviso após erro, falta de leitura inteira, cancelamento e fluxo até PDF com
+timeout no rótulo File name. Documentos e valores reais não são homologados
+pela suíte; nova rodada no Domínio ainda pendente. EFD e Livros mantêm os
+fluxos de geração existentes e as verificações da sequência por empresa.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

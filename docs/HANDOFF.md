@@ -1,5 +1,32 @@
 # Domínio Automation Engine — handoff
 
+## Exceção antes de verificar formulário; guarda OCR e progresso — 15/10/2026
+
+Novo log real: datas confirmadas, RESUMO_BOTAO inicio seguido de fim com
+leitura_ok_nao_confirmada, sem verificar_formulario. Isso localiza uma
+exceção na guarda inicial de avisos; tipo/causa ainda não constam no log.
+Não atribuir novamente à geometria das datas ou às bordas dos botões.
+
+Guarda lê uma vez por motor/escala/região e procura todos os títulos nos
+mesmos dados. Falha isolada permite as outras opiniões, qualquer aviso
+bloqueia e falta de leitura válida da tela inteira continua bloqueando.
+None Windows não significa leitura válida. Logs informam motor/escala/
+região/tipo de exceção sem mensagem privada. Cancelamento é propagado,
+inclusive nas APIs Windows; checkpoint público impede devolver clique
+após cancelamento engolido por helper legado.
+
+Novos prints confirmam período → OK → prévia Resumo → PDF → Salvar em PDF.
+Identificação de formulário/prévia/diálogo/nome temporário usa também as
+escalas/motores adicionais. Arquivo novo já presente segue à conferência
+sem gastar OCR buscando erro de caminho antes de validar o PDF. Nome usa
+cadastro/competência, com CNPJ/período/tipo conferidos e retorno azul.
+
+Atalho individual do Resumo agora usa o mesmo monitor do Presumido/Livros:
+etapas, progresso a cada cinco segundos, limite cooperativo, Ctrl+C e JSON
+local. Servidor deve estar parado para CLI. Os 636 testes passaram, com
+fiscal sintético e OCR de fixtures; nova execução real Windows ainda precisa
+confirmar o ciclo.
+
 ## Bordas duplicadas no Resumo e confirmação EFD — 15/10/2026
 
 Log real confirmou ambas datas de agosto/2026. Resumo bloqueou OK porque
