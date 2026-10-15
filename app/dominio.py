@@ -2166,47 +2166,41 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         return False, None
     pasta_destino = Path(pasta_destino).resolve()
     pasta_destino.mkdir(parents=True, exist_ok=True)
-    while True:
-        temporario = pasta_destino / f"r{uuid.uuid4().hex[:12]}.pdf"
-        if not temporario.exists():
-            break
-    # Diálogo Windows em inglês observado: Alt+n foca File name.
-    interacao.pressionar_atalho("alt", "n")
-    interacao.selecionar_tudo_alternativo()
-    interacao.digitar(caminho_visto_pela_sessao_remota(temporario))
-    # O campo File name é estreito e mostra só o fim do caminho, então o OCR não
-    # lê o nome de forma confiável: serve de diagnóstico, não de trava. A
-    # confirmação real é o arquivo aparecer em disco com este nome único, estável,
-    # e passar na conferência do PDF (abaixo).
-    nome_lido = False
-    for tentativa in range(2):
-        imagem = tela.capturar_tela()
-        if _achar_texto_resumo(imagem,temporario.name) is not None:
-            nome_lido = True
-            break
-        time.sleep(.3)
-    if not nome_lido:
-        print("Resumo: não consegui ler o nome temporário no campo File name (campo estreito); "
-              "sigo e confirmo pelo arquivo em disco.", flush=True)
-        salvar(imagem, f"{prefixo}aviso_nome_temporario_resumo.png")
+    # O File name NÃO é preenchido: o Domínio já propõe o nome e a pasta (a mesma
+    # `saida` configurada). Só salva e identifica o PDF novo pela pasta.
+    # PDFs de execuções anteriores com o nome que o Domínio propõe ("Empresa <código> - ...")
+    # são guardados em `anteriores/` (nunca apagados) para não gerar o aviso de substituição.
+    pasta_anteriores = pasta_destino / "anteriores"
+    for velho in pasta_destino.glob(f"Empresa {int(empresa[1])} - *.pdf"):
+        pasta_anteriores.mkdir(exist_ok=True)
+        destino_velho = pasta_anteriores / f"{uuid.uuid4().hex[:8]}_{velho.name}"
+        velho.replace(destino_velho)
+        print(f"Resumo: PDF anterior preservado em anteriores/{destino_velho.name}.", flush=True)
+    antes = {p.name for p in pasta_destino.glob("*.pdf")}
     acao('salvar_pdf','tecla',None,interacao.pressionar_enter)
     anterior = None
     for tentativa in range(30):
         imagem = tela.capturar_tela()
-        if not temporario.exists() and _achar_texto_resumo(imagem,"does not exist") is not None:
+        novos = [p for p in pasta_destino.glob("*.pdf") if p.name not in antes and p.is_file() and not p.is_symlink()]
+        if not novos and _achar_texto_resumo(imagem,"does not exist") is not None:
             salvar(imagem, f"{prefixo}erro_caminho_resumo.png")
             return False, None
+        if len(novos) > 1:
+            print("Resumo: mais de um PDF novo na pasta de saída; não escolho entre eles.", flush=True)
+            return False, None
         try:
-            stat = temporario.stat()
-            assinatura = (stat.st_size, stat.st_mtime_ns)
-            if stat.st_size and assinatura == anterior:
-                if acompanhamento.etapa == "exportar_pdf":
-                    acompanhamento.confirmar("arquivo_novo_estavel")
-                    acompanhamento.iniciar("conferir_pdf")
-                arquivo = arquivos.finalizar_pdf(temporario, "resumo_acumulador", data_inicial, data_final,
-                                                 cnpj_esperado=cnpj, nome_empresa=empresa[0])
-                break
-            anterior = assinatura
+            if novos:
+                novo = novos[0]
+                stat = novo.stat()
+                assinatura = (novo.name, stat.st_size, stat.st_mtime_ns)
+                if stat.st_size and assinatura == anterior:
+                    if acompanhamento.etapa == "exportar_pdf":
+                        acompanhamento.confirmar("arquivo_novo_estavel")
+                        acompanhamento.iniciar("conferir_pdf")
+                    arquivo = arquivos.finalizar_pdf(novo, "resumo_acumulador", data_inicial, data_final,
+                                                     cnpj_esperado=cnpj, nome_empresa=empresa[0])
+                    break
+                anterior = assinatura
         except Exception as erro:
             print(str(erro) if isinstance(erro, ValueError) else f"Resumo: PDF ainda não confirmado ({type(erro).__name__}).")
         time.sleep(1)

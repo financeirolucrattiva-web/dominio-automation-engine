@@ -189,10 +189,11 @@ class TestResumoFluxo(unittest.TestCase):
         self.icone = self.stack.enter_context(patch.object(self.d.tela, "achar_icone_robusto", return_value=(20, 340)))
         self.texto = self.stack.enter_context(patch.object(self.d.tela, "ler_texto", return_value=TEXTO))
         self.campos = self.stack.enter_context(patch.object(self.d, "_ler_campos_resumo", return_value=campos_periodo(dados_ocr())))
-        self.caminho = None
+        # O File name não é preenchido: o Domínio salva com o nome que ele mesmo propõe, na pasta de saída.
+        self.caminho = Path(self.pasta.name) / "Empresa 52 - Empresa Fictícia.pdf"
         def digitar(valor):
             if valor.endswith(".pdf"):
-                self.caminho = Path(valor)
+                raise AssertionError("o File name não deve ser preenchido")
         self.stack.enter_context(patch.object(self.d.interacao, "digitar", side_effect=digitar, create=True))
         def salvar():
             criar_pdf(self.caminho, TEXTO)
@@ -328,10 +329,9 @@ class TestResumoFluxo(unittest.TestCase):
 
     def test_datas_ja_corretas_nao_sao_redigitadas_e_ok_reconhecido_inicia_previa(self):
         digitacoes=[]
-        self.d.interacao.digitar.side_effect=lambda valor:(digitacoes.append(valor),setattr(self,'caminho',Path(valor)) if valor.endswith('.pdf') else None)
+        self.d.interacao.digitar.side_effect=digitacoes.append
         self.assertTrue(self.executar()[0])
-        self.assertEqual(len(digitacoes),1)
-        self.assertTrue(digitacoes[0].endswith('.pdf'))
+        self.assertEqual(digitacoes,[])  # datas já corretas e File name original: nada é digitado
         self.ok.assert_called_once()
 
     def test_datas_ja_corretas_com_tela_igual_nao_repetem_a_leitura_ocr(self):
@@ -351,6 +351,23 @@ class TestResumoFluxo(unittest.TestCase):
         with patch.object(self.d.tela, "assinatura_tela", side_effect=RuntimeError("sem captura"), create=True):
             self.assertTrue(self.executar()[0])
         self.assertEqual(self.campos.call_count, 2)
+
+    def test_salva_sem_preencher_file_name_e_preserva_pdf_anterior_com_o_nome_proposto(self):
+        pasta=Path(self.pasta.name)
+        anterior=pasta/"Empresa 52 - Empresa Fictícia.pdf"   # sobra de uma execução anterior
+        anterior.write_bytes(b"pdf anterior")
+        resultado=self.executar()
+        self.assertTrue(resultado[0])
+        guardados=list((pasta/"anteriores").glob("*Empresa 52 - Empresa Fictícia.pdf"))
+        self.assertEqual(len(guardados),1)
+        self.assertEqual(guardados[0].read_bytes(),b"pdf anterior")  # preservado, nunca apagado
+
+    def test_dois_pdfs_novos_na_saida_nao_sao_escolhidos(self):
+        pasta=Path(self.pasta.name)
+        def salvar_dois():
+            criar_pdf(pasta/"a.pdf",TEXTO); criar_pdf(pasta/"b.pdf",TEXTO)
+        self.d.interacao.pressionar_enter.side_effect=salvar_dois
+        self.assertEqual(self.executar(),(False,None))
 
     def test_datas_confirmadas_ok_ilegivel_preserva_motivo_e_nao_emite(self):
         self.ok.return_value=None

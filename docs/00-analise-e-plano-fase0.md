@@ -4885,6 +4885,19 @@ desmarcadas; datas 01/08 e 31/08 em ~22 s; Fechar achado); testes novos. Não
 validado ao vivo: marcar Saídas/ICMS, OK dos Livros, prévia, ícone PDF, menu PDF,
 seletor "Procurar Pasta" (sem captura) e o nome final em lote.
 
+### 0.117 Resumo salva sem preencher o File name (15/10/2026)
+
+**Pedido do operador (com captura do diálogo):** não mexer no File name; só salvar.
+O Domínio já propõe "Empresa <código> - <apelido>.pdf" na pasta `saida`. A rotina
+deixou de digitar o caminho (Alt+n, selecionar, digitar) e dá Enter no botão padrão
+(Save). O PDF é identificado pelo que apareceu na pasta depois do Save: exatamente
+um PDF novo, estável, que passa na conferência de título/período/CNPJ; mais de um
+novo não é escolhido. Como o nome proposto se repete, sobras de execuções
+anteriores com esse nome são movidas para `saida/anteriores/` (preservadas, nunca
+apagadas) antes do Save, evitando o aviso de substituição. O nome final continua
+`codigo_empresa_documento_competencia` (0.116). Não validado ao vivo; Livros usam o
+seletor de pasta e não são afetados.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
