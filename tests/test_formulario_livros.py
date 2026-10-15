@@ -126,7 +126,7 @@ class TestLeituraFormularioLivros(unittest.TestCase):
         imagem,dados,_=formulario()
         dados['text']=[t if not '/' in t else 'DATA INDISPONIVEL' for t in dados['text']]
         selecao=ler_selecao(imagem,dados)
-        self.assertEqual(set(selecao),{'livros','outros'})
+        self.assertEqual(set(selecao),{'livros','outros','altura'})
         self.assertEqual(len(selecao['outros']),13)
         self.assertFalse(any(c['marcada'] for c in selecao['livros'].values()))
         with self.assertRaises(ValueError):ler_formulario(imagem,dados)

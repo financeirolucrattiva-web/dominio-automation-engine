@@ -4898,6 +4898,26 @@ apagadas) antes do Save, evitando o aviso de substituição. O nome final contin
 `codigo_empresa_documento_competencia` (0.116). Não validado ao vivo; Livros usam o
 seletor de pasta e não são afetados.
 
+### 0.118 Livros: releitura das caixas por pixels e menos OCR (15/10/2026)
+
+**Evidência (log do operador, versão com 0.115/0.116):** Entradas e Saídas ficaram
+marcadas, mas ICMS não: depois de clicar, o rótulo marcado (negrito + retângulo de
+foco) deixou de ser reconhecido por TODOS os motores de OCR (primeiro Entradas, depois
+Saídas), então nenhuma leitura completa confirmava o formulário. Também: cada
+confirmação rodava até 7 variantes de OCR (~9 s a ~40 s) e as datas eram lidas 3 vezes
+(~22 s cada).
+
+**Correção:** depois da primeira leitura completa (que acha as 16 caixas),
+`formulario_livros.reler_por_pixels` relê só o estado das 16 caixas conhecidas
+(mesmas posições ±1 px, estado legível em todas), sem OCR (0,08 s contra ~9 s);
+ausência de qualquer caixa (console ou diálogo por cima) recusa e volta ao OCR
+completo. `marcar_tres_livros(..., ler_rapido=...)` usa isso após cada clique, com
+janela de espera de 8 x 0,5 s para a repintura. Datas: lidas uma vez e reaproveitadas
+na conferência final se a tela (impressão digital) é a mesma; seleção final por pixels.
+Validado com a captura real (Entradas marcada: leitura completa 8,8 s; por pixels 0,08 s;
+pixels reais da caixa marcada colados em Saídas/ICMS são reconhecidos como marcados;
+captura com console por cima é recusada). Não validado ao vivo.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

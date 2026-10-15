@@ -29,7 +29,30 @@ class TestConjunto(unittest.TestCase):
             self.assertIs(livros._preencher(INICIO,FIM,interacao),imagem)
         interacao.clicar.assert_not_called();interacao.digitar.assert_not_called()
         interacao.selecionar_tudo_alternativo.assert_not_called()
-        captura.assert_called_once();campos.assert_any_call(imagem);selecoes.assert_called_once_with(imagem)
+        # Datas lidas UMA vez (tela igual na conferência final = sem repetir o OCR de ~20 s);
+        # a seleção final é lida na captura usada para a conferência.
+        self.assertEqual(campos.call_count,1);selecoes.assert_called_once_with(imagem)
+
+    def test_datas_com_tela_diferente_na_conferencia_final_sao_relidas_na_mesma_captura(self):
+        imagem=Image.new('RGB',(600,400),'white');interacao=Mock()
+        periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}
+        selecao={'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}
+        with patch.object(livros,'_ler_periodo',return_value=periodo) as campos,                 patch.object(livros,'_ler_selecao',return_value=selecao),                 patch.object(livros.tela,'assinatura_tela',side_effect=['0000','1111','1111','1111']),                 patch.object(livros.tela,'tela_mudou',return_value=True),                 patch.object(livros.tela,'capturar_tela',return_value=imagem):
+            self.assertIs(livros._preencher(INICIO,FIM,interacao),imagem)
+        campos.assert_any_call(imagem)  # a tela mudou: relê as datas na captura final
+
+    def test_selecao_final_usa_pixels_das_caixas_conhecidas_e_cai_para_ocr_se_nao_achar(self):
+        imagem=Image.new('RGB',(600,400),'white')
+        periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}
+        pixels={'livros':{t:{'marcada':True,'retangulo':(1,1,12,12),'posicao':(7,7)} for t in TEXTOS},
+                'outros':[{'marcada':False,'retangulo':(1,1,12,12)} for _ in range(13)],'altura':11.0}
+        ref={'altura':11.0}
+        with patch.object(livros,'_ler_periodo',return_value=periodo),                 patch.object(livros,'_ler_selecao') as ocr,                 patch.object(livros.formulario_livros,'reler_por_pixels',return_value=pixels) as rapido,                 patch.object(livros.tela,'capturar_tela',return_value=imagem):
+            self.assertIs(livros._conferir_antes_ok(INICIO,FIM,referencia=ref),imagem)
+        rapido.assert_called_once_with(imagem,ref);ocr.assert_not_called()
+        with patch.object(livros,'_ler_periodo',return_value=periodo),                 patch.object(livros,'_ler_selecao',return_value={'livros':{t:{'marcada':True} for t in TEXTOS},'outros':[{'marcada':False} for _ in range(13)]}) as ocr,                 patch.object(livros.formulario_livros,'reler_por_pixels',side_effect=ValueError('caixa ausente')),                 patch.object(livros.tela,'capturar_tela',return_value=imagem):
+            self.assertIs(livros._conferir_antes_ok(INICIO,FIM,referencia=ref),imagem)
+        ocr.assert_called_once()
 
     def test_periodo_aguarda_ocr_transitorio_sem_redigitar(self):
         periodo={'inicial':{'valor':INICIO,'posicao':(30,40)},'final':{'valor':FIM,'posicao':(30,70)}}

@@ -248,7 +248,35 @@ def _ler_selecao(imagem, palavras, diagnostico, rotulos_prontos=None):
         raise
     diagnostico['outras_opcoes_marcadas'] = sum(c['marcada'] for c in outros)
     diagnostico['confirmado'] = True
-    return {'livros':livros, 'outros':outros}
+    return {'livros':livros, 'outros':outros, 'altura':altura}
+
+
+def reler_por_pixels(imagem, referencia, tolerancia=1):
+    """Relê o estado das 16 caixas JÁ CONHECIDAS (de uma leitura completa), sem OCR.
+
+    Depois de clicar numa caixa o rótulo fica em negrito e com retângulo de foco e
+    nenhum motor de OCR o reconhece de forma confiável; as caixas, porém, não saem
+    do lugar. Exige encontrar TODAS as 16 caixas nas mesmas posições (±tolerância)
+    e estado legível em cada uma; qualquer ausência (janela diferente, diálogo por
+    cima) recusa e o chamador volta à leitura completa por OCR.
+    """
+    caixas = _quadrados(imagem, referencia['altura'])
+
+    def achar(retangulo):
+        for c in caixas:
+            if all(abs(a-b) <= tolerancia for a, b in zip(c, retangulo)):
+                return c
+        raise ValueError('Caixa conhecida não encontrada na captura; leitura por pixels recusada.')
+
+    livros = {}
+    for tipo, antigo in referencia['livros'].items():
+        c = achar(antigo['retangulo'])
+        livros[tipo] = {'marcada':_estado(imagem, c), 'retangulo':c, 'posicao':antigo['posicao']}
+    outros = []
+    for antigo in referencia['outros']:
+        c = achar(antigo['retangulo'])
+        outros.append({'retangulo':c, 'marcada':_estado(imagem, c)})
+    return {'livros':livros, 'outros':outros, 'altura':referencia['altura']}
 
 
 def ler_formulario(imagem, dados, escala=2, periodo_confirmado=None):
@@ -320,7 +348,7 @@ def _validar_periodo_confirmado(periodo):
     return resultado
 
 
-def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3):
+def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3, ler_rapido=None):
     """Só altera caixas conhecidas, com releitura antes e após cada ação.
 
     O chamador deve impor foco/empresa/trava antes de qualquer ação. Não
@@ -329,9 +357,18 @@ def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3):
     if type(tentativas) is not int or tentativas < 1 or intervalo < 0:
         raise ValueError('Espera de seleção inválida.')
     confirmados = set()
+    referencia = None  # primeira leitura completa (com OCR) que confirmou o formulário
 
     def conferir():
-        atual = ler()
+        nonlocal referencia
+        atual = None
+        if ler_rapido is not None and referencia is not None:
+            try:
+                atual = ler_rapido(referencia)  # só pixels das caixas conhecidas, sem OCR
+            except ValueError:
+                atual = None
+        if atual is None:
+            atual = ler()
         if (set(atual['livros']) != set(ROTULOS)
                 or len(atual['outros']) != 13
                 or any(type(c['marcada']) is not bool for c in [*atual['livros'].values(),*atual['outros']])):
@@ -341,6 +378,8 @@ def marcar_tres_livros(ler, clicar, tentativas=5, intervalo=.3):
                 or any(type(v) is not int or v < 0 for v in p) for p in posicoes)
                 or len({tuple(p) for p in posicoes}) != 3):
             raise ValueError('Posições de seleção incompletas ou indeterminadas.')
+        if 'altura' in atual and referencia is None:
+            referencia = atual
         return atual
 
     def aguardar(campo=None):

@@ -107,14 +107,47 @@ def _esperar_periodo(papel=None, esperado=None, tentativas=5):
     raise ValueError('Período dos livros não confirmado; não emitir.')
 
 
-def _conferir_antes_ok(inicial, final, tentativas=5):
-    """As duas datas e todas as opções precisam bater na MESMA captura."""
+def _assinatura_segura():
+    try:
+        return tela.assinatura_tela(tela.capturar_tela())
+    except Exception:
+        return None  # qualquer dúvida: refaz a leitura
+
+
+def _selecao_por_pixels(referencia):
+    """Estado das 16 caixas já conhecidas, sem OCR (ver formulario_livros.reler_por_pixels)."""
+    return formulario_livros.reler_por_pixels(tela.capturar_tela(), referencia)
+
+
+def _conferir_antes_ok(inicial, final, tentativas=5, referencia=None, leitura_previa=None):
+    """As duas datas e todas as opções precisam bater na MESMA captura.
+
+    `referencia`: leitura completa anterior das caixas (permite reler só pixels).
+    `leitura_previa`: (datas, impressão digital) da última leitura de OCR sem ação
+    depois dela; se a tela é a mesma, não repete o OCR das datas (~20 s).
+    """
+    usar_pixels = isinstance(referencia, dict) and 'altura' in referencia
     for tentativa in range(tentativas):
         ponto_seguro()
         imagem = tela.capturar_tela()
         try:
-            periodo = formulario_livros._validar_periodo_confirmado(_ler_periodo(imagem))
-            selecao = _ler_selecao(imagem)
+            periodo = None
+            if leitura_previa is not None and tentativa == 0:
+                campos, antes = leitura_previa
+                agora = _assinatura_segura()
+                if (antes is not None and agora is not None and not tela.tela_mudou(antes, agora)
+                        and campos['inicial']['valor'] == inicial and campos['final']['valor'] == final):
+                    periodo = campos
+            if periodo is None:
+                periodo = formulario_livros._validar_periodo_confirmado(_ler_periodo(imagem))
+            selecao = None
+            if usar_pixels:
+                try:
+                    selecao = formulario_livros.reler_por_pixels(imagem, referencia)
+                except ValueError:
+                    selecao = None
+            if selecao is None:
+                selecao = _ler_selecao(imagem)
             if (set(selecao['livros']) == set(TIPOS) and len(selecao['outros']) == 13
                     and all(type(l['marcada']) is bool for l in selecao['livros'].values())
                     and all(type(c['marcada']) is bool for c in selecao['outros'])
@@ -131,17 +164,22 @@ def _conferir_antes_ok(inicial, final, tentativas=5):
     raise ValueError('Período ou seleção final dos três livros divergiu; não emitir.')
 
 
-def _preencher(inicial, final, interacao):
+def _preencher(inicial, final, interacao, referencia=None):
+    campos = None
+    leitura = None  # (datas, impressão digital) da última leitura sem ação depois dela
     for papel, valor in (('inicial', inicial), ('final', final)):
-        campos = _esperar_periodo()
+        if campos is None:
+            campos = _esperar_periodo()
+            leitura = (campos, _assinatura_segura())
         if campos[papel]['valor'] == valor:
             continue  # Não arriscar reescrever um campo que já confirmou.
         interacao.clicar(*campos[papel]['posicao'])
         interacao.selecionar_tudo_alternativo()
         interacao.digitar(valor.replace('/', ''))
         interacao.pressionar_tecla('tab')
-        _esperar_periodo(papel, valor)
-    return _conferir_antes_ok(inicial, final)
+        campos = _esperar_periodo(papel, valor)
+        leitura = (campos, _assinatura_segura())
+    return _conferir_antes_ok(inicial, final, referencia=referencia, leitura_previa=leitura)
 
 
 def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
@@ -297,10 +335,11 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     interacao.clicar_com_desvio(*pos)
     if _aguardar_formulario(dominio,prefixo) is None:
         return False
-    formulario_livros.marcar_tres_livros(_ler_selecao,interacao.clicar)
+    referencia=formulario_livros.marcar_tres_livros(_ler_selecao,interacao.clicar,tentativas=8,intervalo=.5,
+                                                       ler_rapido=_selecao_por_pixels)
     acompanhamento.confirmar('titulo_livros_fiscais_lido')
     acompanhamento.iniciar('preencher_periodo')
-    imagem = _preencher(inicial,final,interacao)
+    imagem = _preencher(inicial,final,interacao,referencia=referencia)
     acompanhamento.confirmar('campos_periodo_confirmados')
     acompanhamento.iniciar('gerar_previa')
     pos=_achar_ok(imagem)
