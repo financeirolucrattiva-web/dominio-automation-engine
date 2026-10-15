@@ -33,6 +33,27 @@ def tela_resumo(dx=0,dy=0,fator=1):
 
 
 class TestBotaoResumo(unittest.TestCase):
+    def test_bordas_3d_do_log_real_contam_um_botao_em_qualquer_posicao_escala(self):
+        # Somente geometria do log, sem pixels ou dados de cliente.
+        bordas=((835,403,82,28),(834,402,79,25),(835,435,82,28),(834,434,79,25))
+        for fator,dx,dy in ((1,0,0),(2,100,40)):
+            medidas=[((x+dx)*fator,(y+dy)*fator,w*fator,h*fator) for x,y,w,h in bordas]
+            for ordem in (medidas,list(reversed(medidas))):
+                with self.subTest(fator=fator):
+                    unicos=botoes._deduplicar_retangulos(ordem)
+                    self.assertEqual(set(unicos),{medidas[0],medidas[2]})
+
+    def test_sobreposicao_sem_quatro_lados_proximos_nao_funde_botoes(self):
+        caixas=((100,100,82,28),(110,100,82,28),(100,132,82,28))
+        self.assertEqual(set(botoes._deduplicar_retangulos(caixas)),set(caixas))
+
+    def test_duas_bordas_por_botao_nao_bloqueiam_ok_com_rotulo_confirmado(self):
+        imagem,dados=tela_resumo(); self.preparar(imagem,dados)
+        bordas=((280,80,76,26),(279,79,73,23),(280,116,76,26),(279,115,73,23))
+        with patch.object(botoes,'_retangulos',return_value=botoes._deduplicar_retangulos(bordas)), \
+             patch.object(botoes,'_texto_recorte',side_effect=lambda im,c:{'fechar'} if c[1]>110 else {'ok'}):
+            self.assertEqual(botoes.achar_ok_resumo(imagem),(318,93))
+
     def test_fechar_ausente_global_e_lido_no_botao_sem_offset(self):
         imagem,dados=tela_resumo()
         dados={k:[v for i,v in enumerate(valores) if i!=4] for k,valores in dados.items()}

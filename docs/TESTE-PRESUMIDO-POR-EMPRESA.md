@@ -1,11 +1,25 @@
 # Testar o Presumido por empresa e depois em lote
 
-Atualização: 14/10/2026. A sequência integra Resumo por Acumulador, exportação
+Atualização: 15/10/2026. A sequência integra Resumo por Acumulador, exportação
 EFD Contribuições e Livros Fiscais (Entradas, Saídas e ICMS). Código revisado
 com testes automatizados e navegador; emissão real no Windows ainda pendente.
 
 Agosto/2026 foi confirmado fechado somente na empresa do primeiro teste.
 Setembro/2026 estava aberto. Confirmar fechamento para cada empresa e mês.
+
+## Repetir primeiro somente o Resumo
+
+O último log já confirmou ambas datas; o bloqueio era a duplicação das
+bordas de Fechar. A correção mantém as datas e deduplica as bordas medidas
+antes de procurar OK. Com servidor parado, usar **ferramentas/Testar Resumo
+por Acumulador.bat** e agosto/2026 da empresa confirmada, ou executar
+individualmente pelo painel após reiniciar o servidor.
+
+A geração EFD foi confirmada pelo operador, com aviso “Arquivo gerado com
+sucesso.”, sem interrupção manual. A correção reforça leitura e fechamento
+desse aviso. Não repetir emissão já feita apenas para mudar seu status
+antigo. Conferir o arquivo e validar o fechamento na próxima emissão normal.
+O histórico anterior permanece como registrado.
 
 ## Executar as três rotinas pelo CMD
 
