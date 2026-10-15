@@ -124,6 +124,8 @@ class TestResumoFluxo(unittest.TestCase):
             self.d = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.d)
         self.esperar_item_menu_real = self.d._esperar_item_menu
+        self.esperar_formulario_real = self.d._esperar_formulario_resumo
+        self.esperar_estado_real = self.d.estados.esperar_por_estado
         self.achar_texto_real = self.d.tela.achar_texto
         from app.estados import AcompanhamentoRotina
         self.rotina = AcompanhamentoRotina("resumo_acumulador", Path(self.pasta.name) / "logs")
@@ -135,6 +137,7 @@ class TestResumoFluxo(unittest.TestCase):
         self.esc = self.stack.enter_context(patch.object(self.d.interacao, "pressionar_esc_no_dominio", return_value=True, create=True))
         self.stack.enter_context(patch.object(self.d, "_verificar_retorno_tela_principal", return_value="tela_principal_reconhecida"))
         self.stack.enter_context(patch.object(self.d, "salvar"))
+        self.stack.enter_context(patch.object(self.d, "PASTA_CAPTURAS",Path(self.pasta.name)/'capturas'))
         self.menu = self.stack.enter_context(patch.object(self.d, "_esperar_item_menu", return_value=(12, 34)))
         self.stack.enter_context(patch.object(self.d, "_esperar_tela_resumo", return_value=("frame", (10, 20))))
         self.stack.enter_context(patch.object(self.d, "_esperar_formulario_resumo", return_value=("frame", (10, 20))))
@@ -162,6 +165,17 @@ class TestResumoFluxo(unittest.TestCase):
 
     def executar(self, inicio="01/08/2026", fim="31/08/2026"):
         return self.d.gerar_resumo_acumulador(self.pasta.name, inicio, fim)
+
+    def test_abertura_rele_formulario_mesmo_quando_pixels_nao_mudam(self):
+        imagem=Image.new('RGB',(400,300),'white')
+        with patch.object(self.d.estados,'esperar_por_estado',self.esperar_estado_real), \
+             patch.object(self.d.tela,'capturar_tela',return_value=imagem) as capturar, \
+             patch.object(self.d,'_achar_texto_resumo',return_value=None), \
+             patch('app.leitura_resumo.formulario_resumo_reconhecido',side_effect=[None,(30,40)]) as reconhecer:
+            frame,pos=self.esperar_formulario_real('teste_')
+        self.assertIs(frame,imagem);self.assertEqual(pos,(30,40))
+        self.assertEqual(reconhecer.call_count,2)
+        self.assertEqual(capturar.call_count,4)
 
     def test_fluxo_ate_pdf_tolera_timeout_ocr_do_rotulo_file_name_em_2x(self):
         def ler(im,alvo,**kw):

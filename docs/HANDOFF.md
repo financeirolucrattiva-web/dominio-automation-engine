@@ -1,5 +1,36 @@
 # Domínio Automation Engine — handoff
 
+## Formulário não reconhecido: versão em execução, recortes e rastro visual — 15/10/2026
+
+Novo log fez uma leitura e pulou as 19 seguintes. Isso difere da main
+73e9836, que relê a cada três tentativas. Não atribuir à leitura atual
+sem identificar qual processo/código está carregado; pull não recarrega
+servidor Python já aberto. Executar o teste individual com servidor parado.
+
+Fragilidade corrigida: título era buscado no centro, mas os campos eram
+lidos apenas na tela inteira. Fallback lê título literal e dupla de
+controles na mesma ROI central ou tela, PSM6/11, cinza/binária. Converte
+caixas para coordenadas da captura atual. Título de menu/prévia sozinho
+não aprova formulário. Menu estático também recebe releitura periódica.
+
+RESUMO_EXECUCAO imprime protocolo resumo-rastro-20261015-v1 e identificador.
+RESUMO_ESPERA imprime as opções efetivamente usadas. Capturas ficam em
+capturas/resumo_<id>/: indice.html (marcas vermelhas nos pontos solicitados),
+rastro.json, melhor_formulario.png e ultima_tela_espera.png. Guarda antes/
+depois das ações, ponteiro observado quando disponível e melhor evidência
+estrutural antes da recuperação. Manifesto contém fingerprint das funções
+em memória, Git, PID e caminho Python somente no arquivo privado local.
+Não disponibiliza esses arquivos por API nem os envia para fora do PC.
+Imagens antigas são evidência, não autorização para clicar em outra tela.
+
+Os 645 testes passaram, incluindo OCR real em formulário sintético, ROI com duas caixas,
+recusa de título isolado, releitura de imagem estática e rastros de ação
+única/erro. Nova rodada Windows permanece necessária para confirmar cliques,
+PDF e retorno. Se faltar o protocolo, verificar servidor/atalho/instalação
+que realmente executou; não repetir emissão só para coletar outro log antigo.
+O relatório HTML foi aberto em Chromium com imagens e marcadores sintéticos.
+Releitura do menu compartilhado também beneficia outras rotinas; não repete ações.
+
 ## Exceção antes de verificar formulário; guarda OCR e progresso — 15/10/2026
 
 Novo log real: datas confirmadas, RESUMO_BOTAO inicio seguido de fim com

@@ -2,6 +2,7 @@
 import datetime as dt
 import math
 import re
+from app.controle_execucao import ExecucaoInterrompida, ponto_seguro
 
 from app.formulario_resumo import campos_periodo
 
@@ -222,23 +223,75 @@ def data_da_linha(dados):
     return texto
 
 
-def formulario_resumo_reconhecido(imagem):
+def _titulo_resumo_nos_dados(dados, escala):
+    indices=[i for i,t in enumerate(dados['text']) if str(t).strip()]
+    encontrados=[]
+    for tamanho in (1,2,3):
+        for inicio in range(len(indices)-tamanho+1):
+            grupo=indices[inicio:inicio+tamanho]
+            texto=' '.join(str(dados['text'][i]).strip() for i in grupo).casefold()
+            if re.sub(r'\s+',' ',texto)!='resumo por acumulador':continue
+            if max(dados['top'][i] for i in grupo)>=min(dados['top'][i]+dados['height'][i] for i in grupo):continue
+            x=min(dados['left'][i] for i in grupo);y=min(dados['top'][i] for i in grupo)
+            r=max(dados['left'][i]+dados['width'][i] for i in grupo)
+            b=max(dados['top'][i]+dados['height'][i] for i in grupo)
+            encontrados.append(((x+r)/(2*escala),(y+b)/(2*escala)))
+    return encontrados[0] if len(encontrados)==1 else None
+
+
+def formulario_resumo_reconhecido(imagem, registrar=None):
     """Título e dupla de rótulos; não exige datas legíveis para abrir a etapa."""
     from app import tela
+    def informar(**dados):
+        if registrar:registrar(dados)
     for motor, escala in (('tesseract', 2), ('tesseract', 4), ('windows', 2), ('windows', 4)):
+        ponto_seguro()
+        titulo=None
         try:
             titulo = (tela.achar_texto_ou_no_centro(imagem, 'Resumo por acumulador', escala=escala)
                       if motor == 'tesseract' else
                       tela.achar_texto_windows(imagem, 'Resumo por acumulador', escala=escala))
             if titulo is None:
+                informar(motor=motor,escala=escala,regiao='tela',titulo=False,controles=0)
                 continue
             dados = (tela._ler_dados_ocr(imagem, escala) if motor == 'tesseract' else
                      tela.ler_dados_ocr_windows(imagem, escala))
             rotulos = resolver_rotulos_resumo(imagem,dados,escala,titulo_confirmado=True)
-            medir_campos(imagem, rotulos)
+            campos=medir_campos(imagem, rotulos)
+            informar(motor=motor,escala=escala,regiao='tela',titulo=True,controles=2,
+                     campos={p:list(c['retangulo']) for p,c in campos.items()})
             return titulo
-        except (ValueError, TypeError, KeyError, RuntimeError):
+        except ExecucaoInterrompida:raise
+        except (ValueError, TypeError, KeyError, RuntimeError, OSError) as erro:
+            informar(motor=motor,escala=escala,regiao='tela',titulo=titulo is not None,
+                     controles=0,tipo_erro=type(erro).__name__)
             continue
+    # O título podia ser lido no centro, mas os campos eram procurados
+    # apenas na tela inteira. Relê a MESMA captura com outra segmentação;
+    # título literal e dois controles medidos precisam coexistir na ROI.
+    centro,dx,dy=tela.recortar_centro(imagem)
+    for area,ox,oy,regiao in ((centro,dx,dy,'centro'),(imagem,0,0,'tela')):
+        for psm,preparo in ((6,'cinza'),(11,'cinza'),(6,'binaria'),(11,'binaria')):
+            ponto_seguro();titulo=None
+            try:
+                dados=tela.ler_dados_ocr_formulario(area,escala=4,preparo=preparo,psm=psm)
+                titulo=_titulo_resumo_nos_dados(dados,4)
+                if titulo is None:
+                    informar(motor='tesseract',escala=4,regiao=regiao,psm=psm,
+                             preparo=preparo,titulo=False,controles=0,
+                             rotulos=len(diagnostico_rotulos(dados,4)))
+                    continue
+                rotulos=resolver_rotulos_resumo(area,dados,4,titulo_confirmado=True)
+                campos=medir_campos(area,rotulos)
+                informar(motor='tesseract',escala=4,regiao=regiao,psm=psm,preparo=preparo,
+                         titulo=True,controles=2,campos={p:[c['retangulo'][0]+ox,
+                             c['retangulo'][1]+oy,*c['retangulo'][2:]] for p,c in campos.items()})
+                return titulo[0]+ox,titulo[1]+oy
+            except ExecucaoInterrompida:raise
+            except (ValueError,TypeError,KeyError,IndexError,RuntimeError,OSError) as erro:
+                informar(motor='tesseract',escala=4,regiao=regiao,psm=psm,preparo=preparo,
+                         titulo=titulo is not None,controles=0,tipo_erro=type(erro).__name__)
+    ponto_seguro()
     return None
 
 

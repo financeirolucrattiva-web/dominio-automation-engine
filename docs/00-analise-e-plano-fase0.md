@@ -4774,6 +4774,34 @@ timeout no rótulo File name. Documentos e valores reais não são homologados
 pela suíte; nova rodada no Domínio ainda pendente. EFD e Livros mantêm os
 fluxos de geração existentes e as verificações da sequência por empresa.
 
+### 0.113 Abertura recusada, processo carregado e rastro dos cliques (15/10/2026)
+
+**Evidência:** novo log fez uma leitura e 19 pulos na espera do formulário;
+main73e9836 já usa releitura a cada três. Indício de versão/fluxo anterior,
+sem prova de falha do leitor novo. Git HEAD sozinho não prova versão de
+funções carregadas em servidor aberto. Operador pediu guardar melhor print
+e rastrear os cliques para distinguir essas causas.
+
+**Correção:** título podia ser lido no centro enquanto campos só eram
+procurados na tela inteira. Nova leitura da mesma captura em ROI central
+e tela usa PSM6/11 cinza/binária, título literal e dois controles medidos,
+com conversão das caixas à coordenada original. Título de menu/prévia não
+aprova o formulário. Menu parado também ganha releitura periódica.
+
+**Evidências locais:** protocolo no console, opções reais da espera,
+fingerprints de funções em memória, Git e caminhos/PID apenas no manifesto
+local. HTML mostra capturas originais antes/depois e marca do ponto pedido,
+com ponteiro observado quando disponível. Melhor captura usa evidência
+estrutural; última imagem da espera também fica preservada antes da limpeza.
+Todos os arquivos em capturas/resumo_<id>, ignorados pelo Git, sem upload.
+O rastro não decide ação, repete clique ou valida documento por imagem velha.
+
+**Validação:** 645 testes; fixtures de OCR real, controles/ROI, versão em memória,
+ação única, falha de gravação e releitura estática. Execução corrigida no
+Windows ainda precisa de confirmação; EFD e Livros mantêm seus geradores.
+HTML local validado em Chromium; releitura de menu é compartilhada e não
+repete cliques em nenhuma rotina.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,
