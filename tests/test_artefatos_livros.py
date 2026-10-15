@@ -1,4 +1,5 @@
 """Três PDFs locais confirmados, resultados parciais e downloads por artefato."""
+import re
 import json
 from pathlib import Path
 import tempfile
@@ -153,7 +154,7 @@ class TestArtefatosLivros(unittest.TestCase):
         self.assertEqual(len(caminhos), 3)
         destino = fiscal / '08' / 'RELATORIOS' / 'LIVROS'
         self.assertTrue(all(Path(p).parent == destino for p in caminhos))
-        self.assertTrue(all('empresa_exemplo_2024-08' in Path(p).name for p in caminhos))
+        self.assertTrue(all(re.fullmatch(r'[0-9]+_empresa_exemplo_[a-z_]+_2024-08\.pdf', Path(p).name) for p in caminhos))  # código_empresa_documento_competência
         self.assertEqual(len(self.repo.artefatos(tarefa['id'])), 3)
         self.assertTrue(all(self.repo.artefato_permitido(self.repo.obter_artefato(tarefa['id'], a['id']))
                             for a in self.repo.artefatos(tarefa['id'])))

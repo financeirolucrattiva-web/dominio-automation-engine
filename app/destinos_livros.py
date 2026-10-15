@@ -181,7 +181,8 @@ def planejar_destino(empresa, regime, competencia, pasta_dados=ROOT / "data", ho
     return {"codigo": empresa["codigo"], "empresa": empresa["nome"], "regime": regime,
             "competencia": competencia, "caminho_local": caminho_local, "caminho_dominio": caminho_dominio,
             "pasta_existe": destino.is_dir(), "origem": "cadastro" if empresa.get("pasta_relativa") else "mapa_local",
-            "arquivos_previstos": [nome_relatorio(tipo, empresa["nome"], inicio.isoformat(), fim.isoformat())
+            "arquivos_previstos": [nome_relatorio(tipo, empresa["nome"], inicio.isoformat(), fim.isoformat(),
+                                                    codigo=empresa["codigo"])
                                    for tipo in ("registro_entradas", "registro_saidas", "livro_icms")]}
 
 

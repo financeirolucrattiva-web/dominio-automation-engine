@@ -4859,6 +4859,32 @@ a combinação de rótulos foi validada com os rótulos reconhecidos por variant
 no log do operador, não com uma captura do formulário (a única salva tinha o
 console do servidor na frente).
 
+### 0.116 Livros: pixels, OK e nome do arquivo; Resumo: nome temporário e releitura (15/10/2026)
+
+**Evidência:** captura real do formulário Livros Fiscais com só "Registro de Entradas"
+marcado, e logs da rodada. Reproduzido offline, em ordem: (1) rótulos combinados
+(0.115) mas só 8 de ~36 caixas detectadas: o rótulo focado vem com ~21 px de altura
+(retângulo de foco) e a altura esperada do quadradinho usava o MÁXIMO dos rótulos;
+(2) a caixa marcada tem ~47% de pixels escuros no interior 6x6 e o limite era 45%
+("estado indeterminado"); (3) o botão OK não é lido por OCR nem pelo localizador
+do Resumo, mas "Fechar" é lido em (1158, 264) e o OK real fica ~31 px acima.
+Resumo: o OCR do campo "File name" (estreito, mostra só o fim do caminho) não lê o
+nome temporário e abortava; o arquivo único em disco já é a confirmação real.
+
+**Correções:** altura de referência = mediana dos rótulos; limite de caixa marcada
+60% (vazias dão 0%); `livros_conjuntos._achar_ok` (OK por texto, senão Fechar-31 px);
+leitura do nome temporário no Resumo só informativa; releitura das datas do Resumo
+pulada quando a primeira leitura já mostrou os dois campos corretos e a tela é a
+mesma (impressão digital), mantida em qualquer dúvida; nome final do relatório com
+código: `codigo_empresa_documento_competencia` separado por "_" (ex.:
+`70_sprayagro_acumulador_2026-08.pdf`), aplicado na publicação do servidor e na
+prévia dos destinos; chamadas sem código mantêm a convenção antiga.
+
+**Validação:** captura real lida (Entradas marcada; Saídas/ICMS e 13 outras
+desmarcadas; datas 01/08 e 31/08 em ~22 s; Fechar achado); testes novos. Não
+validado ao vivo: marcar Saídas/ICMS, OK dos Livros, prévia, ícone PDF, menu PDF,
+seletor "Procurar Pasta" (sem captura) e o nome final em lote.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

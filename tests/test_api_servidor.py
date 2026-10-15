@@ -139,7 +139,7 @@ class TestApiServidor(unittest.TestCase):
         resposta = self.client.get(f"/api/tarefas/{tarefa['id']}/arquivo", headers=self.headers)
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.content, b"%PDF-sintetico")
-        self.assertIn('filename="registro_entradas_empresa_ficticia_2026-08.pdf"', resposta.headers["content-disposition"])
+        self.assertIn('filename="52_empresa_ficticia_registro_entradas_2026-08.pdf"', resposta.headers["content-disposition"])
         self.assertFalse(origem.exists())
 
     def test_chave_existente_nao_e_trocada_ou_impressa(self):
@@ -168,7 +168,7 @@ class TestApiServidor(unittest.TestCase):
         self.assertEqual(aguardar(self.repo, tarefa["id"])["status"], "concluida")
         resposta = self.client.get(f"/api/tarefas/{tarefa['id']}/arquivo", headers=self.headers)
         self.assertEqual(resposta.content, b"%PDF-sintetico-resumo")
-        self.assertIn('filename="acumulador_empresa_cadastrada_2026-08.pdf"', resposta.headers["content-disposition"])
+        self.assertIn('filename="52_empresa_cadastrada_acumulador_2026-08.pdf"', resposta.headers["content-disposition"])
 
 
 if __name__ == "__main__":

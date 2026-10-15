@@ -30,6 +30,20 @@ class TestNomesCadastro(unittest.TestCase):
             with self.subTest(nome=nome), self.assertRaises(ValueError):
                 nome_relatorio("registro_saidas", nome, "2026-08-01", "2026-08-31", extensao)
 
+    def test_codigo_da_empresa_abre_o_nome_com_underscore_e_valida_o_codigo(self):
+        self.assertEqual(nome_relatorio("resumo_acumulador", "Empresa Fictícia", "2026-08-01", "2026-08-31", codigo="070"),
+                         "70_empresa_ficticia_acumulador_2026-08.pdf")
+        self.assertEqual(nome_relatorio("registro_icms", "Empresa Fictícia", "2026-08-01", "2026-08-31", codigo="52"),
+                         "52_empresa_ficticia_livro_icms_2026-08.pdf")
+        for invalido in ("", "5 2", "../1", "abc", "1234567890123"):
+            with self.subTest(invalido), self.assertRaises(ValueError):
+                nome_relatorio("registro_saidas", "Empresa", "2026-08-01", "2026-08-31", codigo=invalido)
+        origem = self.saida / "temporario.pdf"
+        origem.write_bytes(b"x")
+        destino = nomear_relatorio_cadastrado(origem, self.saida, "resumo_acumulador", "Empresa Fictícia",
+                                              "2026-08-01", "2026-08-31", codigo="70")
+        self.assertEqual(destino.name, "70_empresa_ficticia_acumulador_2026-08.pdf")
+
     def nomear(self, origem):
         return nomear_relatorio_cadastrado(origem, self.saida, "registro_saidas", "Empresa Fictícia", "2026-08-01", "2026-08-31")
 
@@ -85,7 +99,7 @@ class TestNomesCadastro(unittest.TestCase):
         tarefa = servico.solicitar({**pedido(), "empresa_codigo": "0052", "capacidade": "registro_saidas"})
         self.assertEqual(aguardar(repo, tarefa["id"])["status"], "concluida")
         destino = Path(repo.obter(tarefa["id"], privado=True)["arquivo"])
-        self.assertIn("registro_saidas_empresa_ficticia_", destino.name)
+        self.assertIn("52_empresa_ficticia_registro_saidas_", destino.name)
         self.assertEqual(destino.read_bytes(), b"exportacao sintetica")
         self.assertFalse(origem.exists())
 
@@ -129,7 +143,7 @@ class TestNomesCadastro(unittest.TestCase):
         tarefa = repo.obter_lote(lote["id"])["tarefas"][0]
         self.assertEqual(aguardar(repo, tarefa["id"])["status"], "concluida")
         destino = Path(repo.obter(tarefa["id"], privado=True)["arquivo"])
-        self.assertEqual(destino.name, "registro_saidas_empresa_ficticia_2026-08.pdf")
+        self.assertEqual(destino.name, "52_empresa_ficticia_registro_saidas_2026-08.pdf")
 
 
 if __name__ == "__main__":

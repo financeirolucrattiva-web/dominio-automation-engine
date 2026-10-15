@@ -176,6 +176,17 @@ class TestConjunto(unittest.TestCase):
         with patch.object(livros,'_ler_periodo',return_value=atual['periodo']),patch.object(livros.time,'sleep'),self.assertRaises(ValueError):
             livros._preencher(INICIO,FIM,interacao)
 
+    def test_ok_nao_lido_por_ocr_e_calculado_a_partir_de_fechar(self):
+        def achar(imagem, alvo, escala=2):
+            return {'Fechar': (1158, 264)}.get(alvo)
+        with patch.object(livros.tela, 'achar_texto_ou_no_centro', side_effect=achar), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(livros._achar_ok('frame'), (1158, 233))  # captura real: OK em ~(1158, 233)
+        with patch.object(livros.tela, 'achar_texto_ou_no_centro', return_value=None):
+            self.assertIsNone(livros._achar_ok('frame'))  # sem OK nem Fechar: não clica
+        with patch.object(livros.tela, 'achar_texto_ou_no_centro', return_value=(500, 400)):
+            self.assertEqual(livros._achar_ok('frame'), (500, 400))  # OK lido tem prioridade
+
     def test_previa_dos_livros_tolera_ordem_e_pontuacao_do_ocr_mas_exige_identidade(self):
         # CNPJ lido ANTES do título, com vírgula: a conferência rígida recusa, a alternativa aceita.
         previa='EMPRESA FICTICIA Página 1/1 12.345,678/0001-95 '+INICIO+' a '+FIM+' REGISTRO DE ENTRADAS Código CFOP'

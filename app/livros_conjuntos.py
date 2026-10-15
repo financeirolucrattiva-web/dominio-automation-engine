@@ -25,6 +25,23 @@ def _achar_opcao_pdf(imagem):
     return pos
 
 
+ESPACO_OK_FECHAR = 31  # medido: o OK fica ~31 px acima do Fechar, na mesma coluna
+
+
+def _achar_ok(imagem):
+    """OK por texto; senão, calculado a partir de "Fechar" (como no fluxo que já
+    rodou ao vivo). "OK" tem 2 letras e o OCR quase nunca o lê; "Fechar" lê bem
+    (captura real de 15/10: Fechar em (1158, 264), OK em ~(1158, 233))."""
+    pos = tela.achar_texto_ou_no_centro(imagem, 'OK', escala=4)
+    if pos is not None:
+        return pos
+    fechar = tela.achar_texto_ou_no_centro(imagem, 'Fechar', escala=2)
+    if fechar is None:
+        return None
+    print('LIVROS_OK calculado a partir de Fechar (OK não lido por OCR).', flush=True)
+    return (fechar[0], fechar[1] - ESPACO_OK_FECHAR)
+
+
 def _captura_falha(dominio, prefixo):
     try:
         dominio.salvar(tela.capturar_tela(), prefixo+'erro_livros_conjuntos.png')
@@ -286,7 +303,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     imagem = _preencher(inicial,final,interacao)
     acompanhamento.confirmar('campos_periodo_confirmados')
     acompanhamento.iniciar('gerar_previa')
-    pos=tela.achar_texto_ou_no_centro(imagem,'OK',escala=4)
+    pos=_achar_ok(imagem)
     if pos is None:return False
     interacao.clicar(*pos)
     def previa(imagem):

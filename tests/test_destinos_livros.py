@@ -44,8 +44,8 @@ class TestDestinosLivros(unittest.TestCase):
         self.assertEqual(Path(plano["caminho_local"]), destino)
         self.assertFalse(destino.exists())
         self.assertEqual(plano["arquivos_previstos"], [
-            "registro_entradas_empresa_ficticia_2026-08.pdf",
-            "registro_saidas_empresa_ficticia_2026-08.pdf", "livro_icms_empresa_ficticia_2026-08.pdf"])
+            "52_empresa_ficticia_registro_entradas_2026-08.pdf",
+            "52_empresa_ficticia_registro_saidas_2026-08.pdf", "52_empresa_ficticia_livro_icms_2026-08.pdf"])
 
     def test_teste_gravacao_cria_destino_remove_temporario_preserva_anteriores(self):
         plano = self.planejar()
@@ -151,14 +151,14 @@ class TestDestinosLivros(unittest.TestCase):
         repo, servico, _ = self.preparar_execucao()
         destino = Path(self.planejar()["caminho_local"])
         destino.mkdir(parents=True)
-        anterior = destino / "registro_entradas_empresa_ficticia_2026-08.pdf"
+        anterior = destino / "52_empresa_ficticia_registro_entradas_2026-08.pdf"
         anterior.write_bytes(b"anterior")
         servico.iniciar()
         self.addCleanup(servico.encerrar)
         tarefa = servico.solicitar(self.pedido_livro())
         self.assertEqual(aguardar(repo, tarefa["id"])["status"], "concluida")
         arquivo = Path(repo.obter(tarefa["id"], privado=True)["arquivo"])
-        self.assertEqual(arquivo, destino / "registro_entradas_empresa_ficticia_2026-08_2.pdf")
+        self.assertEqual(arquivo, destino / "52_empresa_ficticia_registro_entradas_2026-08_2.pdf")
         self.assertEqual(arquivo.read_bytes(), b"documento fiscal sintetico, sem validade")
         self.assertEqual(anterior.read_bytes(), b"anterior")
         self.assertTrue(repo.arquivo_publicado_permitido(tarefa["id"], arquivo))
@@ -202,7 +202,7 @@ class TestDestinosLivros(unittest.TestCase):
         self.assertEqual(aguardar(repo, tarefa["id"])["status"], "concluida")
         arquivo = Path(repo.obter(tarefa["id"], privado=True)["arquivo"])
         self.assertEqual(arquivo.parent, Path(self.planejar()["caminho_local"]))
-        self.assertEqual(arquivo.name, "registro_entradas_empresa_ficticia_2026-08.pdf")
+        self.assertEqual(arquivo.name, "52_empresa_ficticia_registro_entradas_2026-08.pdf")
 
     @unittest.skipUnless(WEB, "Componentes da API ausentes")
     def test_download_so_autoriza_pdf_publicado_e_sobrevive_a_reconfiguracao(self):

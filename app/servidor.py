@@ -609,7 +609,7 @@ class ServicoExecucao:
             pasta_destino = plano["caminho_local"]
         destino = arquivos.nomear_relatorio_cadastrado(
             arquivo, self.pasta_saida, tipo, empresa["nome"], pedido["inicio"], pedido["fim"],
-            pasta_destino=pasta_destino)
+            pasta_destino=pasta_destino, codigo=str(int(pedido["empresa_codigo"])))
         if pasta_destino is not None:
             self.repositorio.registrar_arquivo_publicado(tarefa["id"], destino, pasta_destino)
         return str(destino)

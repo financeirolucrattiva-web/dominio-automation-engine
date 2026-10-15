@@ -89,7 +89,9 @@ def _estado(imagem, caixa):
     escuros = sum(p < 160 for p in pixels)/len(pixels)
     if min(pixels) >= 220:
         return False
-    if .08 <= escuros <= .45 and max(pixels) >= 220:
+    # Medido na captura real (15/10/2026): o "✓" marcado ocupa ~47% do interior
+    # 6x6 e as caixas vazias dão 0%. O limite antigo (45%) recusava a marcada.
+    if .08 <= escuros <= .60 and max(pixels) >= 220:
         return True
     raise ValueError('Estado de caixa indeterminado; não considerar marcado/desmarcado.')
 
@@ -198,7 +200,12 @@ def _ler_selecao(imagem, palavras, diagnostico, rotulos_prontos=None):
         diagnostico['motivo'] = 'rotulos_selecao_nao_confirmados'
         raise ValueError('Rótulos da seleção ausentes ou ambíguos.')
     rotulos_livros = {tipo:rotulos[tipo] for tipo in ROTULOS}
-    altura = max(r['h'] for r in rotulos_livros.values())
+    # Mediana, não máximo: o rótulo marcado/focado ("Registro de Entradas") vem
+    # com ~21 px (retângulo de foco pontilhado) contra ~11 px dos demais, e o
+    # máximo descartava os quadradinhos reais (13 px) como "pequenos demais".
+    alturas = sorted(rotulos[c]['h'] for c in ('registro_entradas', 'registro_saidas', 'registro_icms',
+                                                'primeira_opcao', 'ultima_opcao'))
+    altura = alturas[len(alturas)//2]
     caixas = _quadrados(imagem, altura)
     diagnostico['caixas_detectadas'] = len(caixas)
     livros = {}

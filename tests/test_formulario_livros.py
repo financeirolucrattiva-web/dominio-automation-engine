@@ -194,6 +194,30 @@ class TestLeituraFormularioLivros(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ler_selecao_com_ocr(imagem)
 
+    def test_rotulo_focado_com_altura_dobrada_nao_descarta_as_caixas_reais(self):
+        # Caso real: "Registro de Entradas" marcado vem com ~21 px (retângulo de foco)
+        # contra ~11 px dos demais; usar o máximo descartava os quadradinhos de 13 px.
+        imagem,dados,_=formulario(('registro_entradas',))
+        dobrada=copy.deepcopy(dados)
+        for i,t in enumerate(dobrada['text']):
+            if t=='Entradas': dobrada['height'][i]*=3
+        r=ler_selecao(imagem,dobrada,2)
+        self.assertTrue(r['livros']['registro_entradas']['marcada'])
+        self.assertFalse(r['livros']['registro_saidas']['marcada'])
+
+    def test_marca_grossa_ocupando_quase_metade_do_interior_conta_como_marcada(self):
+        from app.formulario_livros import _estado
+        # Interior 6x6 com ~47% de pixels escuros (valor medido na captura real).
+        caixa=Image.new('RGB',(12,12),'white')
+        d=ImageDraw.Draw(caixa)
+        for x,y in ((3,5),(4,6),(5,7),(6,6),(7,5),(8,4),(4,5),(5,6),(6,7),(7,6),(8,5),(5,5),(6,5),(5,8),(6,8),(7,7),(4,7)):
+            d.point((x,y),fill='black')
+        self.assertTrue(_estado(caixa,(0,0,12,12)))
+        self.assertFalse(_estado(Image.new('RGB',(12,12),'white'),(0,0,12,12)))
+        cheia=Image.new('RGB',(12,12),'black')
+        with self.assertRaises(ValueError):
+            _estado(cheia,(0,0,12,12))  # totalmente escura continua indeterminada
+
     def test_combinacao_recusa_rotulo_com_posicoes_discordantes_ou_ordem_incoerente(self):
         from app.formulario_livros import combinar_rotulos, FRASES_SELECAO, ORDEM_VERTICAL
         def leitura(**ajustes):

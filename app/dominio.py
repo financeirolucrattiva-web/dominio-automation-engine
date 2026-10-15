@@ -2060,7 +2060,22 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     # campo seguinte não é presumida. Cada data é localizada novamente.
     interacao.pressionar_tecla("tab")
     from .controle_execucao import ponto_seguro
+    def assinatura_segura():
+        try:
+            return tela.assinatura_tela(tela.capturar_tela())
+        except Exception:
+            return None  # qualquer dúvida: reler normalmente
+
+    assinatura_da_leitura = None
     for papel, valor in (("inicial", data_inicial), ("final", data_final)):
+        if assinatura_da_leitura is not None and campos[papel]['valor'] == valor:
+            atual = assinatura_segura()
+            if atual is not None and not tela.tela_mudou(assinatura_da_leitura, atual):
+                # Nada foi digitado e a tela é a mesma da leitura que já mostrou
+                # os DOIS campos corretos; reler seria só repetir o OCR (~15 s).
+                _diagnosticar_periodo_resumo('campo_ja_confirmado_mesma_leitura', papel, valor, campos)
+                continue
+        assinatura_da_leitura = None
         for tentativa in range(3):
             ponto_seguro()
             try:
@@ -2075,6 +2090,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         _diagnosticar_periodo_resumo('antes_digitacao', papel, valor, campos)
         if campos[papel]['valor'] == valor:
             _diagnosticar_periodo_resumo('campo_ja_confirmado', papel, valor, campos)
+            assinatura_da_leitura = assinatura_segura()
             continue
         acao('data_'+papel,'clique',campos[papel]['posicao'],lambda:interacao.clicar(*campos[papel]['posicao']))
         interacao.selecionar_tudo_alternativo()
@@ -2158,14 +2174,21 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     interacao.pressionar_atalho("alt", "n")
     interacao.selecionar_tudo_alternativo()
     interacao.digitar(caminho_visto_pela_sessao_remota(temporario))
-    for tentativa in range(5):
+    # O campo File name é estreito e mostra só o fim do caminho, então o OCR não
+    # lê o nome de forma confiável: serve de diagnóstico, não de trava. A
+    # confirmação real é o arquivo aparecer em disco com este nome único, estável,
+    # e passar na conferência do PDF (abaixo).
+    nome_lido = False
+    for tentativa in range(2):
         imagem = tela.capturar_tela()
         if _achar_texto_resumo(imagem,temporario.name) is not None:
+            nome_lido = True
             break
         time.sleep(.3)
-    else:
-        salvar(imagem, f"{prefixo}erro_nome_temporario_resumo.png")
-        return False, None
+    if not nome_lido:
+        print("Resumo: não consegui ler o nome temporário no campo File name (campo estreito); "
+              "sigo e confirmo pelo arquivo em disco.", flush=True)
+        salvar(imagem, f"{prefixo}aviso_nome_temporario_resumo.png")
     acao('salvar_pdf','tecla',None,interacao.pressionar_enter)
     anterior = None
     for tentativa in range(30):

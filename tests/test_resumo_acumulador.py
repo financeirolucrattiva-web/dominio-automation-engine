@@ -334,6 +334,24 @@ class TestResumoFluxo(unittest.TestCase):
         self.assertTrue(digitacoes[0].endswith('.pdf'))
         self.ok.assert_called_once()
 
+    def test_datas_ja_corretas_com_tela_igual_nao_repetem_a_leitura_ocr(self):
+        # Ambos os campos já corretos na 1ª leitura e a tela não mudou: 1 leitura, não 2.
+        with patch.object(self.d.tela, "assinatura_tela", return_value="0101", create=True), \
+                patch.object(self.d.tela, "tela_mudou", return_value=False, create=True):
+            self.assertTrue(self.executar()[0])
+        self.assertEqual(self.campos.call_count, 1)
+
+    def test_tela_diferente_ou_assinatura_indisponivel_mantem_a_releitura_antes_do_final(self):
+        with patch.object(self.d.tela, "assinatura_tela", return_value="0101", create=True), \
+                patch.object(self.d.tela, "tela_mudou", return_value=True, create=True):
+            self.assertTrue(self.executar()[0])
+        self.assertEqual(self.campos.call_count, 2)
+
+    def test_assinatura_indisponivel_mantem_a_releitura_antes_do_final(self):
+        with patch.object(self.d.tela, "assinatura_tela", side_effect=RuntimeError("sem captura"), create=True):
+            self.assertTrue(self.executar()[0])
+        self.assertEqual(self.campos.call_count, 2)
+
     def test_datas_confirmadas_ok_ilegivel_preserva_motivo_e_nao_emite(self):
         self.ok.return_value=None
         self.assertEqual(self.executar(),(False,None))

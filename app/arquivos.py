@@ -41,8 +41,12 @@ def nome_empresa_seguro(nome):
     return texto
 
 
-def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
-    """Convenção do painel: tipo, nome cadastrado e competência informada."""
+def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf", codigo=None):
+    """Convenção do painel: tipo, nome cadastrado e competência informada.
+
+    Com `codigo` (código da empresa no Domínio) o nome fica
+    `codigo_empresa_documento_competencia`, tudo separado por "_".
+    """
     prefixos = {"Resumo por Acumulador": "acumulador",
                 "resumo_acumulador": "acumulador",
                 "Livro Fiscal de ICMS": "livro_icms",
@@ -56,15 +60,19 @@ def nome_relatorio(tipo, nome_empresa, inicio, fim, extensao=".pdf"):
     competencia = f"{inicial:%Y-%m}"
     if (inicial.year, inicial.month) != (final.year, final.month):
         competencia += f"_a_{final:%Y-%m}"
+    if codigo is not None:
+        if not re.fullmatch(r"[0-9]{1,12}", str(codigo)):
+            raise ValueError("Código da empresa inválido para nomear o relatório.")
+        return f"{int(codigo)}_{empresa}_{prefixo}_{competencia}{extensao.lower()}"
     return f"{prefixo}_{empresa}_{competencia}{extensao.lower()}"
 
 
-def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio, fim, pasta_destino=None):
+def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio, fim, pasta_destino=None, codigo=None):
     """Publica a saída já confirmada na pasta final, sem substituir anteriores."""
     caminho = Path(caminho).resolve(strict=True)
     if not caminho.is_relative_to(Path(pasta_saida).resolve()) or not caminho.is_file():
         raise ValueError("Arquivo fora da pasta de saída.")
-    nome = nome_relatorio(tipo, nome_empresa, inicio, fim, caminho.suffix)
+    nome = nome_relatorio(tipo, nome_empresa, inicio, fim, caminho.suffix, codigo=codigo)
     pasta_final = Path(pasta_destino).resolve() if pasta_destino is not None else caminho.parent
     pasta_final.mkdir(parents=True, exist_ok=True)
     destino = pasta_final / nome
