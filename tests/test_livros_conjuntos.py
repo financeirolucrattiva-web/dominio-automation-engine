@@ -199,6 +199,14 @@ class TestConjunto(unittest.TestCase):
         with patch.object(livros,'_ler_periodo',return_value=atual['periodo']),patch.object(livros.time,'sleep'),self.assertRaises(ValueError):
             livros._preencher(INICIO,FIM,interacao)
 
+    def test_espera_reavalia_tela_estatica_com_pixels_exatos_e_prazo_proprio(self):
+        dominio=Mock();dominio.TITULOS_ERRO=()
+        with patch.object(livros.estados,'esperar_por_estado',return_value=('frame','previa',(1,2))) as espera:
+            self.assertEqual(livros._aguardar(dominio,'previa',lambda img:None,'',tentativas=90),'frame')
+        opcoes=espera.call_args.kwargs
+        self.assertTrue(opcoes['comparacao_exata']);self.assertEqual(opcoes['rever_a_cada'],3)
+        self.assertGreaterEqual(opcoes['limite_segundos'],90)
+
     def test_ok_nao_lido_por_ocr_e_calculado_a_partir_de_fechar(self):
         def achar(imagem, alvo, escala=2):
             return {'Fechar': (1158, 264)}.get(alvo)

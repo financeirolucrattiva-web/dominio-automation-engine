@@ -83,7 +83,9 @@ def _drive(palavras, letra):
     achados=[]
     for linha in _linhas(palavras):
         texto=_normalizar(' '.join(p['texto'] for p in linha))
-        if re.search(r'client\s*c\s*\(\s*'+re.escape(letra.casefold())+r'\s*:\s*\\?\s*\)',texto):
+        # "Client C (M:\)": o OCR lê a barra invertida como \, /, | ou a omite; a
+        # linha "Client Z \\server\... (Z:\)" e "Servidor (C:\)" não casam.
+        if re.search(r'client\s*c\s*\(\s*'+re.escape(letra.casefold())+r'\s*[:;.]\s*[\\/|!]?\s*\)',texto):
             achados.append(_posicao(linha))
     if len(achados)>1:raise SeletorPastaNaoConfirmado('Unidade Client C ambígua.')
     return achados[0] if achados else None

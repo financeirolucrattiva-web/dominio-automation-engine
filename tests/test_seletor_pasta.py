@@ -68,4 +68,16 @@ class TestSeletor(unittest.TestCase):
             seletor.selecionar_pasta('M:\\Users\\LIVROS123456789012',lambda:imagem,Mock(),Mock())
 
 
+class TestUnidadeClientC(unittest.TestCase):
+    def test_lista_de_unidades_real_so_casa_client_c_mesmo_com_barra_mal_lida(self):
+        def linhas(*textos):
+            return [{'texto': t, 'x': 10.0, 'y': 20.0 + 25*i, 'w': 40.0, 'h': 10.0} for i, t in enumerate(textos)]
+        for lida in ('Client C (M:\)', 'Client C (M:/)', 'Client C (M:|)', 'Client C (M:)', 'client c (m :\ )'):
+            with self.subTest(lida):
+                palavras = linhas('Servidor (C:\)', lida, 'Client Z \\server\LUCRATTIVA\ (Z:\)')
+                self.assertIsNotNone(seletor._drive(palavras, 'M'))
+        # Sem Client C (só Servidor e Client Z), não escolhe nenhuma.
+        self.assertIsNone(seletor._drive(linhas('Servidor (C:\)', 'Client Z \\server\LUCRATTIVA\ (Z:\)'), 'M'))
+
+
 if __name__=='__main__':unittest.main()

@@ -77,9 +77,13 @@ def _aguardar_formulario(dominio, prefixo):
 def _aguardar(dominio, nome, detector, prefixo, tentativas=90):
     detectores = [(titulo, lambda img, t=titulo:
                    tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in dominio.TITULOS_ERRO]
+    # Pixels exatos e releitura a cada 3 tentativas mesmo com a tela parada: uma
+    # leitura de OCR negativa numa tela estática (ex.: a prévia já aberta) não pode
+    # virar resultado permanente (64 vezes "Tela igual..." até estourar o prazo).
     imagem, estado, pos = estados.esperar_por_estado(
         detectores + [(nome, detector)], espera_minima=.3,
-        tentativas=tentativas, intervalo=1)
+        tentativas=tentativas, intervalo=1,
+        comparacao_exata=True, rever_a_cada=3, limite_segundos=max(90, tentativas*3))
     if estado in dominio.TITULOS_ERRO:
         texto = dominio._ler_texto_caixa(imagem, pos)
         acao = dominio.erros.decidir(texto, documento='Livros Fiscais')
@@ -350,7 +354,10 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         for alvo in ('REGISTRO DE ENTRADAS','REGISTRO DE SAÍDAS','APURAÇÃO DO ICMS','REGISTRO DE ICMS'):
             pos=tela.achar_texto(imagem,alvo,escala=2)
             if pos is not None:return pos
-        return None
+        # O título da prévia vem espaçado ("R E G I S T R O ...") e o OCR nem sempre o
+        # lê como frase; com o rótulo CNPJ já achado, a palavra REGISTRO sozinha basta
+        # (mesma âncora do fluxo individual); o PDF exportado ainda é conferido por tipo.
+        return tela.achar_texto(imagem,'REGISTRO',escala=2)
     imagem=_aguardar(dominio,'previa',previa,prefixo)
     if imagem is None:return False
     # A prévia cobre o cabeçalho do Domínio: sem o código legível, a identidade
