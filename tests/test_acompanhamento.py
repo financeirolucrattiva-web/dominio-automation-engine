@@ -320,6 +320,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.stack.enter_context(patch.object(d.tela, "recortar_a_partir_de", return_value=("frame", 0, 0)))
         self.stack.enter_context(patch.object(d.tela, "recortar_centro", return_value=("frame", 0, 0)))
         self.stack.enter_context(patch.object(d.tela, "achar_texto_windows", return_value=None))
+        self.stack.enter_context(patch.object(d, "_achar_resultado_efd_recorte", return_value=None))
         d.tela.achar_texto.side_effect = lambda imagem, texto, **kwargs: (100, 130) if texto == "Empresas" else (100, 100)
         d.tela.achar_texto_ou_no_centro.side_effect = lambda imagem, texto, **kwargs: None if texto in (self.confirmacao_sped,'Arquivo gerado com sucesso',*d.TITULOS_ERRO) else (100, 100)
 
@@ -353,6 +354,35 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.assertEqual(self.espera.call_count,1)
         self.assertEqual(self.rotina.eventos[-1]['status'],'concluido')
         self.assertEqual(tuple(self.rotina.confirmadas),self.rotina.ETAPAS)
+
+    def test_efd_excecao_no_fechamento_preserva_geracao_e_encerra_com_painel_confirmado(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.fechar_sped.side_effect=RuntimeError('mensagem privada')
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        self.stack.enter_context(patch.object(self.dominio,'_verificar_retorno_tela_principal',return_value='tela_principal_reconhecida'))
+        self.assertTrue(self.dominio.gerar_efd_contribuicoes())
+        self.assertEqual(self.espera.call_count,1)
+        self.dominio.interacao.pressionar_enter.assert_called_once()
+        self.assertEqual(self.rotina.eventos[-1]['status'],'concluido')
+        self.assertNotIn('mensagem privada',self.console.getvalue())
+
+    def test_efd_excecao_antes_do_resultado_nao_vira_sucesso_por_limpeza(self):
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.espera.side_effect=OSError('mensagem privada')
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        with self.assertRaises(OSError):self.dominio.gerar_efd_contribuicoes()
+        self.assertEqual(self.rotina.eventos[-1]['status'],'falha')
+        self.dominio.interacao.pressionar_enter.assert_not_called()
+        self.assertIn('EFD_RESULTADO excecao=OSError; etapa=gerar_documento',self.console.getvalue())
+        self.assertNotIn('mensagem privada',self.console.getvalue())
+
+    def test_efd_cancelamento_apos_resultado_nao_e_promovido_a_sucesso(self):
+        from app.controle_execucao import ExecucaoInterrompida
+        self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
+        self.fechar_sped.side_effect=ExecucaoInterrompida('reinicio_solicitado')
+        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        with self.assertRaises(ExecucaoInterrompida):self.dominio.gerar_efd_contribuicoes()
+        self.assertEqual(self.rotina.eventos[-1]['status'],'falha')
 
     def test_efd_aviso_informativo_preserva_leituras_na_segunda_espera(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')

@@ -1,24 +1,26 @@
 # Roadmap de gestão — Domínio Automation Engine
 
-**Referência:** 14/10/2026 · **Empresa:** Lucrattiva Contabilidade
+**Referência:** 15/10/2026 · **Empresa:** Lucrattiva Contabilidade
 
 **Público:** administradores, supervisores e equipe fiscal
 **Base analisada:** repositório `financeirolucrattiva-web/dominio-automation-engine`,
-main `5784126` e revisão das três rotinas nesta entrega. Código e testes
+main `28dfd15` e correção das bordas do Resumo/confirmação EFD nesta entrega. Código e testes
 validados neste ambiente; emissão e aceite fiscal dependem do Windows do
 escritório.
 
 ## Revisão e teste de 14/10/2026
 
 O último log confirmou as datas do Resumo e bloqueou a prévia ao reconhecer
-OK. Nos Livros, o operador relatou marcação apenas de Entradas. A EFD
-sinalizou geração, mas o operador interrompeu enquanto ela aguardava;
-essa interrupção não comprova falha fiscal.
+OK: duas bordas do mesmo botão Fechar foram contadas como dois controles.
+Nos Livros, o operador relatou marcação apenas de Entradas. No novo teste
+da EFD, confirmou geração e aviso de sucesso, SEM interrupção manual;
+a confirmação automática terminou em exceção sem tipo no log.
 
 A revisão limita esperas de OCR, reforça leitura dos botões medidos,
 aguarda as três marcações sem repetir cliques e confere a saída do aviso
 EFD. A sequência por empresa tem novo atalho com etapas/progresso no
-terminal. 615 testes automatizados e o navegador passaram com fiscal simulado;
+terminal. A revisão atual passou em 626 testes. O teste anterior de navegador
+usou emissão fiscal simulada;
 próximo marco é a emissão real de agosto/2026 na empresa confirmada.
 O piloto permanece em validação.
 

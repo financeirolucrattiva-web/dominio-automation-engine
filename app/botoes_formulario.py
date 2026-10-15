@@ -21,6 +21,29 @@ def _dentro(posicao, caixa):
     return x < posicao[0] < x+w and y < posicao[1] < y+h
 
 
+def _deduplicar_retangulos(candidatos):
+    """Mantém uma borda medida por botão, sem unir botões vizinhos.
+
+    Relevo 3D pode deslocar o contorno para fora do outro em um lado.
+    Nesse caso exige cobertura do menor e proximidade nos quatro lados;
+    compara sempre ao representante, sem encadear aproximações.
+    """
+    unicos = []
+    for c in sorted(set(candidatos),key=lambda c:(-c[2]*c[3],c)):
+        def mesma_borda(a):
+            contida = c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2] and c[1]+c[3]<=a[1]+a[3]
+            inter = max(0,min(c[0]+c[2],a[0]+a[2])-max(c[0],a[0]))*max(0,min(c[1]+c[3],a[1]+a[3])-max(c[1],a[1]))
+            areas = (c[2]*c[3],a[2]*a[3])
+            lados_c = (c[0],c[1],c[0]+c[2],c[1]+c[3])
+            lados_a = (a[0],a[1],a[0]+a[2],a[1]+a[3])
+            relevo = (inter/min(areas)>=.9 and
+                      all(abs(v-u)<=.2*min(c[3],a[3]) for v,u in zip(lados_c,lados_a)))
+            return contida or inter/(sum(areas)-inter)>=.8 or relevo
+        if not any(mesma_borda(a) for a in unicos):
+            unicos.append(c)
+    return unicos
+
+
 def _retangulos(imagem, altura):
     import cv2
     import numpy as np
@@ -55,15 +78,7 @@ def _retangulos(imagem, altura):
             if (.6*altura <= h <= 1.7*altura and 2 <= w/h <= 8
                     and (fechado or quatro_lados(x,y,w,h))):
                 candidatos.add((x,y,w,h))
-    unicos = []
-    for c in sorted(candidatos,key=lambda c:c[2]*c[3],reverse=True):
-        def mesma_borda(a):
-            contida = c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2] and c[1]+c[3]<=a[1]+a[3]
-            inter = max(0,min(c[0]+c[2],a[0]+a[2])-max(c[0],a[0]))*max(0,min(c[1]+c[3],a[1]+a[3])-max(c[1],a[1]))
-            return contida or inter/(c[2]*c[3]+a[2]*a[3]-inter)>=.8
-        if not any(mesma_borda(a) for a in unicos):
-            unicos.append(c)
-    return unicos
+    return _deduplicar_retangulos(candidatos)
 
 
 def _texto_recorte(imagem, caixa):

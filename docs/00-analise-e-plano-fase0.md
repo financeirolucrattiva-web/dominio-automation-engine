@@ -4722,6 +4722,32 @@ Chromium/API/worker, com fiscal sintético.
 O fluxo real Windows, PDF de ICMS, destino final e aceite fiscal permanecem
 pendentes de teste na empresa cuja competência foi confirmada fechada.
 
+### 0.111 Bordas duplicadas no Resumo e aviso EFD conhecido (15/10/2026)
+
+**Evidência real:** Resumo confirmou 01/08/2026–31/08/2026, mas não enviou
+OK. Log mediu duas bordas por botão, com IoU 0,7803 e cobertura do menor
+94,78%; não são coordenadas incorporadas ao runtime. Deduplicação anterior
+exigia contenção/IoU 0,8. Critério adicional exige cobertura >=90% e quatro
+lados próximos (20% da menor altura), representante fixo medido, desempate
+determinístico e ausência de encadeamento. Guardas de texto, contexto e
+ambiguidade permanecem. Datas já corretas são preservadas.
+
+**EFD:** operador confirmou geração e o aviso “Arquivo gerado com sucesso.”,
+com um único OK, sem interrupção manual. Log acaba em excecao durante
+espera sem tipo; não há causa identificada. Leitura adicional do centro
+usa PSM6/11, cinza/binária, título Aviso e corpo completo por parágrafo.
+Só separa glifo não alfabético inteiramente à esquerda do texto; palavras
+extras/negação/resultado duplicado não aprovam. Mesmo leitor confere saída.
+Exceção só no fechamento após resultado positivo pode concluir com limpeza,
+foco e azul confirmados; cancelamento/falha anterior não viram sucesso.
+Tipo de exceção e etapa passam ao console sem sua mensagem; captura local.
+Navegação, período e geração EFD existentes permanecem iguais.
+
+**Validação:** regressões reproduzem bordas do log em outras origens/escalas;
+OCR Tesseract real roda em aviso sintético. Suíte e sintaxe verificadas;
+confirmação automática no Windows ainda pendente. Primeiro Resumo individual;
+não regerar EFD já emitida só para mudar o status da tentativa anterior.
+
 ## 1. Análise do projeto
 
 O briefing pede um motor de automação de verdade (máquina de estados,

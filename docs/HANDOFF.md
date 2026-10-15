@@ -1,5 +1,29 @@
 # Domínio Automation Engine — handoff
 
+## Bordas duplicadas no Resumo e confirmação EFD — 15/10/2026
+
+Log real confirmou ambas datas de agosto/2026. Resumo bloqueou OK porque
+duas bordas do MESMO Fechar viraram dois controles: IoU 0,7803, cobertura
+do menor 94,78%, lados separados até 4 px. Deduplicação adicional exige
+cobertura >=90% do menor e proximidade nos quatro lados (20% da menor
+altura). Mantém representante medido e ordem determinística, sem cadeia
+de aproximações. Não incorpora coordenadas do log nem troca datas corretas.
+
+Operador confirmou emissão EFD e print do aviso “Arquivo gerado com
+sucesso.”, SEM interrupção nessa tentativa. Log acabou em excecao durante
+gerar_documento, sem tipo; causa da exceção não identificada, não atribuir
+a Ctrl+C. Leitura adicional do centro usa PSM6/11, cinza/binária, título
+Aviso e parágrafo positivo completo. Só separa um glifo não alfabético
+medido à esquerda; negação/texto extra não aprova.
+
+Após resultado positivo, exceção só no fechamento pode concluir com
+limpeza, foco e painel azul confirmados, sem regerar. Cancelamento e falha
+antes do resultado não viram sucesso. Console passa a informar tipo da
+exceção/etapa; captura fica no PC. Regressão da geometria do log e OCR real
+em aviso sintético passaram; suíte completa: 626 testes. Novo teste Windows
+ainda pendente. Primeiro
+repetir Resumo individual; não regerar EFD já emitida só para mudar status.
+
 ## Três rotinas revisadas; próximo passo é emissão por empresa — 14/10/2026
 
 Prioridade: executar o Presumido completo na empresa do primeiro teste,

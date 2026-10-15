@@ -200,6 +200,71 @@ def _sugerir_diagnostico(alvo, imagem):
         print(f"Palpite da IA sobre o que houve: {sugestao}")
 
 
+def _resultado_efd_na_leitura(dados, escala):
+    """Aceita somente o corpo completo do aviso conhecido, por parágrafo.
+
+    Não aceita 'sucesso' solto ou uma frase positiva dentro de outro aviso.
+    As coordenadas vêm das palavras desta leitura, sem posição presumida.
+    """
+    grupos = {}
+    for i, texto in enumerate(dados.get('text', [])):
+        texto = str(texto).strip().casefold().rstrip('.')
+        if not texto:
+            continue
+        chave = (dados['block_num'][i], dados['par_num'][i])
+        grupos.setdefault(chave, []).append((texto, i))
+    avisos = [i for grupo in grupos.values() for texto, i in grupo if texto == 'aviso']
+    if len(avisos) != 1:
+        return None
+    confirmacoes = []
+    for grupo in grupos.values():
+        palavras = list(grupo)
+        if palavras and palavras[0][0] == 'aviso':
+            palavras.pop(0)
+        if palavras and palavras[-1][0] == 'ok':
+            palavras.pop()
+        # O ícone informativo pode ser segmentado como um glifo '(1)'.
+        # Só o separa se não contém letras e está inteiro à esquerda do
+        # corpo; palavras desconhecidas ou negação nunca são apagadas.
+        if len(palavras) == 5:
+            glifo, i = palavras[0]
+            seguinte = palavras[1][1]
+            if (not any(c.isalpha() for c in glifo)
+                    and any(not c.isalnum() for c in glifo)
+                    and dados['left'][i]+dados['width'][i] < dados['left'][seguinte]):
+                palavras.pop(0)
+        if [texto for texto, _ in palavras] != ['arquivo', 'gerado', 'com', 'sucesso']:
+            continue
+        indices = [i for _, i in palavras]
+        x = min(dados['left'][i] for i in indices)
+        y = min(dados['top'][i] for i in indices)
+        direita = max(dados['left'][i]+dados['width'][i] for i in indices)
+        base = max(dados['top'][i]+dados['height'][i] for i in indices)
+        if dados['top'][avisos[0]] < y:
+            confirmacoes.append(((x+direita)/(2*escala), (y+base)/(2*escala)))
+    return confirmacoes[0] if len(confirmacoes) == 1 else None
+
+
+def _achar_resultado_efd_recorte(imagem):
+    """Relê o aviso central por segmentação de bloco e texto esparso."""
+    from .controle_execucao import ponto_seguro, ExecucaoInterrompida
+    recorte, dx, dy = tela.recortar_centro(imagem)
+    for psm in (6, 11):
+        for preparo in ('cinza', 'binaria'):
+            ponto_seguro()
+            try:
+                dados = tela.ler_dados_ocr_formulario(recorte, escala=4, preparo=preparo, psm=psm)
+                pos = _resultado_efd_na_leitura(dados, 4)
+            except ExecucaoInterrompida:
+                raise
+            except (RuntimeError, OSError, ValueError, KeyError, TypeError, IndexError):
+                continue
+            if pos is not None:
+                print('EFD_RESULTADO reconhecido=True; origem=recorte; mensagem=arquivo_gerado_com_sucesso', flush=True)
+                return pos[0]+dx, pos[1]+dy
+    return None
+
+
 def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
                           ocr_windows=False, debug=False):
     """Relê a mesma captura por motores/escala, com cancelamento entre opiniões."""
@@ -227,6 +292,8 @@ def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
             pos = tela.achar_texto_windows(centro, texto, escala=ampliacao)
             if pos is not None:
                 return pos[0] + dx, pos[1] + dy
+    if ocr_windows and texto == 'Arquivo gerado com sucesso':
+        return _achar_resultado_efd_recorte(imagem)
     return None
 
 
@@ -507,6 +574,30 @@ def _confirmar_saida_aviso_efd(item_menu, janela, texto_confirmacao):
     return False
 
 
+def _concluir_geracao_apos_limpeza(acompanhamento, recuperou):
+    sinalizada = (acompanhamento.etapa == 'encerrar' and
+        tuple(acompanhamento.confirmadas) == acompanhamento.ETAPAS[:-1])
+    if (recuperou and sinalizada and acompanhamento.janela_dominio is not None
+            and interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)
+            and _verificar_retorno_tela_principal(acompanhamento) == 'tela_principal_reconhecida'):
+        acompanhamento.confirmar('tela_principal_reconhecida')
+        return True
+    if sinalizada:
+        print('Geração sinalizada pelo Domínio; encerramento não confirmado. Não repita a emissão antes de conferir o arquivo e o painel azul.',flush=True)
+    return False
+
+
+def _registrar_excecao_efd(acompanhamento, erro, prefixo):
+    if acompanhamento.rotina != 'efd_contribuicoes':
+        return
+    print(f'EFD_RESULTADO excecao={type(erro).__name__}; etapa={acompanhamento.etapa}',flush=True)
+    if isinstance(erro, Exception):
+        try:
+            salvar(tela.capturar_tela(), f'{prefixo}erro_resultado_efd.png')
+        except Exception:
+            pass  # Diagnóstico não deve substituir a exceção original.
+
+
 def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data_final=None):
     """Acompanha geração observada e saída, sem validar conteúdo SPED/EFD."""
     if item_menu == "SPED Fiscal":
@@ -523,22 +614,21 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data
             recuperou = _limpar_ao_encerrar(acompanhamento)
             # A geração já foi sinalizada: apenas termina o fechamento, sem
             # repetir OK. Falha anterior ao aviso continua sendo falha.
-            geracao_sinalizada = (acompanhamento.etapa == 'encerrar' and
-                tuple(acompanhamento.confirmadas) == acompanhamento.ETAPAS[:-1])
-            if (recuperou and geracao_sinalizada and acompanhamento.janela_dominio is not None
-                    and interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)
-                    and _verificar_retorno_tela_principal(acompanhamento) == 'tela_principal_reconhecida'):
-                acompanhamento.confirmar('tela_principal_reconhecida')
-                resultado = True
-            elif geracao_sinalizada:
-                print('Geração sinalizada pelo Domínio; encerramento não confirmado. Não repita a emissão antes de conferir o arquivo e o painel azul.',flush=True)
+            resultado = _concluir_geracao_apos_limpeza(acompanhamento, recuperou)
         acompanhamento.concluir(resultado)
         return resultado
-    except Exception:
-        _limpar_ao_encerrar(acompanhamento)
+    except Exception as erro:
+        from .controle_execucao import ExecucaoInterrompida
+        _registrar_excecao_efd(acompanhamento, erro, prefixo)
+        recuperou = _limpar_ao_encerrar(acompanhamento)
+        if (rotina == 'efd_contribuicoes' and not isinstance(erro, ExecucaoInterrompida)
+                and _concluir_geracao_apos_limpeza(acompanhamento, recuperou)):
+            acompanhamento.concluir(True)
+            return True
         acompanhamento.concluir(False, evidencia="excecao")
         raise
-    except BaseException:
+    except BaseException as erro:
+        _registrar_excecao_efd(acompanhamento, erro, prefixo)
         acompanhamento.concluir(False, evidencia="excecao")
         raise
 
@@ -928,10 +1018,10 @@ def gerar_efd_contribuicoes(prefixo="", data_inicial=None, data_final=None):
     Domínio real (seção 0.40): navegação (Relatórios > Informativos >
     Federais > "Contribui"), competência anterior, OK e Fechar todos
     confirmados por execução real, não só inspeção visual. A busca
-    literal por "sucesso" pode não achar nada numa tela real densa
-    (mesma limitação das seções 0.10/0.29) — quando isso acontece, o
-    fallback de `esperar_e_achar()` pelo diálogo de um só botão
-    (Enter) fecha do mesmo jeito. Wrapper fino sobre `gerar_sped()`."""
+    literal pelo corpo completo pode falhar numa tela densa. A leitura
+    adicional do aviso usa segmentação de bloco/texto esparso e só
+    confirma a frase completa conhecida antes do único Enter. O ciclo
+    exige encerramento e retorno verificado. Wrapper de `gerar_sped()`."""
     return gerar_sped("Contribui", "sucesso", prefixo=prefixo, data_inicial=data_inicial, data_final=data_final)
 
 
