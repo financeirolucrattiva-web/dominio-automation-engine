@@ -4987,6 +4987,51 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.135 Confirmação após Tab e barra direita sem Down na raiz (16/10/2026)
+
+**Evidência real:** prévia confirmada em50s, exportar_pdf falha em130s
+com mensagem de lista não fechada/unidade não confirmada. Operador viu
+Servidor C com lista fechada. Tail16:33:58 registra clique da seta;
+16:34:10 lista aberta confirmada;16:34:23 opção/topo confirmados;
+16:34:34 fechar_unidade=False, com dialogo_lido=True,lista_aberta=False,
+opcao_lida=True,opcao_mudou=True. Não há contagem antiga de capturas e
+flags podiam ser de uma leitura anterior seguida de ValueError. O log
+situa a recusa na concordância após Tab, sem identificar causa exclusiva.
+
+**Defeitos reproduzidos:** OCR simulado11s consome o prazo10s; a primeira
+leitura é válida mas a função encerra antes da segunda captura, mesmo
+que idêntica pudesse usar cache. Separadamente, Home na primeira opção
+mantém Servidor C, mas repintura estável de1pixel muda a assinatura do
+realce; código antigo interpretava isso como mudança lógica e exigia
+campo diferente depois de Tab. Ambos produzem a mensagem observada.
+
+**Correção:** uma única captura extra imediata para confirmar candidato
+válido quando o OCR consumiu o prazo. Pixels idênticos reutilizam OCR;
+mudança visual exige releitura. Se estado divergir ou falhar, não há novo
+prazo/terceira captura. Primeira leitura inválida não ganha prorrogação.
+Cancelamento/foco continuam verificados antes dessa captura. Depois de
+Home já no topo, hash de pintura não exige mudança da unidade; Down ou
+Home saindo de linha conhecida abaixo do topo continuam exigindo mudança
+do campo. Duas leituras, lista fechada e Client C+letra permanecem para
+liberar árvore. Log limpa flags em cada nova medição e inclui contagem.
+
+Operador pediu explicitamente M e depois barra direita: na raiz, Users
+fora da leitura global segue diretamente ao recorte/barra medida antes
+de qualquer Down. Seta, trilho, mudança do conteúdo e seleção literal
+continuam obrigatórios. Não adota rolagem sem medição nem altera navegação
+dos descendentes. Limite de160 por nível permanece testado no perfil;
+raiz Users tem o limite específico de cliques na barra.
+
+**Validação:** 174 testes de regressão passaram, incluindo sete casos de
+Home/prazo/diagnóstico e três do percurso público completo simulado.
+Servidor C → Client M confirmado → barra com medição real dos pixels da
+figura → Users → perfil/projeto/saida/folha → OK único. OCR de nomes nesse
+emulador é simulado; nenhuma GUI/fiscal foi executada. Unidade que não
+abre e cancelamento após medir seta bloqueiam clique/OK. Leitura idêntica
+após OCR11s usa cache; background diferente relê, sem terceiro prazo se
+divergir. Falha de medição limpa flags. Sintaxe/diff limpos. Ainda não
+validado contra o Domínio/Windows real nesta correção.
+
 ### 0.134 Unidade recusada antes do primeiro avanço (16/10/2026)
 
 **Evidência real:** prévia gerada em40s, exportar_pdf falha em119s com

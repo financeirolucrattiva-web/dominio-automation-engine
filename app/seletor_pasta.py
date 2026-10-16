@@ -331,11 +331,14 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
     anterior=None
     leitor=_LeitorDialogo(somente_unidade=True)
     limite=time.monotonic()+10
-    observado={'dialogo_lido':False,'lista_aberta':None,'opcao_lida':False,
-               'opcao_mudou':False}
+    confirmacao_extra=False
     for tentativa in range(35):
         ponto_seguro()
         imagem=capturar()
+        # Se a nova medição falhar, não imprimir os flags da captura antiga.
+        observado={'dialogo_lido':False,'lista_aberta':None,'opcao_lida':False,
+                   'opcao_mudou':False,'capturas':tentativa+1,
+                   'confirmacao_extra':confirmacao_extra}
         try:
             detalhes=leitor.ler(imagem)
             lista_aberta=detalhes['lista'] is not None
@@ -346,7 +349,8 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
             observado={'dialogo_lido':True,'lista_aberta':lista_aberta,
                        'opcao_lida':assinatura is not None,'opcao_mudou':mudou,
                        'combo':list(detalhes['combo']),
-                       'lista':list(detalhes['lista']) if lista_aberta else None}
+                       'lista':list(detalhes['lista']) if lista_aberta else None,
+                       'capturas':tentativa+1,'confirmacao_extra':confirmacao_extra}
             if primeira:observado['primeira_opcao_confirmada']=topo_confirmado
             if lista_aberta==aberta and mudou and topo_confirmado:
                 estado=(assinatura,detalhes['lista'])
@@ -358,7 +362,15 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
             else:anterior=None
         except ValueError:
             anterior=None
-        if tentativa==34 or time.monotonic()>=limite:break
+        if tentativa==34:break
+        if time.monotonic()>=limite:
+            # Uma OCR lenta não pode eliminar a segunda confirmação de um
+            # candidato válido. Só mais UMA captura, imediatamente: pixels
+            # iguais usam cache; estado divergente não ganha novo prazo.
+            if anterior is not None and not confirmacao_extra:
+                confirmacao_extra=True
+                continue
+            break
         time.sleep(.3)
     print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':False,**observado}),flush=True)
     mensagens={
@@ -395,17 +407,20 @@ def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
         clicar(*posicao)  # seta dentro da borda medida do combo
         imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='abrir_unidade')
         anterior=_opcao_unidade(imagem,lista)
+        realce_antes=_realce_unidade(imagem,lista)
+        home_muda_linha=realce_antes is not None and not _primeira_opcao_unidade(imagem,lista)
         ponto_seguro()
         tecla('home' if passo==0 else 'down')
         imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='opcao_unidade',
                                              diferente=None if passo==0 else anterior,
                                              primeira=passo==0)
-        escolhida=_opcao_unidade(imagem,lista)
         ponto_seguro()
         tecla('tab')  # fecha/aplica a lista, sem Enter nem OK implícito
         # Lista e campo podem atualizar em quadros diferentes. Quando a
         # seleção mudou, fechar o popup com a legenda antiga não basta.
-        mudou=passo>0 or escolhida!=anterior
+        # Home no topo pode repintar o realce sem trocar a opção. O hash
+        # detecta pintura, não prova mudança lógica da unidade neste caso.
+        mudou=passo>0 or home_muda_linha
         imagem,detalhes=_aguardar_unidade(capturar,unidade_antes if mudou else None)
         confirmado=_drive_selecionado(detalhes,letra)
         print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_client_c',
@@ -641,6 +656,9 @@ def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel, clicar=None):
             if selecionado is not None:
                 img,d,no=selecionado
                 continue
+            if nivel==0 and _normalizar(nome)=='users':
+                print('PASTA_NAVEGACAO {"fase":"buscar_users_barra","origem":"raiz","confirmado":true}',flush=True)
+                return _recuperar_raiz_sem_avanco(capturar,clicar,letra,(img,d,no),nome)
         try:
             img,d,no=_avancar_irmao(capturar,tecla,letra,no)
         except SeletorPastaNaoConfirmado:

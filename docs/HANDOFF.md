@@ -1,5 +1,37 @@
 # Domínio Automation Engine — handoff
 
+## Unidade fechada sem concordância; prioridade à barra para Users — 16/10/2026
+
+Nova tentativa: prévia confirmou50s; exportar_pdf falhou130s. Operador viu
+Servidor C com lista fechada. Tail16:33–16:34 confirma abrir_unidade,
+opcao_unidade/topoTrue e, 11s depois, fechar_unidade=False com flags de
+lista fechada/campo lido/mudançaTrue. Log antigo não tinha contagem de
+capturas; ValueError podia manter flags da captura anterior. Portanto não
+afirmar que uma única causa Windows foi comprovada por esses flags.
+
+Reproduzidos dois defeitos: OCR virtual11s consumia o prazo10s e descartava
+o primeiro candidato válido antes da segunda captura; Home já no topo
+podia só repintar um pixel, mudar o hash e exigir mudança indevida do
+campo Servidor C. Agora candidato válido pode receber uma única captura
+extra imediata, com cache se pixels iguais. Estado divergente/inválido
+não renova prazo nem recebe terceira tentativa. Depois de Home no topo,
+repintura não exige outra unidade; Down ainda exige mudança de legenda.
+Mantém duas leituras, lista fechada e Client C/letra configurada antes da
+árvore. Não automatiza emissão fiscal neste ambiente.
+
+Pedido explícito: trocar para M e depois descer pela barra direita.
+Users visível continua recebendo clique literal; se não aparecer, usa
+diretamente a busca por recorte/barra medida na raiz, sem Down prévio.
+Descendentes continuam por nomes/níveis e setas já observadas. Mesmas
+guardas da seta, mudança/estabilidade e limite de rolagens. Logs agora
+registram capturas/confirmacao_extra e limpam flags após medição inválida.
+Validação: 174 testes de regressão passaram, com OCR em figuras sintéticas,
+sete casos novos de Home/prazo/flags e três do percurso completo simulado
+Servidor C → Client M → barra medida → Users/perfil/projeto/saida/folha.
+Esse percurso usa o detector físico real da barra, com OCR de nomes simulado;
+unidade não aberta e cancelamento bloqueiam cliques. Sintaxe e diff limpos.
+Nenhuma emissão ou GUI real aqui; ainda requer teste manual Windows.
+
 ## Troca de unidade: eventos remotos confirmados separadamente — 16/10/2026
 
 Novo log: gerar_previa confirmado em40s; exportar_pdf falha na espera da

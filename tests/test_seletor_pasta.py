@@ -597,8 +597,10 @@ class TestNavegacaoTeclado(unittest.TestCase):
         self.assertTrue(self.executar(arvore))
         self.assert_destino_unico(arvore)
 
-    def test_limite_por_nivel_interrompe_antes_de_pasta_fora_do_limite(self):
-        arvore = ArvoreSintetica([pasta('pasta' + str(i)) for i in range(170)] + arvore_destino())
+    def test_limite_por_nivel_interrompe_antes_de_perfil_fora_do_limite(self):
+        arvore = ArvoreSintetica()
+        users=arvore.raizes[1]
+        users['filhos']=[pasta('pasta' + str(i)) for i in range(170)]+users['filhos']
         with self.assertRaisesRegex(seletor.SeletorPastaNaoConfirmado, 'Limite'):
             self.executar(arvore)
         self.assertEqual(arvore.cliques_ok, [])
