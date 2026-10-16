@@ -9,7 +9,7 @@ from app.controle_execucao import (ControleExecucao, ExecucaoInterrompida,
                                   controlar_execucao, verificar_antes_de_agir)
 
 
-def figura(escura=False, trilho=True, seta='baixo', fator=1):
+def figura(escura=False, trilho=True, seta='baixo', fator=1, espessura=2):
     imagem = Image.new('RGB', (340, 320), 'white')
     d = ImageDraw.Draw(imagem)
     arvore = (30, 60, 250, 220)
@@ -26,7 +26,7 @@ def figura(escura=False, trilho=True, seta='baixo', fator=1):
     if pontos:
         cor = 'white' if escura else 'black'
         if seta.startswith('v'):
-            d.line((pontos[0], pontos[2], pontos[1]), fill=cor, width=2)
+            d.line((pontos[0], pontos[2], pontos[1]), fill=cor, width=espessura)
         else:
             d.polygon(pontos, fill=cor)
     if fator != 1:
@@ -35,7 +35,158 @@ def figura(escura=False, trilho=True, seta='baixo', fator=1):
     return imagem, arvore
 
 
+def figura_flat(escura=False, trilho=True, glifo='vbaixo', fator=1):
+    """Trilho delimitado, sem quadrado/divisória em torno do glifo inferior."""
+    imagem, arvore = figura(seta='nenhuma')
+    d = ImageDraw.Draw(imagem)
+    d.rectangle((260, 61, 278, 278),
+                fill=('#444444' if escura else '#eeeeee') if trilho else 'white',
+                outline='#808080' if trilho else None)
+    cor = 'white' if escura and trilho else 'black'
+    if glifo == 'vbaixo':
+        d.line((265, 267, 269, 272, 273, 267), fill=cor, width=1)
+    elif glifo == 'vcima':
+        d.line((265, 272, 269, 267, 273, 272), fill=cor, width=1)
+    elif glifo == 'duas_setas':
+        for y in (254, 267):
+            d.line((265, y, 269, y+5, 273, y), fill=cor, width=1)
+    if fator != 1:
+        imagem = imagem.resize((imagem.width*fator, imagem.height*fator), Image.Resampling.NEAREST)
+        arvore = tuple(v*fator for v in arvore)
+    return imagem, arvore
+
+
 class TestMedirBarra(unittest.TestCase):
+    def test_seta_flat_exige_trilho_e_clica_somente_o_glifo_inferior_medido(self):
+        for escura in (False, True):
+            for fator in (1, 2):
+                with self.subTest(escura=escura, fator=fator):
+                    imagem, arvore = figura_flat(escura=escura, fator=fator)
+                    barra = raiz.medir_seta_baixo(imagem, arvore, 6*fator,
+                        combo=tuple(v*fator for v in (30, 20, 250, 25)))
+                    self.assertIsNotNone(barra)
+                    self.assertTrue(265*fator <= barra['posicao'][0] <= 273*fator)
+                    self.assertTrue(267*fator <= barra['posicao'][1] <= 273*fator)
+
+    def test_seta_flat_sem_trilho_sentido_cima_ou_duas_setas_nao_autoriza_clique(self):
+        for escura in (False, True):
+            for opcoes in ({'trilho': False}, {'glifo': 'vcima'},
+                           {'glifo': 'duas_setas'}, {'glifo': 'nenhum'}):
+                with self.subTest(escura=escura, opcoes=opcoes):
+                    imagem, arvore = figura_flat(escura=escura, **opcoes)
+                    self.assertIsNone(raiz.medir_seta_baixo(imagem, arvore, 6,
+                        combo=(30, 20, 250, 25)))
+
+    def test_trilho_longo_que_termina_antes_da_zona_da_seta_nao_confirma_flat(self):
+        imagem, arvore = figura_flat()
+        d = ImageDraw.Draw(imagem)
+        # Ainda há bordas em mais de 65% da altura total, mas elas não
+        # acompanham a região inferior onde está o glifo.
+        d.rectangle((260, 220, 278, 278), fill='white')
+        d.line((265, 267, 269, 272, 273, 267), fill='black', width=1)
+        self.assertIsNone(raiz.medir_seta_baixo(imagem, arvore, 6,
+            combo=(30, 20, 250, 25)))
+
+    def test_diagnostico_somente_motivos_fechados_contagens_e_geometria(self):
+        imagem, arvore = figura_flat(trilho=False)
+        eventos = []
+        self.assertIsNone(raiz.medir_seta_baixo(imagem, arvore, 6,
+            combo=(30, 20, 250, 25), registrar=eventos.append))
+        self.assertEqual(len(eventos), 1)
+        evento = eventos[0]
+        self.assertEqual(evento['fase'], 'medicao_barra')
+        self.assertEqual(evento['origem_escala'], 'combo')
+        self.assertIn(evento['motivo'],
+            ('botao_nao_delimitado', 'seta_nao_confirmada', 'trilho_nao_confirmado'))
+        for chave in ('retangulos', 'dimensoes_validas', 'glifos_validos', 'trilhos_validos'):
+            self.assertIsInstance(evento[chave], int)
+            self.assertGreaterEqual(evento[chave], 0)
+        self.assertLessEqual(set(evento), {'fase', 'origem_escala', 'motivo',
+            'retangulos', 'dimensoes_validas', 'glifos_validos', 'trilhos_validos',
+            'arvore', 'combo', 'roi', 'altura_ocr'})
+
+    def test_chevron_fino_com_dois_bracos_nao_depende_da_area_fechada_do_contorno(self):
+        for escura in (False, True):
+            for fator in (1, 2):
+                with self.subTest(escura=escura, fator=fator):
+                    imagem, arvore = figura(escura=escura, seta='vbaixo',
+                                             fator=fator, espessura=1)
+                    barra = raiz.medir_seta_baixo(imagem, arvore, 6*fator,
+                        combo=tuple(v*fator for v in (30, 20, 250, 25)))
+                    self.assertIsNotNone(barra)
+                    self.assertTrue(260*fator < barra['posicao'][0] < 279*fator)
+
+    def test_contagem_de_pixels_nao_autoriza_seta_fina_para_cima_ou_braco_unico(self):
+        for escura in (False, True):
+            for glifo in ('vcima', 'braco_unico'):
+                with self.subTest(escura=escura, glifo=glifo):
+                    imagem, arvore = figura(escura=escura,
+                        seta=glifo if glifo == 'vcima' else 'nenhuma', espessura=1)
+                    if glifo == 'braco_unico':
+                        ImageDraw.Draw(imagem).line((265, 267, 269, 272),
+                            fill='white' if escura else 'black', width=1)
+                    self.assertIsNone(raiz.medir_seta_baixo(imagem, arvore, 6,
+                        combo=(30, 20, 250, 25)))
+
+    def test_altura_do_combo_medido_independe_da_fonte_parcial_do_nome(self):
+        """Nome curto com OCR de 6px não define o tamanho físico do botão de 19px."""
+        for fator in (1, 2):
+            with self.subTest(fator=fator):
+                imagem, arvore = figura(fator=fator)
+                combo = tuple(v*fator for v in (30, 20, 250, 25))
+                barra = raiz.medir_seta_baixo(imagem, arvore, 6*fator, combo=combo)
+                self.assertIsNotNone(barra)
+                self.assertTrue(260*fator < barra['posicao'][0] < 279*fator)
+                self.assertTrue(260*fator < barra['posicao'][1] < 279*fator)
+
+    def test_arvore_conteudo_sem_barra_estende_roi_ate_combo_medido(self):
+        for fator in (1, 2):
+            with self.subTest(fator=fator):
+                imagem, _ = figura(fator=fator)
+                arvore = tuple(v*fator for v in (30, 60, 230, 220))
+                combo = tuple(v*fator for v in (30, 20, 250, 25))
+                barra = raiz.medir_seta_baixo(imagem, arvore, 6*fator, combo=combo)
+                self.assertIsNotNone(barra)
+                self.assertTrue(260*fator < barra['posicao'][0] < 279*fator)
+                self.assertEqual(barra['conteudo'][:2], (30*fator, 60*fator))
+                self.assertLessEqual(barra['conteudo'][2], 262*fator)
+
+    def test_margem_classica_entre_barra_e_bordo_do_combo_em_escalas_distintas(self):
+        for fator in (1, 2):
+            for margem in (4, 8):
+                with self.subTest(fator=fator, margem=margem):
+                    imagem, _ = figura(fator=fator)
+                    arvore = tuple(v*fator for v in (30, 60, 230, 220))
+                    combo = tuple(v*fator for v in (30, 20, 250+margem, 25))
+                    barra = raiz.medir_seta_baixo(imagem, arvore, 6*fator, combo=combo)
+                    self.assertIsNotNone(barra)
+                    self.assertTrue(260*fator < barra['posicao'][0] < 279*fator)
+
+    def test_extensao_por_combo_nao_aceita_geometria_invalida_ou_fora_da_imagem(self):
+        imagem, arvore = figura()
+        casos = (
+            (arvore, (30, 20, -250, 25)),
+            (arvore, (30, 20, 400, 25)),
+            (arvore, (30, -5, 250, 25)),
+            (arvore, (300, 20, 25, 25)),
+            (arvore, (30, 290, 250, 25)),
+            ((-1, 60, 261, 220), (30, 20, 250, 25)),
+            ((30, 60, 230, 270), (30, 20, 250, 25)),
+            ((150, 60, 110, 220), (30, 20, 250, 25)),
+        )
+        for arvore_atual, combo in casos:
+            with self.subTest(arvore=arvore_atual, combo=combo):
+                self.assertIsNone(raiz.medir_seta_baixo(
+                    imagem, arvore_atual, 6, combo=combo))
+
+    def test_roi_estendida_nao_dispensa_trilho_nem_seta_para_baixo(self):
+        for opcoes in ({'trilho': False}, {'seta': 'nenhuma'},
+                       {'seta': 'cima'}, {'seta': 'vcima', 'escura': True}):
+            with self.subTest(opcoes=opcoes):
+                imagem, _ = figura(**opcoes)
+                self.assertIsNone(raiz.medir_seta_baixo(
+                    imagem, (30, 60, 230, 220), 6, combo=(30, 20, 250, 25)))
+
     def test_triangulo_e_trilho_medidos_nas_duas_polaridades_e_escalas(self):
         for escura in (False, True):
             for fator in (1, 2):
@@ -155,8 +306,8 @@ class TestRecuperarRaiz(unittest.TestCase):
         foco = [True]
         def verificar():
             if not foco[0]:raise RuntimeError('foco_nao_confirmado')
-        def perder_foco(*args):
-            barra = medir(*args)
+        def perder_foco(*args, **kwargs):
+            barra = medir(*args, **kwargs)
             foco[0] = False
             return barra
         with verificar_antes_de_agir(verificar), \
@@ -189,8 +340,8 @@ class TestRecuperarRaiz(unittest.TestCase):
     def test_cancelamento_depois_da_medicao_impede_clique(self):
         controle = ControleExecucao()
         medir = raiz.medir_seta_baixo
-        def cancelar(*args):
-            barra = medir(*args)
+        def cancelar(*args, **kwargs):
+            barra = medir(*args, **kwargs)
             controle.interromper('teste')
             return barra
         with patch.object(raiz, 'medir_seta_baixo', side_effect=cancelar), \

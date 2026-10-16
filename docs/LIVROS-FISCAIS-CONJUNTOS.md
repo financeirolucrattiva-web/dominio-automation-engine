@@ -46,6 +46,13 @@ e triângulo são medidos na captura. Cada clique precisa mudar/estabilizar
 o conteúdo antes do próximo; há limite de tentativas. A seleção de Users
 continua obrigatória antes de seguir o perfil/caminho configurados. Esse
 fallback vale somente na raiz, preservando as guardas dos demais níveis.
+Escala da barra usa a altura medida do campo Unidade, não a altura das
+letras da pasta selecionada. A faixa analisada pode ir até o bordo direito
+desse campo para incluir a barra quando o contorno da lista cobre só o
+texto. Glifo fino ou controle flat são aceitos com trilho físico e direção
+comprovados; neste último caso, clica no centro medido do próprio glifo.
+Falhas agora distinguem recusa de medição e limite de rolagens; o arquivo
+de diagnóstico inclui medicao_barra com contagens/geometria sem nomes.
 
 Quando o nome da pasta desejada já está visível no mesmo ramo/nível,
 relê a captura e clica no texto diretamente, confirmando seleção azul,
