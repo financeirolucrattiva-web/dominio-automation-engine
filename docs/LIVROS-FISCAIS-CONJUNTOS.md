@@ -39,6 +39,14 @@ configurada no campo fechado. Servidor C e Client Z não são aceitos.
 PASTA_NAVEGACAO registra unidade_client_c antes das fases dos segmentos.
 Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
 
+Se Down não mudar a seleção ao procurar Users na raiz, tenta o nome literal
+por recorte local com opiniões concordantes. Se ainda estiver fora da área
+visível, pode usar a seta inferior da barra, somente quando botão, trilho
+e triângulo são medidos na captura. Cada clique precisa mudar/estabilizar
+o conteúdo antes do próximo; há limite de tentativas. A seleção de Users
+continua obrigatória antes de seguir o perfil/caminho configurados. Esse
+fallback vale somente na raiz, preservando as guardas dos demais níveis.
+
 Quando o nome da pasta desejada já está visível no mesmo ramo/nível,
 relê a captura e clica no texto diretamente, confirmando seleção azul,
 nome completo, nível e unidade antes de expandir. Não precisa ler cada

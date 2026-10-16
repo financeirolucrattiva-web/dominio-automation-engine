@@ -392,6 +392,66 @@ def _selecionar_visivel(capturar,clicar,letra,estado,nome,nivel):
     return img,d,selecionado
 
 
+def _recuperar_raiz_sem_avanco(capturar,clicar,letra,estado,nome,max_rolagens=8):
+    """Só a raiz comprovada admite recorte local e seta física de rolagem.
+
+    Não amplia a hierarquia dos descendentes e não segura o mouse às cegas.
+    Cada clique exige mudança/estabilidade antes de procurar ou clicar de novo.
+    """
+    from app.arvore_raiz import localizar_raiz, medir_seta_baixo
+    anterior=estado[2]
+    altura=max(p['h'] for p in anterior['linha'])
+    img,d=_aguardar_dialogo(capturar,lambda img,d:
+        _drive_selecionado(d,letra) and _mesmo_no(_no_selecionado(img,d),anterior),
+        fase='raiz_sem_avanco',estavel=True)
+    coluna=anterior['x']
+    for passo in range(max_rolagens+1):
+        ponto_seguro()
+        if not _drive_selecionado(d,letra):
+            raise SeletorPastaNaoConfirmado('Unidade mudou durante a busca da raiz; não foi enviado OK.')
+        if any(_normalizar(p['texto']).strip(':') in ('aviso','atencao') for p in d['palavras']):
+            raise SeletorPastaNaoConfirmado('Aviso no seletor; não foi enviado OK.')
+        alvo=localizar_raiz(img,d,nome,coluna,altura)
+        if alvo is not None:
+            img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                fase='raiz_atual_antes_clique',estavel=True)
+            alvo=localizar_raiz(img,d,nome,coluna,altura)
+            if alvo is None:
+                raise SeletorPastaNaoConfirmado('A pasta da raiz mudou antes do clique; não foi enviado OK.')
+            ponto_seguro()
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'raiz_por_recorte','passo':passo,
+                  'posicao':list(alvo['posicao'])}),flush=True)
+            clicar(*alvo['posicao'])
+            img,d,selecionado=_ler_selecao(capturar,letra,'confirmar_raiz_recorte',estavel=True)
+            if (selecionado['nome']!=_normalizar(nome)
+                    or abs(selecionado['x']-alvo['x'])>alvo['tolerancia']):
+                raise SeletorPastaNaoConfirmado('A pasta da raiz não foi confirmada; não foi enviado OK.')
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'segmento','nivel':0,
+                  'passos':passo,'confirmado':True,'origem':'recorte_raiz'}),flush=True)
+            return img,d,selecionado
+        if passo==max_rolagens:break
+        barra=medir_seta_baixo(img,d['arvore'],altura)
+        if barra is None:
+            print('PASTA_NAVEGACAO {"fase":"rolar_raiz","motivo":"seta_ou_trilho_nao_confirmados","confirmado":false}',flush=True)
+            break
+        img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+            fase='barra_atual_antes_clique',estavel=True)
+        barra=medir_seta_baixo(img,d['arvore'],altura)
+        if barra is None:
+            raise SeletorPastaNaoConfirmado('A barra mudou antes do clique; não foi enviado OK.')
+        antes=img.crop(barra['conteudo']).tobytes()
+        geometria=d['arvore']
+        ponto_seguro()
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'rolar_raiz','passo':passo,
+              'botao':list(barra['botao'])}),flush=True)
+        clicar(*barra['posicao'])
+        def mudou(imagem,detalhes):
+            return (_drive_selecionado(detalhes,letra) and detalhes['arvore']==geometria
+                    and imagem.crop(barra['conteudo']).tobytes()!=antes)
+        img,d=_aguardar_dialogo(capturar,mudou,fase='confirmar_rolagem_raiz',estavel=True)
+    raise SeletorPastaNaoConfirmado('Raiz não confirmada por recorte/rolagem medida; não foi enviado OK.')
+
+
 def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel, clicar=None):
     img,d,no=estado
     coluna=no['x']
@@ -408,7 +468,11 @@ def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel, clicar=None):
             if selecionado is not None:
                 img,d,no=selecionado
                 continue
-        img,d,no=_avancar_irmao(capturar,tecla,letra,no)
+        try:
+            img,d,no=_avancar_irmao(capturar,tecla,letra,no)
+        except SeletorPastaNaoConfirmado:
+            if nivel!=0 or _normalizar(nome)!='users' or clicar is None:raise
+            return _recuperar_raiz_sem_avanco(capturar,clicar,letra,(img,d,no),nome)
     raise SeletorPastaNaoConfirmado('Limite de pastas por nível atingido; não foi enviado OK.')
 
 

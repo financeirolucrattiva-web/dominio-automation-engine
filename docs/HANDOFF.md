@@ -1,5 +1,31 @@
 # Domínio Automation Engine — handoff
 
+## Console resumido e raiz do seletor sem avanço — 16/10/2026
+
+Operador esclareceu que queria reduzir texto do terminal, não só recolher
+o histórico web. scripts/servidor agora filtra apenas prefixos técnicos de
+OCR e tentativas de espera. Mantém mensagens humanas/etapas/falhas/stderr;
+diagnóstico e etapas vão para data/servidor_detalhes.log com rotação
+2 MB +3 backups. --logs-detalhados restaura tudo no terminal. Aviso de
+atividade no máximo a cada10s, sem percentual inventado. Falha de gravação
+faz console voltar ao completo. Buffer por thread; stdout restaurado ao
+encerrar/erro. Não altera standalone CLI, estado fiscal, banco ou PDFs.
+
+Novo log real dos livros traz unidade_confirmada/selecao_lida=True mas
+selecao_mudou=False em proximo_no. Não houve clique direto registrado.
+Prints/instruções confirmam barra inferior, Users → perfil local →
+dominio-automation-engine → saida. Fallback limitado à raiz Users: recorte
+local concordante pode achar o nome; caso ausente, seta para baixo exige
+botão/trilho/triângulo reais na captura, com leitura nova após cada clique.
+Só segue após conteúdo mudar/estabilizar e seleção Users confirmar.
+Não segura mouse sem verificação, não amplia tolerância nos descendentes,
+não presume darto (perfil vem do caminho configurado). Ainda depende do
+teste manual Windows; nenhuma emissão foi executada aqui.
+Validação final: 808 testes passaram. Uvicorn real em simulação confirmou
+API autenticada, tarefa sintética concluída, filtro do console, diagnóstico
+local e encerramento. Diagnóstico readonly foi exercitado em figura local.
+Sintaxe Python e diff --check limpos.
+
 ## Histórico da interface recolhido — 16/10/2026
 
 Pedido para diminuir/minimizar histórico do servidor: bloco Histórico no

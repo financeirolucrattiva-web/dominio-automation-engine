@@ -39,6 +39,13 @@ def main(argv=None):
                   else seletor._alvo_visivel(detalhes,no,args.pasta) if no else None)
             resultado['pasta_visivel_no_ramo']=alvo is not None
             resultado['posicao_pasta']=list(alvo['posicao']) if alvo else None
+            if no and seletor._normalizar(args.pasta)=='users':
+                from app.arvore_raiz import localizar_raiz, medir_seta_baixo
+                altura=max(p['h'] for p in no['linha'])
+                recorte=localizar_raiz(imagem,detalhes,args.pasta,no['x'],altura)
+                barra=medir_seta_baixo(imagem,detalhes['arvore'],altura)
+                resultado['pasta_por_recorte_confirmada']=recorte is not None
+                resultado['seta_rolagem_confirmada']=barra is not None
         print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
     except (OSError,ValueError,RuntimeError) as erro:
         print('PASTA_DIAGNOSTICO '+json.dumps({'dialogo_confirmado':False,'tipo':type(erro).__name__}))
