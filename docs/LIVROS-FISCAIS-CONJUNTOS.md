@@ -47,13 +47,18 @@ concordantes ligados às bordas atuais. O diagnóstico readonly também
 informa se a lista estava aberta na captura da falha.
 Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
 
-Se Down não mudar a seleção ao procurar Users na raiz, tenta o nome literal
-por recorte local com opiniões concordantes. Se ainda estiver fora da área
+Ao procurar Users na raiz, se o nome não aparecer na leitura global, tenta
+o recorte local com opiniões concordantes, sem enviar Down primeiro.
+Se ainda estiver fora da área
 visível, pode usar a seta inferior da barra, somente quando botão, trilho
 e triângulo são medidos na captura. Cada clique precisa mudar/estabilizar
 o conteúdo antes do próximo; há limite de tentativas. A seleção de Users
 continua obrigatória antes de seguir o perfil/caminho configurados. Esse
 fallback vale somente na raiz, preservando as guardas dos demais níveis.
+Uma leitura lenta da unidade pode receber só uma confirmação adicional
+imediata; não renova o prazo se divergir. Home já no topo não exige mudar
+a legenda só porque o realce foi repintado. Lista fechada e Client C com
+a letra configurada continuam obrigatórios antes de usar a barra/árvore.
 Escala da barra usa a altura medida do campo Unidade, não a altura das
 letras da pasta selecionada. A faixa analisada pode ir até o bordo direito
 desse campo para incluir a barra quando o contorno da lista cobre só o

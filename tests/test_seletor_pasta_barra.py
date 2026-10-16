@@ -274,6 +274,23 @@ class TestRecuperarRaiz(unittest.TestCase):
         self.assertTrue(self.clicar.call_args_list[0].args[1] > 250)
         self.assertEqual(self.clicar.call_args_list[1].args, (90, 156))
 
+    def test_busca_users_prioriza_barra_sem_tentar_down_da_arvore(self):
+        depois=self.imagem.copy(); depois.putpixel((80,180),(0,0,0))
+        estado={'rolou':False}
+        self.localizar.side_effect=lambda imagem,*args:self.alvo if imagem is depois else None
+        def clicar(x,y):
+            if y>250:estado['rolou']=True
+        self.clicar.side_effect=clicar
+        capturar=lambda:depois if estado['rolou'] else self.imagem
+        tecla=Mock()
+        resultado=seletor._buscar_irmao(capturar,tecla,'M',
+            (self.imagem,self.detalhes,self.no),'Users',0,clicar=self.clicar)
+        self.assertEqual(resultado[2]['nome'],'users')
+        tecla.assert_not_called()
+        self.assertEqual(self.clicar.call_count,2)
+        self.assertGreater(self.clicar.call_args_list[0].args[1],250)
+        self.assertEqual(self.clicar.call_args_list[1].args,(90,156))
+
     def test_barra_sem_mudanca_nao_repete_clique(self):
         with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
             self.executar()
