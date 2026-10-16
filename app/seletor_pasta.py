@@ -8,6 +8,7 @@ import re
 import time
 import unicodedata
 import json
+import hashlib
 from app.controle_execucao import ExecucaoInterrompida, ponto_seguro
 
 
@@ -45,22 +46,76 @@ def _posicao(linha):
             round((min(p['y'] for p in linha)+max(p['y']+p['h'] for p in linha))/2))
 
 
-def medir_dialogo(imagem):
+def _caixa_unica(candidatas):
+    unicas=[]
+    for c in sorted(candidatas,key=lambda c:c[2]*c[3],reverse=True):
+        if not any(c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2]
+                   and c[1]+c[3]<=a[1]+a[3] for a in unicas):
+            unicas.append(c)
+    if len(unicas)!=1:
+        raise SeletorPastaNaoConfirmado('Borda do seletor ausente ou ambígua.')
+    return unicas[0]
+
+
+def _lista_unidades(caixas,combo):
+    """Borda física da lista suspensa, alinhada ao campo que a abriu."""
+    x,y,w,h=combo
+    candidatas=[c for c in caixas if abs(c[0]-x)<h*.5
+                and abs(c[0]+c[2]-x-w)<h*.5
+                and abs(c[1]-y-h)<h*.5 and c[3]>h*1.2]
+    return _caixa_unica(candidatas) if candidatas else None
+
+
+def _rotulo_unidade_local(imagem,caixas,titulo):
+    """Popup muda a segmentação global: relê o rótulo junto à borda atual."""
+    from app import tela
+    from app.formulario_livros import _rotulo
+    altura=titulo['h']
+    candidatas=[]
+    for c in sorted(caixas,key=lambda c:c[2]*c[3],reverse=True):
+        x,y,w,h=c
+        if not (x>titulo['x'] and titulo['y']+altura<y<titulo['y']+10*altura
+                and altura<h<4*altura and w>10*altura):continue
+        if not any(x>=a[0] and y>=a[1] and x+w<=a[0]+a[2]
+                   and y+h<=a[1]+a[3] for a in candidatas):
+            candidatas.append(c)
+    confirmados=[]
+    for x,y,w,h in candidatas:
+        area=(max(0,round(titulo['x']),x-6*h),max(0,y-1),x,min(imagem.height,y+h+1))
+        leituras=[]
+        for escala in (4,6):
+            ponto_seguro()
+            try:
+                dados=tela.ler_dados_ocr_linha_rotulo(imagem.crop(area),escala=escala,preparo='cinza')
+                ps=[{'texto':str(t),'x':area[0]+dados['left'][i]/escala,
+                     'y':area[1]+dados['top'][i]/escala,'w':dados['width'][i]/escala,
+                     'h':dados['height'][i]/escala}
+                    for i,t in enumerate(dados['text']) if str(t).strip()]
+                rotulo=_rotulo(ps,'Unidade')
+                if rotulo['y']<y+h and rotulo['y']+rotulo['h']>y:
+                    leituras.append(rotulo)
+            except ExecucaoInterrompida:raise
+            except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
+        if len(leituras)==2 and abs(leituras[0]['y']-leituras[1]['y'])<=h*.25:
+            confirmados.append(leituras[0])
+    if len(confirmados)!=1:
+        raise SeletorPastaNaoConfirmado('Rótulo Unidade local ausente ou ambíguo.')
+    return confirmados[0]
+
+
+def medir_dialogo(imagem,*,somente_unidade=False):
     """Combo e árvore medidos, restritos pelos rótulos nativos inequívocos."""
     import cv2
     import numpy as np
     palavras = _palavras(imagem)
     from app.formulario_livros import _rotulo
     titulo = _rotulo(palavras, 'Procurar Pasta')
-    unidade = _rotulo(palavras, 'Unidade')
     try:cancelar = _rotulo(palavras, 'Cancelar')
     except ValueError:cancelar = None
     try:
         ok = _rotulo(palavras, 'OK')
     except ValueError:
         ok = None  # a confirmação final exige OK, mas a navegação não
-    if not (titulo['y'] < unidade['y']):
-        raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
     cinza = np.array(imagem.convert('L'))
     caixas = set()
     for limite in (160,200,230):
@@ -69,17 +124,32 @@ def medir_dialogo(imagem):
             x,y,w,h = cv2.boundingRect(c)
             if len(cv2.approxPolyDP(c,.02*cv2.arcLength(c,True),True)) == 4:
                 caixas.add((x,y,w,h))
-    def unica(candidatas):
-        unicas=[]
-        for c in sorted(candidatas,key=lambda c:c[2]*c[3],reverse=True):
-            if not any(c[0]>=a[0] and c[1]>=a[1] and c[0]+c[2]<=a[0]+a[2] and c[1]+c[3]<=a[1]+a[3] for a in unicas):
-                unicas.append(c)
-        if len(unicas)!=1:raise SeletorPastaNaoConfirmado('Borda do seletor ausente ou ambígua.')
-        return unicas[0]
+    try:unidade=_rotulo(palavras,'Unidade')
+    except ValueError:unidade=_rotulo_unidade_local(imagem,caixas,titulo)
+    if not (titulo['y'] < unidade['y']):
+        raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
     altura=unidade['h']
-    combo=unica([c for c in caixas if unidade['x']+unidade['w']<=c[0]<=unidade['x']+unidade['w']+4*altura
+    combo=_caixa_unica([c for c in caixas if unidade['x']+unidade['w']<=c[0]<=unidade['x']+unidade['w']+4*altura
                   and c[1]<unidade['y']+altura/2<c[1]+c[3] and altura<c[3]<4*altura and c[2]>10*altura])
-    arvore=unica([c for c in caixas if combo[1]+combo[3]<c[1]<combo[1]+combo[3]+4*altura
+    lista=_lista_unidades(caixas,combo)
+    palavras=_refinar_unidade(imagem,palavras,combo)
+    detalhes={'combo':combo,'lista':lista,'palavras':palavras,
+              '_bordas':(caixas,altura,ok,cancelar)}
+    if somente_unidade:
+        # A lista cobre a árvore: exigir a borda da árvore nesta fase impedia
+        # observar justamente a abertura e a seleção pendente do combo.
+        return detalhes
+    return _completar_dialogo(detalhes)
+
+
+def _completar_dialogo(detalhes):
+    """Aproveita a mesma medição ao fechar a lista, sem repetir OCR."""
+    combo=detalhes['combo']
+    palavras=detalhes['palavras']
+    caixas,altura,ok,cancelar=detalhes['_bordas']
+    if detalhes['lista'] is not None:
+        raise SeletorPastaNaoConfirmado('Lista de unidades ainda aberta; árvore não liberada.')
+    arvore=_caixa_unica([c for c in caixas if combo[1]+combo[3]<c[1]<combo[1]+combo[3]+4*altura
                    and c[2]>12*altura and c[3]>5*altura and c[0]<combo[0]
                    and abs(c[0]+c[2]-combo[0]-combo[2])<=2*altura])
     ok_valido = (ok is not None and cancelar is not None and abs(ok['y']-cancelar['y']) < 2*ok['h']
@@ -87,7 +157,6 @@ def medir_dialogo(imagem):
     botoes = [c for c in caixas if c[1]>arvore[1]+arvore[3] and c[0]>=arvore[0]
               and c[0]+c[2]<=arvore[0]+arvore[2] and 4*altura<c[2]<14*altura
               and altura<c[3]<4*altura and c[1]<arvore[1]+arvore[3]+6*altura]
-    palavras=_refinar_unidade(imagem,palavras,combo)
     return {'combo':combo,'arvore':arvore,'palavras':palavras,
             'botoes_ok':botoes,
             'ok':(round(ok['x']+ok['w']/2),round(ok['y']+ok['h']/2)) if ok_valido else None}
@@ -125,10 +194,12 @@ def _refinar_unidade(imagem,palavras,combo):
             ps=[{'texto':t,'x':area[0]+dados['left'][i]/escala,'y':area[1]+dados['top'][i]/escala,
                  'w':dados['width'][i]/escala,'h':dados['height'][i]/escala}
                 for i,t in enumerate(dados['text']) if str(t).strip()]
-            unidades=[l for l in letras if _drive(ps,l) is not None]
+            linhas=_linhas(ps)
+            identidade=_identidade_unidade(linhas[0]) if len(linhas)==1 else None
         except ExecucaoInterrompida:raise
         except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
-        if len(unidades)==1:leituras.append((unidades[0],ps))
+        if identidade and re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade):
+            leituras.append((identidade,ps))
     if len(leituras)>=2 and len({letra for letra,_ in leituras})==1:
         return [p for p in palavras if p not in dentro]+leituras[0][1]
     return palavras
@@ -147,16 +218,18 @@ def _selecionado(imagem, no):
 
 class _LeitorDialogo:
     """Cache só desta espera; pixels iguais dispensam repetir OCR/contornos."""
-    def __init__(self):
+    def __init__(self,*,somente_unidade=False):
         self.assinatura=None
         self.detalhes=None
+        self.somente_unidade=somente_unidade
 
     def ler(self,imagem):
         assinatura=(imagem.mode,imagem.size,imagem.tobytes())
         if assinatura!=self.assinatura:
             self.assinatura=assinatura
             self.detalhes=None
-            self.detalhes=medir_dialogo(imagem)
+            self.detalhes=(medir_dialogo(imagem,somente_unidade=True)
+                           if self.somente_unidade else medir_dialogo(imagem))
         if self.detalhes is None:
             raise SeletorPastaNaoConfirmado('Diálogo não reconhecido nesta captura.')
         return self.detalhes
@@ -192,53 +265,148 @@ def _drive_selecionado(detalhes, letra):
     return _drive(palavras, letra) is not None
 
 
+def _identidade_unidade(linha):
+    texto=_normalizar(' '.join(p['texto'] for p in linha))
+    # Barra invertida e pontuação variam entre o realce da lista e o campo.
+    # A identidade e a letra continuam obrigatórias e não se confundem.
+    achado=re.fullmatch(r'(servidor|client\s+[a-z])\s*\(\s*([a-z])\s*[:;.]\s*[\\/|!]?\s*\)',texto)
+    if achado:
+        return re.sub(r'\s+','',achado[1])+':'+achado[2]
+    return re.sub(r'\s+','',texto) or None
+
+
 def _assinatura_unidade(imagem, detalhes):
     x,y,w,h=detalhes['combo']
-    # OCR pode tokenizar o mesmo rótulo de outra forma sem mudança visual.
-    return ((x,y,w,h), imagem.crop((x,y,x+w,y+h)).tobytes())
+    palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
+    linhas=_linhas(palavras)
+    if len(linhas)!=1:return None
+    identidade=_identidade_unidade(linhas[0])
+    return ((x,y,w,h),identidade) if identidade else None
 
 
-def _aguardar_unidade(capturar, diferente=None):
-    """Espera o combo fechado estabilizar; atraso nunca repete Down."""
+def _opcao_unidade(imagem,detalhes):
+    """Realce pendente por pixels; não exige OCR das opções do popup."""
+    realce=_realce_unidade(imagem,detalhes)
+    if realce is not None:
+        from app.leitura_resumo import normalizar_selecao
+        x,y,w,h=realce
+        tinta=normalizar_selecao(imagem.crop((x,y,x+w,y+h))).convert('L')
+        # Ao rolar o popup, outra opção pode ocupar o MESMO retângulo azul.
+        # Compara também os glifos, sem ler nem registrar o texto da opção.
+        assinatura=hashlib.sha256(tinta.tobytes()).digest()
+        return (detalhes['combo'],('realce',realce,assinatura))
+    return _assinatura_unidade(imagem,detalhes)
+
+
+def _realce_unidade(imagem,detalhes):
+    """Retângulo azul único, sem confundir foco ou pintura da árvore."""
+    import cv2
+    import numpy as np
+    lista=detalhes.get('lista')
+    if lista is None:return None
+    x,y,w,h=lista
+    altura=detalhes['combo'][3]
+    rgb=np.asarray(imagem.crop((x+1,y+1,x+w-1,y+h-1)).convert('RGB'))
+    hsv=cv2.cvtColor(rgb,cv2.COLOR_RGB2HSV)
+    azul=((hsv[:,:,0]>=90)&(hsv[:,:,0]<=135)&(hsv[:,:,1]>100)&(hsv[:,:,2]>70)).astype('uint8')*255
+    contornos,_=cv2.findContours(azul,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    caixas=[cv2.boundingRect(c) for c in contornos if cv2.contourArea(c)>altura]
+    if len(caixas)>1:
+        raise SeletorPastaNaoConfirmado('Realce da unidade ambíguo.')
+    if not caixas:return None
+    bx,by,bw,bh=caixas[0]
+    if 0<=bx<=altura and bw>2*bh and .35*altura<=bh<=1.6*altura:
+        return (x+1+bx,y+1+by,bw,bh)
+    return None
+
+
+def _primeira_opcao_unidade(imagem,detalhes):
+    """Realce no primeiro item visível; campo fechado confirma a unidade."""
+    realce=_realce_unidade(imagem,detalhes)
+    return realce is not None and realce[1]-detalhes['lista'][1]<=detalhes['combo'][3]*.5
+
+
+def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=False):
+    """Cada evento remoto precisa aparecer antes de enviar o próximo."""
     anterior=None
-    leitor=_LeitorDialogo()
-    for tentativa in range(8):
+    leitor=_LeitorDialogo(somente_unidade=True)
+    limite=time.monotonic()+10
+    observado={'dialogo_lido':False,'lista_aberta':None,'opcao_lida':False,
+               'opcao_mudou':False}
+    for tentativa in range(35):
         ponto_seguro()
         imagem=capturar()
         try:
             detalhes=leitor.ler(imagem)
-            assinatura=_assinatura_unidade(imagem,detalhes)
-            x,y,w,h=detalhes['arvore']
-            estado=(assinatura,imagem.crop((x,y,x+w,y+h)).tobytes())
-            if assinatura!=diferente:
-                if estado==anterior:return imagem,detalhes
+            lista_aberta=detalhes['lista'] is not None
+            assinatura=(_opcao_unidade(imagem,detalhes) if aberta
+                        else _assinatura_unidade(imagem,detalhes))
+            mudou=assinatura is not None and assinatura!=diferente
+            topo_confirmado=not primeira or _primeira_opcao_unidade(imagem,detalhes)
+            observado={'dialogo_lido':True,'lista_aberta':lista_aberta,
+                       'opcao_lida':assinatura is not None,'opcao_mudou':mudou,
+                       'combo':list(detalhes['combo']),
+                       'lista':list(detalhes['lista']) if lista_aberta else None}
+            if primeira:observado['primeira_opcao_confirmada']=topo_confirmado
+            if lista_aberta==aberta and mudou and topo_confirmado:
+                estado=(assinatura,detalhes['lista'])
+                if estado==anterior:
+                    print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':True,
+                          **observado}),flush=True)
+                    return imagem,detalhes
                 anterior=estado
             else:anterior=None
         except ValueError:
             anterior=None
-        if tentativa<7:time.sleep(.3)
-    print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_estavel','confirmado':False}),flush=True)
-    raise SeletorPastaNaoConfirmado('A seleção da unidade não mudou ou não estabilizou; não foi enviado OK.')
+        if tentativa==34 or time.monotonic()>=limite:break
+        time.sleep(.3)
+    print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':False,**observado}),flush=True)
+    mensagens={
+        'abrir_unidade':'A lista de unidades não abriu ou não foi reconhecida',
+        'opcao_unidade':'A mudança da opção de unidade não foi confirmada',
+        'fechar_unidade':'A lista não fechou ou a unidade aplicada não foi confirmada',
+    }
+    raise SeletorPastaNaoConfirmado(mensagens[fase]+'; não foi enviado OK.')
+
+
+def _aguardar_unidade(capturar, diferente=None):
+    """Confere fechamento e legenda; ruído na árvore não muda a unidade."""
+    imagem,detalhes=_aguardar_estado_unidade(capturar,aberta=False,fase='fechar_unidade',
+                                            diferente=diferente)
+    return imagem,_completar_dialogo(detalhes)
 
 
 def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
     """Home/Down escolhem a unidade; Tab aplica sem acionar o OK do diálogo.
 
-    Não depende de OCR das opções da lista aberta. A identidade Client C e
-    a letra configurada são conferidas no campo atual antes de usar a árvore.
+    Aguarda a abertura, a seleção pendente e o fechamento separadamente.
+    Client C e a letra configurada são conferidos no campo fechado antes
+    de usar a árvore. Não envia teclas para compensar captura atrasada.
     """
     if _drive_selecionado(detalhes,letra):return imagem,detalhes
     visitadas=set()
     for passo in range(40):
         ponto_seguro()
-        assinatura=_assinatura_unidade(imagem,detalhes)
+        unidade_antes=_assinatura_unidade(imagem,detalhes)
         x,y,w,h=detalhes['combo']
-        clicar(x+w-h//2,y+h//2)  # seta dentro da borda medida do combo
+        posicao=(x+w-h//2,y+h//2)
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'clique_seta_unidade',
+              'passo':passo,'combo':list(detalhes['combo']),'posicao':list(posicao)}),flush=True)
+        clicar(*posicao)  # seta dentro da borda medida do combo
+        imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='abrir_unidade')
+        anterior=_opcao_unidade(imagem,lista)
         ponto_seguro()
         tecla('home' if passo==0 else 'down')
+        imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='opcao_unidade',
+                                             diferente=None if passo==0 else anterior,
+                                             primeira=passo==0)
+        escolhida=_opcao_unidade(imagem,lista)
         ponto_seguro()
         tecla('tab')  # fecha/aplica a lista, sem Enter nem OK implícito
-        imagem,detalhes=_aguardar_unidade(capturar,None if passo==0 else assinatura)
+        # Lista e campo podem atualizar em quadros diferentes. Quando a
+        # seleção mudou, fechar o popup com a legenda antiga não basta.
+        mudou=passo>0 or escolhida!=anterior
+        imagem,detalhes=_aguardar_unidade(capturar,unidade_antes if mudou else None)
         confirmado=_drive_selecionado(detalhes,letra)
         print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_client_c',
               'passo':passo,'confirmado':confirmado}),flush=True)

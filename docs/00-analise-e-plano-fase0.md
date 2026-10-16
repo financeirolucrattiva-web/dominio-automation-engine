@@ -4987,6 +4987,55 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.134 Unidade recusada antes do primeiro avanço (16/10/2026)
+
+**Evidência real:** prévia gerada em40s, exportar_pdf falha em119s com
+“A seleção da unidade não mudou ou não estabilizou”. Operador confirma
+Servidor C no campo. Tail15:39:28 mostra unidade_estavel=False antes de
+unidade_client_c/passo0. A recusa foi na primeira espera após Home/Tab;
+o log não identifica OCR, pintura instável ou evento perdido como causa
+específica. Registros anteriores às15:17 não pertencem à mesma tentativa.
+
+**Defeitos reproduzidos:** emulador anterior abria o combo imediatamente
+e só atrasava capturas depois do Down. Ao adiar foco/abertura, teclas
+eram enviadas antes da lista aparecer. Espera exigia igualdade byteexata
+da árvore inteira mesmo para confirmar só a unidade; também não provava
+que Tab fechara a lista. Figura sintética com popup fez OCR global omitir
+Unidade, campo e opções, embora continuassem legíveis em recortes locais.
+
+**Correção:** três esperas distintas: lista física aberta, realce/legenda
+alterados pela tecla, lista fechada com unidade aplicada. Dois quadros
+concordantes por estado, sem igualdade de pixels da árvore. Home exige
+realce azul no topo visível; Down só uma vez por mudança confirmada.
+Depois de mudança do realce, campo antigo não basta, mesmo com popup
+fechado. Antes de navegar pastas exige Client C + letra configurada.
+Não presume ordem/letra M como autorização nem aceita Client Z/Servidor.
+
+Rótulo omitido é relido à esquerda de uma borda atual candidata sob o
+título Procurar Pasta, com duas escalas concordantes; não clica por essa
+projeção. Campo é relido separadamente, incluindo Servidor e Client Z sem
+convertê-los para Client C. Seleção pendente usa realce por pixels; não
+depende de OCR da lista aberta. Assinatura local dos glifos distingue nova
+opção quando a rolagem mantém a posição azul; não registra texto/hash.
+Identidade canônica preserva tipo/letra,
+normalizando só espaços e variantes de barra/pontuação já aceitas.
+Guarda de topo não prova índice lógico de uma lista previamente rolada;
+a autorização continua sendo a unidade literal no campo fechado.
+
+Logs fechados registram clique e geometria/estado de cada fase; captura
+local da falha permanece preservada. Diagnóstico readonly agora distingue
+lista aberta de árvore liberada. Não altera abertura dos livros, datas,
+OK da prévia, geração, conferência dos três PDFs, Resumo ou EFD.
+
+**Validação:** 163 testes de regressão distintos passaram (161 da rodada
+combinada e dois casos adicionados, incluídos na rodada final de dez do
+combo). Abertura/Home/Down/Tab atrasados, campo antigo após fechar popup,
+realce estacionário com opção diferente, oscilação da árvore, Client Z,
+limites e cancelamento. OCR real sobre figura sintética e diagnóstico CLI
+somente leitura passaram; sintaxe/diff limpos. Suíte completa/API não
+repetida nesta alteração. Ainda não validado contra o Domínio real;
+nenhuma emissão foi executada neste ambiente.
+
 ### 0.133 Barra recusada antes do clique: escala, ROI e glifo (16/10/2026)
 
 **Evidência real:** tentativa encerrou exportar_pdf em149s com raiz não

@@ -117,7 +117,11 @@ class ArvoreSintetica:
         # A estabilidade compara pixels do combo, não apenas os dados OCR simulados.
         desenho.text((108, 81), texto_combo, fill='black')
         if self.combo_aberto:
-            desenho.rectangle((100, 101, 480, 160), fill='white', outline='black')
+            desenho.rectangle((100, 101, 480, min(398,111+len(self.unidades[:4])*25)),
+                               fill='white', outline='black')
+            if self.indice_combo<4:
+                y=110+self.indice_combo*25
+                desenho.rectangle((110,y,280,y+12),fill='#0078d7')
             if not self.ocultar_lista_ocr:
                 for i, texto in enumerate(self.unidades[:4]):
                     palavras.append({'texto': texto, 'x': 110, 'y': 110 + i*25, 'w': 170, 'h': 12})
@@ -399,7 +403,10 @@ class TestNavegacaoTeclado(unittest.TestCase):
     def test_combo_tem_limite_antes_de_client_c_fora_do_limite(self):
         unidades = ['Servidor (C:\\)'] + [f'Volume {i}' for i in range(45)] + ['Client C (M:\\)']
         arvore = ArvoreSintetica(drive=unidades[0], unidades=unidades, ocultar_lista_ocr=True)
-        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+        # OCR está simulado neste TreeView; não acionar Tesseract para os
+        # nomes fictícios Volume, usados somente para testar o limite.
+        with patch.object(seletor,'_refinar_unidade',side_effect=lambda img,ps,combo:ps), \
+             self.assertRaises(seletor.SeletorPastaNaoConfirmado):
             self.executar(arvore)
         self.assertEqual(arvore.cliques_ok, [])
         self.assertEqual(arvore.inicio_arvore_drives, [])

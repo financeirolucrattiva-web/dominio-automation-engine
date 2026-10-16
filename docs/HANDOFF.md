@@ -1,5 +1,38 @@
 # Domínio Automation Engine — handoff
 
+## Troca de unidade: eventos remotos confirmados separadamente — 16/10/2026
+
+Novo log: gerar_previa confirmado em40s; exportar_pdf falha na espera da
+unidade. Operador confirmou Servidor C. Tail atual às15:39:28 contém só
+unidade_estavel=False, sem unidade_client_c/passo0. Isso situa a recusa
+na primeira espera depois de Home/Tab, antes de Down; não comprova qual
+evento ou leitura falhou no Windows. Registros15:17 são da rodada antiga.
+
+Defeitos reproduzidos: clique/Home/Down/Tab não aguardavam eventos remotos;
+espera dependia de pixels idênticos da árvore; popup aberto podia parecer
+unidade aplicada. Agora mede a borda da lista aberta, aguarda realce/mudança
+antes de Tab, confirma fechamento e legenda em duas capturas. Home exige
+realce no topo visível; somente Client C com a letra configurada libera
+a árvore. Mudança do realce exige também mudança do campo após fechar.
+Não repete Down por atraso, não cola caminho, não usa Enter, preserva
+limite de opções e cancelamento. OCR não precisa ler as opções da lista.
+Assinatura local dos glifos detecta outra opção mesmo quando a rolagem
+mantém o retângulo azul na mesma linha; assinatura não é registrada.
+
+Figura sintética com OCR real também perdeu Unidade/campo ao abrir popup.
+Releitura local confirma Unidade junto a borda atual em duas escalas;
+campo vazio pode recuperar Servidor/Client C/Client Z sem confundir tipos.
+Identidade semântica tolera barra OCR e tokenização, não troca letra/tipo.
+Cache por espera e medição reaproveitada ao fechar evitam repetir OCR no
+mesmo quadro. Logs distinguem clique_seta_unidade, abrir_unidade,
+opcao_unidade e fechar_unidade com geometria/flags, sem nomes de pastas.
+Diagnóstico readonly revisar_seletor_pasta reconhece também popup aberto.
+Validação: 163 testes de regressão distintos passaram, incluindo dez de
+latência/rolagem do combo. OCR real em figura sintética e diagnóstico CLI
+somente leitura também passaram; sintaxe e diff --check limpos. Suíte
+completa/API não foi repetida nesta alteração. Nenhuma emissão nem teste
+GUI aqui; correção ainda requer rodada manual no Windows.
+
 ## Medição da barra: recusa confirmada e classes corrigidas — 16/10/2026
 
 O operador confirmou ausência de clique; tail do diagnóstico mostrou
