@@ -2,6 +2,9 @@
 const painelLotes=(()=>{
   let cadastro={empresas:[],regimes:[]}, cadastroTexto="", sequencia=[], plano=null, loteAtual=null, detalhe=null, ocupado=false, pedidoLote=null;
   const selecionadas=new Set();
+  const trioPresumido=["resumo_acumulador","efd_contribuicoes","livros_fiscais"];
+  const tresPorEmpresa=p=>!!p && !p.quantidade_pendencias && p.empresas.length>0 &&
+    p.empresas.every(e=>e.rotinas.length===3 && trioPresumido.every(id=>e.rotinas.includes(id)));
   let planoPiloto=null, pedidoPiloto=null, versaoPiloto=0, consultaPiloto="";
   const nomeRotina=id=>(cadastro.rotinas || catalogo).find(r=>r.id===id)?.nome || "Rotina indisponível";
   const statusRotinas={integrada:"Integrada · revalidar no Windows",pendente_configuracao:"Pendente de configuração",rascunho:"Rascunho · revisar e testar",aguardando_validacao:"Enviada para validação · execução bloqueada"};
@@ -23,13 +26,15 @@ const painelLotes=(()=>{
   function invalidar() {plano=null; pedidoLote=null; $("lote-revisao").hidden=true; $("lote-apuracao").checked=false; controles();}
   function controles() {
     const online=!!chave && !!estadoServidor && navigator.onLine;
-    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar","cadastrar-rotina","empresa-ver-destino","empresa-testar-pasta"]) $(id).disabled=!online || ocupado;
+    for (const id of ["salvar-regime","salvar-empresa","regime-adicionar","lote-planejar","cadastrar-rotina","empresa-ver-destino","empresa-testar-pasta","piloto-ir-lote"]) $(id).disabled=!online || ocupado;
     for (const b of $("rotinas-cadastradas").querySelectorAll("button")) b.disabled=!online || ocupado || b.dataset.aguardando==="true";
     for (const select of $("lote-empresas").querySelectorAll("select")) select.disabled=!online || ocupado;
     $("lote-executar").disabled=!online || ocupado || !plano || !estadoServidor?.execucao_habilitada || estadoServidor?.ocupado;
     $("piloto-revisar").disabled=!online || ocupado;
     $("piloto-executar").disabled=!online || ocupado || !planoPiloto || !estadoServidor?.execucao_habilitada || estadoServidor?.ocupado ||
       (planoPiloto.quantidade_pendencias>0 && !$("piloto-parcial").checked);
+    $("piloto-executar").textContent=tresPorEmpresa(planoPiloto) ? "Executar as 3 rotinas nesta empresa" : "Executar sequência nesta empresa";
+    $("lote-executar").textContent=tresPorEmpresa(plano) ? "Executar as 3 rotinas por empresa" : "Executar lote no servidor";
     atualizarLimitePeriodo("piloto-competencia",estadoServidor?.periodo_anterior.inicio.slice(0,7) || "");
     $("lote-apuracao").disabled=!plano;
     const competencia=$("lote-tipo-periodo").value==="competencia";
@@ -156,6 +161,19 @@ const painelLotes=(()=>{
   for (const id of ["piloto-empresa","piloto-competencia"]) $(id).addEventListener("input",()=>{invalidarPiloto(); revisarPiloto();});
   $("piloto-parcial").addEventListener("change",controles);
   $("piloto-revisar").addEventListener("click",()=>{invalidarPiloto(); revisarPiloto();});
+  $("piloto-ir-lote").addEventListener("click",()=>{
+    if (ocupado || !chave || !estadoServidor) return;
+    const empresa=cadastro.empresas.find(e=>e.codigo===$("piloto-empresa").value);
+    const regime=empresa?.regime_id || cadastro.regimes.find(r=>r.nome.trim().toLowerCase()==="lucro presumido")?.id;
+    $("config-lotes").open=true;
+    if (regime) $("lote-filtro").value=regime;
+    selecionadas.clear(); if (empresa) selecionadas.add(empresa.codigo);
+    $("lote-tipo-periodo").value="competencia";
+    $("lote-competencia").value=$("piloto-competencia").value;
+    $("lote-piloto").checked=false; invalidar(); exibirEmpresas();
+    $("lote-aviso").textContent="Selecione as empresas e clique em Revisar sequência do lote. Nenhuma execução foi iniciada.";
+    $("config-lotes").scrollIntoView({behavior:"smooth",block:"start"});
+  });
   $("form-piloto").addEventListener("submit",async e=>{
     e.preventDefault(); if (!$("form-piloto").reportValidity()) return;
     const dados=selecaoPiloto();

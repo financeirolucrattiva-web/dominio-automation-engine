@@ -56,6 +56,7 @@ Paddle continua opcional; o motor mantém o Tesseract atual.
 | [Diagnosticar PDF.bat](ferramentas/Diagnosticar%20PDF.bat) | Diagnosticar PDF exportado |
 | [Testar Resumo por Acumulador.bat](ferramentas/Testar%20Resumo%20por%20Acumulador.bat) | Teste individual com código cadastrado, competência passada e as mesmas travas do painel; parar o servidor antes |
 | [Executar Presumido por Empresa.bat](ferramentas/Executar%20Presumido%20por%20Empresa.bat) | Resumo, EFD e três livros na mesma empresa, etapas/progresso no terminal e cancelamento seguro; parar o servidor antes |
+| [Executar Presumido em Lote.bat](ferramentas/Executar%20Presumido%20em%20Lote.bat) | Informe os códigos separados por vírgula; executa as três rotinas por empresa na mesma fila, após confirmar competência fechada em todas; parar o servidor antes |
 | [Listar Funcoes.bat](ferramentas/Listar%20Funcoes.bat) | Consultar o catálogo descritivo |
 | [Abrir Motor SPED.bat](ferramentas/Abrir%20Motor%20SPED.bat) | Abrir o menu de texto existente |
 

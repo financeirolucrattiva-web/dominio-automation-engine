@@ -231,16 +231,45 @@ class TestConjunto(unittest.TestCase):
         capturar.assert_not_called()
         dominio._fechar_leitores_pdf_uma_vez.assert_called_once()
 
-    def test_ok_nao_lido_por_ocr_e_calculado_a_partir_de_fechar(self):
-        def achar(imagem, alvo, escala=2):
-            return {'Fechar': (1158, 264)}.get(alvo)
-        with patch.object(livros.tela, 'achar_texto_ou_no_centro', side_effect=achar), \
+    def test_ok_delega_a_medicao_atual_sem_offset_nem_tecla(self):
+        imagem=Image.new('RGB',(400,300),'white')
+        with patch('app.botao_livros.achar_ok_livros',return_value=(340,83)) as reconhecer, \
                 contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(livros._achar_ok('frame'), (1158, 233))  # captura real: OK em ~(1158, 233)
-        with patch.object(livros.tela, 'achar_texto_ou_no_centro', return_value=None):
-            self.assertIsNone(livros._achar_ok('frame'))  # sem OK nem Fechar: não clica
-        with patch.object(livros.tela, 'achar_texto_ou_no_centro', return_value=(500, 400)):
-            self.assertEqual(livros._achar_ok('frame'), (500, 400))  # OK lido tem prioridade
+            self.assertEqual(livros._achar_ok(imagem),(340,83))
+        self.assertIs(reconhecer.call_args.args[0],imagem)
+        self.assertTrue(callable(reconhecer.call_args.kwargs['registrar']))
+
+    def test_sem_ok_foco_ou_apos_cancelamento_nao_clica_nem_espera_previa(self):
+        from app.controle_execucao import ControleExecucao, ExecucaoInterrompida, controlar_execucao
+        for caso in ('sem_ok', 'sem_foco', 'cancelado'):
+            with self.subTest(caso=caso), tempfile.TemporaryDirectory() as pasta, contextlib.ExitStack() as stack:
+                dominio=Mock(); interacao=Mock(); dominio.TITULOS_ERRO=()
+                dominio._esperar_item_menu.return_value=(12,30)
+                interacao.identificar_janela_dominio_atual.return_value={'hwnd':12}
+                interacao.janela_dominio_em_foco.return_value=caso!='sem_foco'
+                rotina=AcompanhamentoRotina('livros_fiscais',Path(pasta)/'logs')
+                for nome,valor in [('capturar_tela','frame'),('recortar_topo','frame'),
+                                   ('ler_empresa_selecionada',('Empresa Fictícia','52')),('achar_texto',(12,30))]:
+                    stack.enter_context(patch.object(livros.tela,nome,return_value=valor))
+                stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
+                stack.enter_context(patch.object(livros,'_preencher',return_value='frame'))
+                stack.enter_context(patch.object(livros.formulario_livros,'marcar_tres_livros'))
+                espera=stack.enter_context(patch.object(livros,'_aguardar'))
+                controle=ControleExecucao()
+                def reconhecer(imagem):
+                    if caso=='cancelado':controle.interromper('teste')
+                    return None if caso=='sem_ok' else (340,83)
+                stack.enter_context(patch.object(livros,'_achar_ok',side_effect=reconhecer))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                with controlar_execucao(controle):
+                    if caso=='cancelado':
+                        with self.assertRaises(ExecucaoInterrompida):
+                            livros._executar(dominio,interacao,rotina,[],pasta,INICIO,FIM,'',CNPJ)
+                    else:
+                        self.assertFalse(livros._executar(dominio,interacao,rotina,[],pasta,INICIO,FIM,'',CNPJ))
+                self.assertNotIn((340,83),[c.args for c in interacao.clicar.call_args_list])
+                interacao.pressionar_enter.assert_not_called()
+                espera.assert_not_called()
 
     def test_previa_dos_livros_tolera_ordem_e_pontuacao_do_ocr_mas_exige_identidade(self):
         # CNPJ lido ANTES do título, com vírgula: a conferência rígida recusa, a alternativa aceita.
@@ -274,6 +303,7 @@ class TestConjunto(unittest.TestCase):
             stack.enter_context(patch.object(livros,'_ler_periodo',return_value=formulario['periodo']))
             stack.enter_context(patch.object(livros,'_ler_selecao',return_value=formulario))
             stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
+            ok_lido=stack.enter_context(patch.object(livros,'_achar_ok',return_value=(340,83)))
             stack.enter_context(patch.object(livros,'_aguardar',return_value='frame'))
             stack.enter_context(patch.object(livros.formulario_livros,'marcar_tres_livros'))
             previa='EMPRESA FICTICIA 12.345,678/0001-95 '+INICIO+' a '+FIM+' REGISTRO DE ENTRADAS'
@@ -291,6 +321,9 @@ class TestConjunto(unittest.TestCase):
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             self.assertTrue(livros._executar(dominio,interacao,rotina,artefatos,root,INICIO,FIM,'',CNPJ))
             self.assertEqual({a['tipo'] for a in artefatos},set(TEXTOS))
+            ok_lido.assert_called_once_with('frame')
+            self.assertEqual([c.args for c in interacao.clicar.call_args_list].count((340,83)),1)
+            interacao.pressionar_enter.assert_not_called()
 
     def test_fluxo_completo_tres_artefatos_e_retorno_azul(self):
         # O fiscal é simulado; publicação/PDF/conteúdo e eventos são reais.
@@ -307,6 +340,7 @@ class TestConjunto(unittest.TestCase):
             stack.enter_context(patch.object(livros,'_ler_periodo',return_value=formulario['periodo']))
             stack.enter_context(patch.object(livros,'_ler_selecao',return_value=formulario))
             stack.enter_context(patch.object(livros,'_aguardar_formulario',return_value='frame'))
+            ok_lido=stack.enter_context(patch.object(livros,'_achar_ok',return_value=(340,83)))
             stack.enter_context(patch.object(livros,'_aguardar',return_value='frame'))
             stack.enter_context(patch.object(livros.formulario_livros,'marcar_tres_livros'))
             for nome,valor in [('capturar_tela','frame'),('recortar_topo','frame'),('ler_empresa_selecionada',('Empresa Fictícia','52')),
@@ -321,6 +355,9 @@ class TestConjunto(unittest.TestCase):
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             self.assertTrue(livros._executar(dominio,interacao,rotina,artefatos,root,INICIO,FIM,'',CNPJ))
             self.assertEqual({a['tipo'] for a in artefatos},set(TEXTOS))
+            ok_lido.assert_called_once_with('frame')
+            self.assertEqual([c.args for c in interacao.clicar.call_args_list].count((340,83)),1)
+            interacao.pressionar_enter.assert_not_called()
             self.assertEqual(tuple(rotina.confirmadas),rotina.ETAPAS)
             dominio.voltar_ao_inicio.assert_called_once_with({'hwnd':12})
 

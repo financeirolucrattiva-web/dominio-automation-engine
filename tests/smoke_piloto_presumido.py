@@ -163,18 +163,38 @@ with tempfile.TemporaryDirectory() as pasta:
             for tipo in ('registro_entradas','registro_saidas','livro_icms'):
                 with pagina.expect_download() as download:
                     pagina.locator('#arquivos-tarefa button').filter(has_text=tipo).click()
-                assert download.value.suggested_filename.startswith(tipo+'_empresa_ficticia_52_2024-05')
+                assert download.value.suggested_filename.startswith('52_empresa_ficticia_52_'+tipo+'_2024-05')
                 assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
             assert chamadas[-3:]==[('52','resumo_acumulador'),('52','efd_contribuicoes'),('52','livros_fiscais')]
+            # Acesso direto prepara a mesma sequência para várias empresas sem emitir.
+            antes=len(chamadas)
+            expect(pagina.locator('#piloto-executar')).to_have_text('Executar as 3 rotinas nesta empresa')
+            pagina.locator('#piloto-ir-lote').click()
+            expect(pagina.locator('#config-lotes')).to_have_attribute('open','')
+            expect(pagina.locator('#lote-filtro')).to_have_value(presumido['id'])
+            expect(pagina.locator('#lote-competencia')).to_have_value('2024-05')
+            expect(pagina.locator('#lote-piloto')).not_to_be_checked()
+            assert len(chamadas)==antes
+            pagina.locator('#lote-empresas input[data-codigo="53"]').check()
+            pagina.locator('#lote-competencia').fill('2024-06')
+            pagina.locator('#lote-planejar').click()
+            expect(pagina.locator('#lote-plano-resumo')).to_contain_text('2 empresa(s) · 6 rotina(s)')
+            expect(pagina.locator('#lote-executar')).to_have_text('Executar as 3 rotinas por empresa')
+            pagina.locator('#lote-apuracao').check();pagina.locator('#lote-executar').click()
+            expect(pagina.locator('#lote-resultado')).to_contain_text('6/6 rotinas concluídas',timeout=10000)
+            expect(pagina.locator('#lote-tarefas tr')).to_have_count(6)
+            assert chamadas[antes:]==[(codigo,rotina) for codigo in ('52','53')
+                for rotina in ('resumo_acumulador','efd_contribuicoes','livros_fiscais')]
             for largura in (1440,768,390):
                 pagina.set_viewport_size({'width':largura,'height':900})
-                assert pagina.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')
+                assert pagina.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'), (largura,
+                    pagina.evaluate("({doc:document.documentElement.scrollWidth,blocos:Array.from(document.querySelectorAll('main,header,.colunas,.bloco,.tabela-scroll')).filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,classe:e.className,largura:Math.round(e.getBoundingClientRect().width)}))})"))
             contexto.set_offline(True)
             expect(pagina.locator('#piloto-executar')).to_be_disabled(); expect(pagina.locator('#conferir-livros')).to_be_disabled()
             contexto.set_offline(False); pagina.locator('#sair').click()
             expect(pagina.locator('#livros-medidas')).to_have_text(''); expect(pagina.locator('#piloto-rotinas')).to_have_count(1)
             assert pagina.locator('#piloto-rotinas').inner_text()=='' and not erros,erros
             browser.close()
-        print('OK: diagnóstico sem emissão, falha sem resultado antigo, Presumido individual em um envio, idempotência, pendências explícitas, lote por empresa, digitação, três larguras e logout; fiscal simulado.')
+        print('OK: diagnóstico sem emissão, falha sem resultado antigo, Presumido individual, lote completo 2 empresas/6 rotinas em um envio, idempotência, pendências, digitação, três larguras e logout; fiscal simulado.')
     finally:
         server.should_exit=True; thread.join(10)

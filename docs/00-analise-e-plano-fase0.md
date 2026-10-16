@@ -5112,6 +5112,40 @@ atual/ausente, outro aviso, foco perdido, cancelamento e painel azul. Não
 validado contra o Domínio real nesta sessão; aguardar teste manual.
 Suíte integrada desta correção: 749 testes passaram; sintaxe e diff --check limpos.
 
+### 0.127 Livros: gerar_previa retorna antes de clicar OK; lote completo (16/10/2026)
+
+**Evidência:** operador relatou que a nova tentativa nem abriu o PDF e
+informou gerar_previa como etapa falha. Log completo confirma três caixas
+e datas 01/08/2026–31/08/2026; em seguida gerar_previa inicio e retorno_falha
+em 18–19 s, sem LIVROS_OK calculado e sem espera inicial0.3 s. O fluxo só
+pode ter devolvido None na busca do botão: não há evidência de clique nem
+de prévia aberta. O seletor de pasta é posterior e não foi executado.
+
+**Correção:** substitui OK global/Fechar2x+offset31 por botao_livros,
+percepção sem ações. Título e dois campos medidos delimitam coluna física;
+borda atual e leituras PSM7 concordantes confirmam os botões. Modal,
+geometria conflitante, mais de um OK ou OK fora da coluna bloqueiam.
+Um único clique exige foco principal; Enter não é usado. Diagnóstico
+LIVROS_OK separa busca/clique/espera para não confundir falta de clique
+com falha de reconhecimento da prévia. Validação de CNPJ/período dos
+relatórios não mudou. revisar_ok_livros.py é somente leitura local.
+
+**Pedido de lote:** CLI aceita uma ou várias empresas, verifica três
+rotinas para cada uma, apuração fechada de todas e preserva a fila comum,
+ordem cadastrada, F8/conferência de código, idempotência e recuperação.
+Atalho de lote e acesso direto no painel deixam a revisão visível antes
+do envio; preparar lote não inicia nenhuma tarefa. Regimes personalizados
+e histórico não são alterados automaticamente.
+
+**Validação:** regressão de ausência de OK/Fechar no OCR global, recortes
+reais via Tesseract em formulário sintético com espaçamento diferente31,
+clique único/foco/cancelamento. Testes de CLI e Chromium com duas empresas
+e três rotinas por empresa, arquivos e fiscal sintéticos. Novo código não
+foi executado contra o Domínio do escritório; falta a rodada manual.
+762 testes passaram; smoke Chromium passou com lote completo de duas
+empresas/seis tarefas, downloads e três larguras. Corrigido min-width dos
+cards para não alargar a tela pequena. Sintaxe e diff --check limpos.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF

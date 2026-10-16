@@ -35,6 +35,15 @@ O histórico anterior permanece como registrado.
 
 ## Executar as três rotinas pelo CMD
 
+Atualização de 16/10: o log dos Livros confirmou datas/seleção, mas a busca
+do OK retornou sem clicar. Novo leitor mede os botões e relê seus recortes;
+LIVROS_OK informa separadamente busca, clique e espera da prévia. Se falhar
+antes da prévia, sem repetir emissão execute:
+
+```bat
+python scripts\revisar_ok_livros.py --ultima-falha
+```
+
 Fechar o servidor e os diagnósticos anteriores. Manter Domínio aberto no
 painel azul, com referência calibrada. No CMD:
 
@@ -50,6 +59,25 @@ do fechamento de agosto nessa empresa. Após responder, voltar ao Domínio
 nos cinco segundos seguintes e deixar mouse/teclado livres. O mesmo fluxo
 está em **atalhos → ferramentas → Executar Presumido por Empresa.bat**;
 o atalho também pede a competência e prefere o Python da .venv existente.
+
+Para várias empresas, use **Executar Presumido em Lote.bat** e informe os
+códigos separados por vírgula. Ou, com servidor parado, substitua os códigos
+do exemplo por empresas cadastradas no Presumido:
+
+```bat
+python -u scripts\explorar_presumido.py --empresas 1,2 --competencia 2026-08
+```
+
+Confirme no prompt que essa competência está fechada em **todas** as empresas
+listadas; o teste anterior de uma empresa não confirma as outras. O plano
+mostra três rotinas por empresa, respeitando sua ordem cadastrada. Sem as
+três integradas em qualquer empresa, o modo completo não cria tarefas.
+
+Com servidor ligado, use **Preparar lote para várias empresas** no painel:
+o botão abre a seleção/revisão e copia empresa/mês atuais, sem emitir.
+Marque as demais empresas, revise e confirme a apuração antes de
+**Executar as 3 rotinas por empresa**. Cada empresa termina suas três rotinas
+antes de passar à próxima; recuperação e arquivos ficam no histórico.
 
 Este comando executa o worker fiscal. Os comandos revisar_periodo_resumo
 e revisar_formulario_livros somente leem uma captura ou formulário.

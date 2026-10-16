@@ -1,5 +1,36 @@
 # Domínio Automation Engine — handoff
 
+## Livros parou antes do OK; lote das três rotinas — 16/10/2026
+
+Novo log real: seleção dos três livros e período confirmados, depois
+gerar_previa → retorno_falha em 18–19 s, sem LIVROS_OK e sem a mensagem
+da espera de estado. Localiza retorno None da busca do OK antes de enviar
+clique. A alteração anterior do seletor só entra depois do PDF; não
+atribuir esta falha à navegação de pasta nem dizer que a prévia foi aberta.
+
+A busca anterior só lia OK na tela/centro 4x e Fechar 2x; se não lia ambos,
+desistia. Novo botao_livros mede campos/coluna/bordas atuais, confirma
+título, ausência de modal e OK/Fechar por recortes concordantes. Não usa
+offset fixo31 nem Enter. Clique único com foco estrito; LIVROS_OK distingue
+busca, botão confirmado, clique enviado e entrada/saída da espera da prévia.
+`python scripts\revisar_ok_livros.py --ultima-falha` analisa o PNG local
+sem gerar novamente, clicar ou enviar dados.
+
+Lote: script explorar_presumido aceita --empresas com códigos separados
+por vírgula ou a lista no prompt. Exige as três rotinas integradas em cada
+empresa no modo completo, competência fechada em todas, um único worker,
+mesmo hash/idempotência, retorno azul entre tarefas e cancelamento seguro.
+Novo atalho Executar Presumido em Lote. No painel, Preparar lote para
+várias empresas transfere empresa/mês e abre a revisão, sem iniciar
+emissão. Botões mostram “as 3 rotinas” somente quando o plano realmente
+contém Resumo/EFD/Livros para cada empresa. Ordem cadastrada preservada.
+
+762 testes passaram, incluindo OCR em recortes sintéticos, um clique/sem
+Enter e foco/cancelamento. Chromium também confirmou lote completo de duas
+empresas/seis tarefas, downloads, idempotência e telas de 1440/768/390 px.
+O CLI percorreu as mesmas seis tarefas com PDFs sintéticos. Valores fiscais/execução Windows ainda dependem da
+rodada manual. Animação de acompanhamento continua planejada para depois.
+
 ## Seletor dos Livros por setas e fechamento literal da EFD — 16/10/2026
 
 Log real: Resumo terminou em 100 s, com PDF conferido e retorno azul em

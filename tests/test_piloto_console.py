@@ -164,6 +164,49 @@ class TestPilotoConsole(unittest.TestCase):
         self.assertIn('-u scripts\\explorar_presumido.py',bat)
         self.assertNotIn('--apuracao-confirmada',bat)
 
+    def test_cli_lote_completo_duas_empresas_na_mesma_fila_sem_duplicar(self):
+        from test_arquivos import criar_pdf
+        self.repo.configuracao.salvar_empresa('53','Empresa Sintética 53',self.regime['id'])
+        chamadas=[]
+        def executar(pedido,receber):
+            chamadas.append((pedido['empresa_codigo'],pedido['capacidade']))
+            eventos_confirmados(pedido,receber)
+            if pedido['capacidade']!='livros_fiscais':return True
+            pasta=self.raiz/'saida';pasta.mkdir(exist_ok=True)
+            artefatos=[]
+            for tipo,titulo in (('registro_entradas','REGISTRO DE ENTRADAS'),
+                                ('registro_saidas','REGISTRO DE SAIDAS'),
+                                ('registro_icms','REGISTRO DE APURACAO DO ICMS')):
+                caminho=pasta/(pedido['request_id']+'_'+tipo+'.pdf')
+                criar_pdf(caminho,titulo+' CNPJ: 12.345.678/0001-95 Periodo 01/02/2024 a 29/02/2024')
+                artefatos.append({'tipo':tipo,'caminho':str(caminho)})
+            return True,artefatos
+        executar.executar_em_lote=executar
+        with patch.object(explorar_presumido,'ROOT',self.raiz), \
+             patch.object(explorar_presumido.sys,'platform','win32'), \
+             patch.object(explorar_presumido.time,'sleep'), \
+             patch('app.executor_servidor.ExecutorDominio',return_value=executar), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(explorar_presumido.main(['--empresas','52,53','--competencia','2024-02','--apuracao-confirmada']),0)
+        self.assertEqual(chamadas,[(codigo,rotina) for codigo in ('52','53') for rotina in self.regime['rotinas']])
+        lotes=self.repo.listar_lotes();self.assertEqual(len(lotes),1)
+        final=self.repo.obter_lote(lotes[0]['id'])
+        self.assertEqual(final['status'],'concluida')
+        self.assertEqual(len(final['tarefas']),6)
+        self.assertTrue(all(t['status']=='concluida' for t in final['tarefas']))
+        self.assertEqual(sum(len(t['artefatos']) for t in final['tarefas']),6)
+
+    def test_cli_lote_recusa_codigos_duplicados_ou_incompletos_antes_de_emitir(self):
+        self.repo.configuracao.salvar_empresa('53','Empresa Sintética 53',self.regime['id'])
+        with patch.object(explorar_presumido,'ROOT',self.raiz), \
+             patch.object(explorar_presumido.sys,'platform','win32'), \
+             patch('app.executor_servidor.ExecutorDominio') as executor, \
+             contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            for codigos in ('52,52','052,52','52,','52,99','52,desconhecida'):
+                with self.subTest(codigos=codigos),self.assertRaises(SystemExit):
+                    explorar_presumido.main(['--empresas',codigos,'--competencia','2024-02','--apuracao-confirmada'])
+        executor.assert_not_called();self.assertEqual(self.repo.listar_lotes(),[])
+
     def test_resumo_isolado_usa_monitor_sem_iniciar_efd_ou_livros(self):
         s=explorar_resumo_acumulador;servico=MagicMock()
         servico.solicitar.return_value={'id':'resumo_teste'}
