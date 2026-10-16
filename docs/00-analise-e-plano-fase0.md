@@ -4965,6 +4965,8 @@ Não validado ao vivo: título real da janela do Acrobat e o tempo até ela abri
 e início de exportar_pdf. A falha é “Unidade Client C não encontrada na
 lista”, antes de qualquer segmento da árvore. Não há evidência de falha
 no OK nem no nome da pasta: a unidade ainda não foi selecionada.
+Operador confirmou Servidor C com lista fechada; novo print aponta a seta
+à direita do combo para abrir a seleção antes de percorrer as pastas.
 
 **Causa:** a seleção da unidade ainda clicava no meio do combo e tentava
 achar Client C somente no OCR global da lista aberta, por cinco capturas.

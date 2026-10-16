@@ -6,6 +6,8 @@ Log real novo confirma LIVROS_OK, clique único e gerar_previa confirmado;
 depois exportar_pdf falha com “Unidade Client C não encontrada na lista”,
 sem percorrer segmentos. A causa está na escolha da unidade: ainda lia
 somente o OCR global da lista aberta. Não alterar de novo o OK da prévia.
+Operador confirmou que a lista nem abriu: permaneceu Servidor C, fechada;
+print confirma a seta na extremidade direita do combo como alvo correto.
 
 O combo medido recebe Home/Down e Tab para aplicar/fechar. Só navega na
 árvore depois de conferir Client C e a letra configurada no campo atual.
