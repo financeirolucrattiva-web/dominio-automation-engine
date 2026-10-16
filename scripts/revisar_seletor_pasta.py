@@ -29,6 +29,8 @@ def main(argv=None):
         no=seletor._no_selecionado(imagem,detalhes)
         resultado={'dialogo_confirmado':True,'combo':list(detalhes['combo']),
                    'arvore':list(detalhes['arvore']),'linhas_visiveis':len(seletor._nos(detalhes)),
+                   'client_c_letras_confirmadas':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                       if seletor._drive_selecionado(detalhes,letra)],
                    'selecao_confirmada':no is not None,
                    'ok_confirmado':seletor._ok_final(imagem,detalhes) is not None}
         print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))

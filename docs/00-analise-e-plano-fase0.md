@@ -4959,6 +4959,34 @@ principal) segue com as conferências de sempre.
 outros programas ficam; nenhuma tecla; espera/ausência de janela; ordem fechar→foco).
 Não validado ao vivo: título real da janela do Acrobat e o tempo até ela abrir.
 
+### 0.128 Livros chegou ao PDF, mas não escolheu Client C (16/10/2026)
+
+**Evidência:** novo log confirma OK literal, clique em OK, prévia reconhecida
+e início de exportar_pdf. A falha é “Unidade Client C não encontrada na
+lista”, antes de qualquer segmento da árvore. Não há evidência de falha
+no OK nem no nome da pasta: a unidade ainda não foi selecionada.
+Operador confirmou Servidor C com lista fechada; novo print aponta a seta
+à direita do combo para abrir a seleção antes de percorrer as pastas.
+
+**Causa:** a seleção da unidade ainda clicava no meio do combo e tentava
+achar Client C somente no OCR global da lista aberta, por cinco capturas.
+Mesmo com a navegação da árvore por setas, esse estágio não usava teclado.
+
+**Correção:** seta do combo medida na captura; Home/Down e Tab aplicam a
+seleção sem acionar OK. Relê o campo fechado e só permite árvore quando
+Client C e letra configurada são confirmados. Mudança/estabilidade impedem
+repetir Down durante atraso, com limite de 40 opções. Recorte normaliza
+azul e amplia 4/6, exigindo duas opiniões concordantes; não presume M.
+Cancelamento é conferido entre ações. Diagnóstico local exibe somente
+geometria/flags/letras, sem nomes de pastas nem envio de captura.
+
+**Validação:** testes de teclado com lista ilegível, Client Z, letra
+alternativa, ausência de unidade, limite, atraso e cancelamento; OCR real
+em imagens sintéticas com seleção azul e texto omitido da leitura global.
+Ainda não validado contra o Domínio real. As etapas de marcar livros,
+preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
+Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF

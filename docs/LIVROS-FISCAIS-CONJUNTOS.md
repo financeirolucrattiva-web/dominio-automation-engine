@@ -32,6 +32,13 @@ na unidade Client C configurada até pasta nova exclusiva em saida/.
 Nome da folha, seleção e arquivos locais novos precisam ser confirmados.
 Ambiguidade impede confirmação, sem inventar coordenada ou colar caminho.
 
+A unidade é selecionada por Home/Down no combo medido, com Tab para
+aplicar e fechar a lista. Cada mudança exige nova captura estável; não
+repete Down durante atraso. Só começa a árvore ao ler Client C com a letra
+configurada no campo fechado. Servidor C e Client Z não são aceitos.
+PASTA_NAVEGACAO registra unidade_client_c antes das fases dos segmentos.
+Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
+
 Na correção de 16/10, a árvore é percorrida com Home/Down/Right/Left e
 releitura da seleção azul/nível; Down faz a rolagem quando a próxima pasta
 está fora da área visível. Em Client C segue Users → perfil local →

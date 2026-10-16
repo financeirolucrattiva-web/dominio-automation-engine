@@ -8,7 +8,7 @@ import re
 import time
 import unicodedata
 import json
-from app.controle_execucao import ponto_seguro
+from app.controle_execucao import ExecucaoInterrompida, ponto_seguro
 
 
 class SeletorPastaNaoConfirmado(ValueError):
@@ -106,24 +106,30 @@ def _drive(palavras, letra):
 
 
 def _refinar_unidade(imagem,palavras,combo):
-    """Só relê o combo se Client C saiu sem letra de unidade reconhecível."""
+    """Relê o campo medido quando a tela inteira omite a unidade ou sua letra."""
     x,y,w,h=combo
     dentro=[p for p in palavras if x<p['x']<x+w and y<p['y']<y+h]
-    if 'client' not in _normalizar(' '.join(p['texto'] for p in dentro)):return palavras
+    texto=_normalizar(' '.join(p['texto'] for p in dentro))
+    if re.search(r'\bservidor\b|\bclient\s+[a-bd-z]\b',texto):return palavras
     letras='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     if any(_drive(dentro,l) is not None for l in letras):return palavras
     from app import tela
+    from app.leitura_resumo import normalizar_selecao
     area=(x+2,y+2,x+w-h,y+h-2)  # interior, excluindo borda e botão da seta
     leituras=[]
-    for preparo in ('cinza','binaria'):
+    recorte=normalizar_selecao(imagem.crop(area))
+    for escala,preparo in ((4,'cinza'),(4,'binaria'),(6,'cinza'),(6,'binaria')):
         ponto_seguro()
-        dados=tela.ler_dados_ocr_linha_rotulo(imagem.crop(area),escala=4,preparo=preparo)
-        ps=[{'texto':t,'x':area[0]+dados['left'][i]/4,'y':area[1]+dados['top'][i]/4,
-             'w':dados['width'][i]/4,'h':dados['height'][i]/4}
-            for i,t in enumerate(dados['text']) if str(t).strip()]
-        unidades=[l for l in letras if _drive(ps,l) is not None]
+        try:
+            dados=tela.ler_dados_ocr_linha_rotulo(recorte,escala=escala,preparo=preparo)
+            ps=[{'texto':t,'x':area[0]+dados['left'][i]/escala,'y':area[1]+dados['top'][i]/escala,
+                 'w':dados['width'][i]/escala,'h':dados['height'][i]/escala}
+                for i,t in enumerate(dados['text']) if str(t).strip()]
+            unidades=[l for l in letras if _drive(ps,l) is not None]
+        except ExecucaoInterrompida:raise
+        except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
         if len(unidades)==1:leituras.append((unidades[0],ps))
-    if len(leituras)==2 and leituras[0][0]==leituras[1][0]:
+    if len(leituras)>=2 and len({letra for letra,_ in leituras})==1:
         return [p for p in palavras if p not in dentro]+leituras[0][1]
     return palavras
 
@@ -166,6 +172,62 @@ def _drive_selecionado(detalhes, letra):
     x,y,w,h = detalhes['combo']
     palavras = [p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
     return _drive(palavras, letra) is not None
+
+
+def _assinatura_unidade(imagem, detalhes):
+    x,y,w,h=detalhes['combo']
+    # OCR pode tokenizar o mesmo rótulo de outra forma sem mudança visual.
+    return ((x,y,w,h), imagem.crop((x,y,x+w,y+h)).tobytes())
+
+
+def _aguardar_unidade(capturar, diferente=None):
+    """Espera o combo fechado estabilizar; atraso nunca repete Down."""
+    anterior=None
+    for tentativa in range(8):
+        ponto_seguro()
+        imagem=capturar()
+        try:
+            detalhes=medir_dialogo(imagem)
+            assinatura=_assinatura_unidade(imagem,detalhes)
+            x,y,w,h=detalhes['arvore']
+            estado=(assinatura,imagem.crop((x,y,x+w,y+h)).tobytes())
+            if assinatura!=diferente:
+                if estado==anterior:return imagem,detalhes
+                anterior=estado
+            else:anterior=None
+        except ValueError:
+            anterior=None
+        if tentativa<7:time.sleep(.3)
+    print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_estavel','confirmado':False}),flush=True)
+    raise SeletorPastaNaoConfirmado('A seleção da unidade não mudou ou não estabilizou; não foi enviado OK.')
+
+
+def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
+    """Home/Down escolhem a unidade; Tab aplica sem acionar o OK do diálogo.
+
+    Não depende de OCR das opções da lista aberta. A identidade Client C e
+    a letra configurada são conferidas no campo atual antes de usar a árvore.
+    """
+    if _drive_selecionado(detalhes,letra):return imagem,detalhes
+    visitadas=set()
+    for passo in range(40):
+        ponto_seguro()
+        assinatura=_assinatura_unidade(imagem,detalhes)
+        x,y,w,h=detalhes['combo']
+        clicar(x+w-h//2,y+h//2)  # seta dentro da borda medida do combo
+        ponto_seguro()
+        tecla('home' if passo==0 else 'down')
+        ponto_seguro()
+        tecla('tab')  # fecha/aplica a lista, sem Enter nem OK implícito
+        imagem,detalhes=_aguardar_unidade(capturar,None if passo==0 else assinatura)
+        confirmado=_drive_selecionado(detalhes,letra)
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_client_c',
+              'passo':passo,'confirmado':confirmado}),flush=True)
+        if confirmado:return imagem,detalhes
+        atual=_assinatura_unidade(imagem,detalhes)
+        if atual in visitadas:break
+        visitadas.add(atual)
+    raise SeletorPastaNaoConfirmado('Unidade Client C configurada não confirmada; não foi enviado OK.')
 
 
 def _nos(detalhes):
@@ -341,24 +403,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
             or '..' in caminho.parts or not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name)):
         raise SeletorPastaNaoConfirmado('Destino precisa ser uma pasta exclusiva de livros.')
     imagem, detalhes = _aguardar_dialogo(capturar,fase='abrir_seletor')
-    x,y,w,h=detalhes['combo']
-    combo_palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
-    if _drive(combo_palavras,caminho.drive[0]) is None:
-        clicar(x+w//2,y+h//2)
-        alvo=None
-        for _ in range(5):
-            ponto_seguro()
-            imagem=capturar()
-            try:
-                alvo=_drive(_palavras(imagem),caminho.drive[0])
-            except ValueError:
-                alvo=None
-            if alvo is not None:break
-            time.sleep(.3)
-        if alvo is None:raise SeletorPastaNaoConfirmado('Unidade Client C não encontrada na lista.')
-        clicar(*alvo)
-        imagem, detalhes = _aguardar_dialogo(capturar,
-            lambda img, d:_drive_selecionado(d, caminho.drive[0]),fase='unidade_client_c')
+    imagem,detalhes=_selecionar_unidade(capturar,clicar,tecla,caminho.drive[0],imagem,detalhes)
     partes=caminho.parts[1:]
     nos=_nos(detalhes)
     if not nos:raise SeletorPastaNaoConfirmado('Nenhum item da árvore reconhecido; não foi enviado OK.')

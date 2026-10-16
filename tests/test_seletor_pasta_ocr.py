@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 from PIL import Image, ImageDraw, ImageFont
 from app import seletor_pasta as seletor
+from app.controle_execucao import ExecucaoInterrompida
 
 
 def fonte_teste():
@@ -33,6 +34,50 @@ def dialogo():
 
 
 class TestSeletorOCR(unittest.TestCase):
+    def test_cliente_parcial_no_ocr_global_e_timeout_isolado_permitem_recorte(self):
+        from app import tela
+        imagem=dialogo()
+        palavras=[p for p in seletor._palavras(imagem) if not 60<p['y']<86 or p['x']<105]
+        palavras.append({'texto':'Clent','x':112,'y':65,'w':35,'h':12})
+        ler=tela.ler_dados_ocr_linha_rotulo
+        chamadas=[]
+        def com_primeiro_timeout(*args,**kwargs):
+            chamadas.append(kwargs)
+            if len(chamadas)==1:raise RuntimeError('timeout sintético')
+            return ler(*args,**kwargs)
+        with patch.object(seletor,'_palavras',return_value=palavras), \
+             patch.object(tela,'ler_dados_ocr_linha_rotulo',side_effect=com_primeiro_timeout):
+            detalhes=seletor.medir_dialogo(imagem)
+        self.assertTrue(seletor._drive_selecionado(detalhes,'M'))
+        self.assertEqual(len(chamadas),4)
+
+    def test_cancelamento_no_recorte_nao_e_tratado_como_timeout(self):
+        from app import tela
+        with patch.object(tela,'ler_dados_ocr_linha_rotulo',side_effect=ExecucaoInterrompida('teste')):
+            with self.assertRaises(ExecucaoInterrompida):
+                seletor._refinar_unidade(dialogo(),[],(105,60,456,27))
+
+    def test_combo_azul_omitido_na_tela_inteira_e_relido_em_recorte(self):
+        imagem=dialogo()
+        desenho=ImageDraw.Draw(imagem)
+        desenho.rectangle((110,63,225,83),fill='#0078d7')
+        desenho.text((112,65),'Client C (M:)',font=fonte_teste(),fill='white')
+        palavras=[p for p in seletor._palavras(imagem) if not 60<p['y']<86 or p['x']<105]
+        with patch.object(seletor,'_palavras',return_value=palavras):
+            detalhes=seletor.medir_dialogo(imagem)
+        self.assertTrue(seletor._drive_selecionado(detalhes,'M'))
+        self.assertFalse(seletor._drive_selecionado(detalhes,'C'))
+
+    def test_recorte_da_unidade_nao_converte_client_z_em_client_c(self):
+        imagem=dialogo()
+        desenho=ImageDraw.Draw(imagem)
+        desenho.rectangle((107,62,530,84),fill='white')
+        desenho.text((112,65),'Client Z (M:)',font=fonte_teste(),fill='black')
+        palavras=[p for p in seletor._palavras(imagem) if not 60<p['y']<86 or p['x']<105]
+        with patch.object(seletor,'_palavras',return_value=palavras):
+            detalhes=seletor.medir_dialogo(imagem)
+        self.assertFalse(seletor._drive_selecionado(detalhes,'M'))
+
     def test_ocr_real_mede_controles_e_le_nome_na_selecao_azul(self):
         imagem=dialogo()
         detalhes=seletor.medir_dialogo(imagem)

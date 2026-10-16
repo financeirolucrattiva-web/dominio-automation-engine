@@ -161,6 +161,8 @@ O teste de pasta não homologa emissão fiscal. A conjunta exporta por
 os três PDFs conferidos no destino da empresa. Ainda precisa de teste
 Windows e homologação do livro ICMS; veja
 [LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
+No seletor, a unidade Client C é escolhida pelo teclado e conferida no
+campo atual; a rotina não depende de ler as opções da lista aberta.
 O Resumo segue **Relatórios → Acompanhamentos → Resumo por Acumulador**,
 preenche as duas datas e exporta o PDF para `saida/`, como nos prints.
 O procedimento de teste está em
