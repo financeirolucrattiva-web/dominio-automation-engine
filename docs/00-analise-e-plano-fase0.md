@@ -5059,6 +5059,59 @@ Nenhuma emissão ou interação com o desktop real foi iniciada. Efeito de
 Alt+F4/X no Adobe remoto ainda não validado ao vivo. Reiniciar servidor após
 atualizar; pull não recarrega código de processo aberto.
 
+### 0.125 Procurar Pasta: seleção por setas e rolagem da árvore (16/10/2026)
+
+**Evidência real:** Livros preencheram agosto/2026 e confirmaram a prévia,
+falhando em exportar_pdf com SeletorPastaNaoConfirmado. Capturas mostram
+Servidor C e depois Client C M com Users/perfil abertos e o projeto fora
+da área visível. Operador confirmou que pode usar setas, que é preciso
+selecionar a pasta e que digitar o caminho não funciona. Destino: projeto,
+saida, folha exclusiva desta emissão. Resumo concluiu em 100 s, incluindo
+PDF validado e retorno azul, conforme log e confirmação do operador.
+
+**Causa demonstrável no código:** seletor anterior só usava Right e esperava
+que o filho já estivesse visível; não tinha Down/rolagem. Escolher o ancestral
+visível mais profundo também podia aceitar homônimo de outro ramo. OK literal
+global obrigatório impedia qualquer navegação se OCR omitisse o botão.
+O log antigo não permite atribuir sua falha inicial a um rótulo específico.
+
+**Correção:** Home após foco medido na árvore; percurso desde a raiz,
+Down entre irmãos, Right para entrar e Left para sair/recolher ramos
+abertos. Seleção azul e indentação comprovam cada segmento na ordem.
+Capturas estáveis após expansão/recolhimento evitam pular o primeiro filho
+ao receber captura anterior. Pastas fora da tela entram em vista pelo
+teclado, sem digitar caminho ou supor coordenada. Somente a folha exclusiva
+LIVROS de 12 dígitos e o botão OK literal na captura final autorizam confirmar.
+Seleção azul/OK omitidos no OCR global recebem leitura em recorte medido.
+Limites, cancelamento, unidade e nível são conferidos. Diagnóstico fechado
+PASTA_NAVEGACAO e script readonly revisar_seletor_pasta.py; dados ficam locais.
+
+**Validação:** TreeView sintético com viewport de quatro linhas, rolagem
+por teclado, perfil aberto, ramos expandidos, homônimos, captura antiga,
+folha ausente, limites e cancelamento; OCR real em diálogo sintético,
+OK ausente e texto extra recusados. Sem interação no Domínio real.
+
+### 0.126 EFD: sucesso observado, OK único e Fechar atual (16/10/2026)
+
+**Evidência:** log confirmou gerar_documento/aviso_resultado_reconhecido,
+mas encerrar terminou com retorno_falha. Print mostra Aviso com “Arquivo
+gerado com sucesso.” sobre o formulário EFD Contribuições, OK no aviso e
+Fechar na coluna direita. Operador pediu dispensar o aviso e fechar para
+continuar, sem repetir a geração já feita.
+
+**Correção:** aviso positivo vinculado pode ter outro HWND remoto; guardas
+do Enter e espera da saída aceitam esse diálogo. O formulário exige foco
+principal estrito. Fechar é relido no recorte atual do título EFD, sem usar
+posição guardada antes da geração nem tratar título ausente como fechamento.
+Um clique, seguido da conferência do painel azul. Geração sinalizada fica
+registrada antes do encerramento; resultado não confirmado continua distinto
+de geração falha. Cancelamento não aciona limpeza nem nova geração.
+
+**Validação:** testes simulados de Enter único, aviso persistente, botão
+atual/ausente, outro aviso, foco perdido, cancelamento e painel azul. Não
+validado contra o Domínio real nesta sessão; aguardar teste manual.
+Suíte integrada desta correção: 749 testes passaram; sintaxe e diff --check limpos.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF

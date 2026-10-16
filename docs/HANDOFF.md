@@ -1,5 +1,41 @@
 # Domínio Automation Engine — handoff
 
+## Seletor dos Livros por setas e fechamento literal da EFD — 16/10/2026
+
+Log real: Resumo terminou em 100 s, com PDF conferido e retorno azul em
+6 s; operador confirmou fechamento correto do Adobe. Livros confirmaram
+datas e prévia, mas falharam em exportar_pdf/SeletorPastaNaoConfirmado.
+Prints mostram Servidor C e Client C M, Users/perfil expandidos com o
+projeto abaixo da área visível. Operador confirmou setas, seleção real
+da pasta (não digitar caminho) e destino dentro do projeto em saida/.
+
+O seletor agora percorre desde a raiz por Home/Down/Right/Left. Cada
+seleção azul, nome e nível são relidos; Down rola a árvore. Ramos já
+abertos são recolhidos antes de seguir um irmão, sem aceitar homônimo em
+ramo errado. Right/Left aguardam capturas estáveis para não reagir à
+captura anterior do GO-Global. Caminho interno segue até a folha exclusiva
+LIVROS com 12 dígitos em saida/; depois o Python confere/copia os PDFs
+ao destino cadastrado da empresa. Não navega pelo Dropbox no seletor.
+OK/Cancelar não precisam ser lidos na tela inteira para navegar. O OK
+final exige folha/unidade/cadeia e botão literal medido; recortes adicionais
+leem a seleção e o OK quando a tela inteira omite esses textos.
+
+EFD do log confirmou gerar_documento, mas falhou ao encerrar. Aviso de
+sucesso pode ser outro HWND do cliente remoto; agora aceita esse aviso
+vinculado para o Enter único, espera desaparecer e relê título EFD/Fechar
+no formulário atual, sem coordenada guardada antes de gerar. Registra
+geração sinalizada separadamente do encerramento; só conclui o ciclo com
+painel azul conferido. Cancelamento não fecha formulário nem regera.
+
+PASTA_NAVEGACAO informa fase/nível sem nomes de pastas. Diagnóstico sem
+ações: `python scripts\revisar_seletor_pasta.py --ultima-falha` analisa
+somente o PNG local mais recente dos livros; não emite nem envia imagem.
+749 testes passaram, com árvores/imagens sintéticas, OCR real local e
+Win32 simulado; sintaxe e diff --check também passaram.
+Novos fluxos de seleção/Fechar EFD ainda precisam da rodada manual Windows.
+Pedido de animação/progresso visual ficou registrado em ROADMAP-GESTAO.md
+para depois desta estabilização; interface não foi alterada nesta correção.
+
 ## Adobe remoto não fecha e Alt+Tab não retorna — 15/10/2026
 
 Operador confirmou falha de ambos na versão 8c2f23e. A recuperação aceitava

@@ -7,6 +7,7 @@ from pathlib import PureWindowsPath
 import re
 import time
 import unicodedata
+import json
 from app.controle_execucao import ponto_seguro
 
 
@@ -21,7 +22,8 @@ def _normalizar(texto):
 
 def _palavras(imagem):
     from app import tela
-    dados = tela._ler_dados_ocr(imagem, 4)
+    from app.leitura_resumo import normalizar_selecao
+    dados = tela._ler_dados_ocr(normalizar_selecao(imagem), 4)
     return [{'texto': str(t), 'x': dados['left'][i]/4, 'y': dados['top'][i]/4,
              'w': dados['width'][i]/4, 'h': dados['height'][i]/4}
             for i,t in enumerate(dados['text']) if str(t).strip()]
@@ -51,9 +53,13 @@ def medir_dialogo(imagem):
     from app.formulario_livros import _rotulo
     titulo = _rotulo(palavras, 'Procurar Pasta')
     unidade = _rotulo(palavras, 'Unidade')
-    ok = _rotulo(palavras, 'OK')
-    cancelar = _rotulo(palavras, 'Cancelar')
-    if not (titulo['y'] < unidade['y'] < ok['y'] and abs(ok['y']-cancelar['y']) < 2*ok['h']):
+    try:cancelar = _rotulo(palavras, 'Cancelar')
+    except ValueError:cancelar = None
+    try:
+        ok = _rotulo(palavras, 'OK')
+    except ValueError:
+        ok = None  # a confirmação final exige OK, mas a navegação não
+    if not (titulo['y'] < unidade['y']):
         raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
     cinza = np.array(imagem.convert('L'))
     caixas = set()
@@ -73,10 +79,18 @@ def medir_dialogo(imagem):
     altura=unidade['h']
     combo=unica([c for c in caixas if unidade['x']+unidade['w']<=c[0]<=unidade['x']+unidade['w']+4*altura
                   and c[1]<unidade['y']+altura/2<c[1]+c[3] and altura<c[3]<4*altura and c[2]>10*altura])
-    arvore=unica([c for c in caixas if c[1]>combo[1]+combo[3] and c[1]+c[3]<ok['y']
-                   and c[2]>12*altura and c[3]>5*altura and c[0]<combo[0]])
+    arvore=unica([c for c in caixas if combo[1]+combo[3]<c[1]<combo[1]+combo[3]+4*altura
+                   and c[2]>12*altura and c[3]>5*altura and c[0]<combo[0]
+                   and abs(c[0]+c[2]-combo[0]-combo[2])<=2*altura])
+    ok_valido = (ok is not None and cancelar is not None and abs(ok['y']-cancelar['y']) < 2*ok['h']
+                 and arvore[0]<ok['x']<cancelar['x'] and arvore[1]+arvore[3]<ok['y']<arvore[1]+arvore[3]+6*altura)
+    botoes = [c for c in caixas if c[1]>arvore[1]+arvore[3] and c[0]>=arvore[0]
+              and c[0]+c[2]<=arvore[0]+arvore[2] and 4*altura<c[2]<14*altura
+              and altura<c[3]<4*altura and c[1]<arvore[1]+arvore[3]+6*altura]
+    palavras=_refinar_unidade(imagem,palavras,combo)
     return {'combo':combo,'arvore':arvore,'palavras':palavras,
-            'ok':(round(ok['x']+ok['w']/2),round(ok['y']+ok['h']/2))}
+            'botoes_ok':botoes,
+            'ok':(round(ok['x']+ok['w']/2),round(ok['y']+ok['h']/2)) if ok_valido else None}
 
 
 def _drive(palavras, letra):
@@ -91,15 +105,27 @@ def _drive(palavras, letra):
     return achados[0] if achados else None
 
 
-def _no(detalhes, nome):
-    x,y,w,h=detalhes['arvore']
-    palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
-    candidatos=[l for l in _linhas(palavras) if _normalizar(' '.join(p['texto'] for p in l))==_normalizar(nome)]
-    if len(candidatos)>1:raise SeletorPastaNaoConfirmado('Pasta repetida na árvore.')
-    if not candidatos:return None
-    linha=candidatos[0]
-    return {'posicao':_posicao(linha),'x':min(p['x'] for p in linha),
-            'y':min(p['y'] for p in linha),'linha':linha}
+def _refinar_unidade(imagem,palavras,combo):
+    """Só relê o combo se Client C saiu sem letra de unidade reconhecível."""
+    x,y,w,h=combo
+    dentro=[p for p in palavras if x<p['x']<x+w and y<p['y']<y+h]
+    if 'client' not in _normalizar(' '.join(p['texto'] for p in dentro)):return palavras
+    letras='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    if any(_drive(dentro,l) is not None for l in letras):return palavras
+    from app import tela
+    area=(x+2,y+2,x+w-h,y+h-2)  # interior, excluindo borda e botão da seta
+    leituras=[]
+    for preparo in ('cinza','binaria'):
+        ponto_seguro()
+        dados=tela.ler_dados_ocr_linha_rotulo(imagem.crop(area),escala=4,preparo=preparo)
+        ps=[{'texto':t,'x':area[0]+dados['left'][i]/4,'y':area[1]+dados['top'][i]/4,
+             'w':dados['width'][i]/4,'h':dados['height'][i]/4}
+            for i,t in enumerate(dados['text']) if str(t).strip()]
+        unidades=[l for l in letras if _drive(ps,l) is not None]
+        if len(unidades)==1:leituras.append((unidades[0],ps))
+    if len(leituras)==2 and leituras[0][0]==leituras[1][0]:
+        return [p for p in palavras if p not in dentro]+leituras[0][1]
+    return palavras
 
 
 def _selecionado(imagem, no):
@@ -113,20 +139,27 @@ def _selecionado(imagem, no):
     return float(((hsv[:,:,0]>=90)&(hsv[:,:,0]<=135)&(hsv[:,:,1]>100)&(hsv[:,:,2]>70)).mean())>.25
 
 
-def _aguardar_dialogo(capturar, confirmar=None, tentativas=6):
+def _aguardar_dialogo(capturar, confirmar=None, tentativas=6, fase='medir_dialogo',estavel=False):
     """Relê a captura após cada ação; nunca repete o clique por atraso."""
+    assinatura_anterior=None
     for tentativa in range(tentativas):
         ponto_seguro()
         imagem = capturar()
         try:
             detalhes = medir_dialogo(imagem)
             if confirmar is None or confirmar(imagem, detalhes):
-                return imagem, detalhes
+                if not estavel:return imagem, detalhes
+                x,y,w,h=detalhes['arvore']
+                assinatura=(x,y,w,h,imagem.crop((x,y,x+w,y+h)).tobytes())
+                if assinatura==assinatura_anterior:return imagem,detalhes
+                assinatura_anterior=assinatura
+            else:assinatura_anterior=None
         except ValueError:
-            pass
+            assinatura_anterior=None
         if tentativa < tentativas-1:
             time.sleep(.3)
-    raise SeletorPastaNaoConfirmado('Seletor de pasta não confirmou o estado esperado; não foi enviado OK.')
+    print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':False}),flush=True)
+    raise SeletorPastaNaoConfirmado('Seletor de pasta não confirmou o estado esperado ('+fase+'); não foi enviado OK.')
 
 
 def _drive_selecionado(detalhes, letra):
@@ -135,29 +168,179 @@ def _drive_selecionado(detalhes, letra):
     return _drive(palavras, letra) is not None
 
 
-def _filho(detalhes, pai_nome, filho_nome):
-    pai, filho = _no(detalhes, pai_nome), _no(detalhes, filho_nome)
-    if not (pai and filho and filho['x']>pai['x'] and filho['y']>pai['y']):
-        return None
+def _nos(detalhes):
     x,y,w,h = detalhes['arvore']
-    entre = [p for p in detalhes['palavras'] if x<p['x']<=pai['x']+1
-             and pai['y']<p['y']<filho['y'] and y<p['y']<y+h]
-    return None if entre else filho
+    palavras = [p for p in detalhes['palavras']
+                if x<p['x'] and p['x']+p['w']<x+w and y<p['y'] and p['y']+p['h']<y+h]
+    return [{'posicao':_posicao(linha), 'x':min(p['x'] for p in linha),
+             'y':min(p['y'] for p in linha), 'linha':linha,
+             'nome':_normalizar(' '.join(p['texto'] for p in linha))}
+            for linha in _linhas(palavras)]
 
 
-def _aguardar_no_selecionado(capturar, nome, letra):
-    def confirmar(imagem, detalhes):
-        no = _no(detalhes, nome)
-        return _drive_selecionado(detalhes, letra) and no is not None and _selecionado(imagem, no)
-    return _aguardar_dialogo(capturar, confirmar)
+def _no_selecionado(imagem, detalhes):
+    selecionados=[]
+    for no in _nos(detalhes):
+        # Ícone +/- à esquerda não faz parte do nome selecionado na árvore.
+        linha=[p for p in no['linha'] if _selecionado(imagem, {'linha':[p]})]
+        if not linha:continue
+        selecionados.append({'posicao':_posicao(linha), 'x':min(p['x'] for p in linha),
+                             'y':min(p['y'] for p in linha), 'linha':linha,
+                             'nome':_normalizar(' '.join(p['texto'] for p in linha))})
+    if len(selecionados)==1:return selecionados[0]
+    if len(selecionados)>1:return None
+    if '_selecao_por_recorte' in detalhes:return detalhes['_selecao_por_recorte']
+    detalhes['_selecao_por_recorte']=None
+    import cv2
+    import numpy as np
+    from app import tela
+    from app.leitura_resumo import normalizar_selecao
+    x,y,w,h=detalhes['arvore']
+    hsv=cv2.cvtColor(np.array(imagem.crop((x,y,x+w,y+h)).convert('RGB')),cv2.COLOR_RGB2HSV)
+    azul=((hsv[:,:,0]>=90)&(hsv[:,:,0]<=135)&(hsv[:,:,1]>100)&(hsv[:,:,2]>70)).astype('uint8')*255
+    contornos,_=cv2.findContours(azul,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    caixas=[]
+    for contorno in contornos:
+        bx,by,bw,bh=cv2.boundingRect(contorno)
+        if 3<=bh<h/4 and bw>1.5*bh and cv2.contourArea(contorno)/(bw*bh)>.4:
+            caixas.append((bx,by,bw,bh))
+    if len(caixas)!=1:return None
+    bx,by,bw,bh=caixas[0]
+    area=(x+bx,y+by,x+bx+bw,y+by+bh)
+    recorte=normalizar_selecao(imagem.crop(area))
+    leituras=[]
+    for preparo in ('cinza','binaria'):
+        ponto_seguro()
+        dados=tela.ler_dados_ocr_linha_rotulo(recorte,escala=4,preparo=preparo)
+        linha=[{'texto':str(t),'x':area[0]+dados['left'][i]/4,'y':area[1]+dados['top'][i]/4,
+                'w':dados['width'][i]/4,'h':dados['height'][i]/4}
+               for i,t in enumerate(dados['text']) if str(t).strip()]
+        if linha and all(area[0]<=p['x']<p['x']+p['w']<=area[2]
+                         and area[1]<=p['y']<p['y']+p['h']<=area[3] for p in linha):
+            leituras.append(linha)
+    if len(leituras)!=2:return None
+    nomes=[_normalizar(' '.join(p['texto'] for p in linha)) for linha in leituras]
+    if nomes[0]!=nomes[1]:return None
+    linha=leituras[0]
+    no={'posicao':_posicao(linha),'x':min(p['x'] for p in linha),'y':min(p['y'] for p in linha),
+        'linha':linha,'nome':nomes[0]}
+    detalhes['_selecao_por_recorte']=no
+    return no
+
+
+def _mesmo_no(a,b):
+    return a is not None and b is not None and a['nome']==b['nome'] and abs(a['x']-b['x'])<=2
+
+
+def _ler_selecao(capturar, letra, fase, diferente=None,estavel=False):
+    def confirmar(img,d):
+        no=_no_selecionado(img,d)
+        return (_drive_selecionado(d,letra) and no is not None
+                and (diferente is None or not _mesmo_no(no,diferente)))
+    img,d=_aguardar_dialogo(capturar,confirmar,fase=fase,estavel=estavel)
+    return img,d,_no_selecionado(img,d)
+
+
+def _avancar_irmao(capturar, tecla, letra, no):
+    """Down atravessa ramo aberto: volta à sua raiz, fecha e só então avança."""
+    tecla('down')
+    img,d,atual=_ler_selecao(capturar,letra,'proximo_no',diferente=no)
+    if atual['x']<=no['x']+2:
+        return img,d,atual
+    # Down entrou num ramo que estava aberto. Left pode fechar o descendente
+    # ou selecionar o pai; cada resultado é relido antes da próxima tecla.
+    for _ in range(32):
+        tecla('left')
+        img,d,atual=_ler_selecao(capturar,letra,'voltar_do_ramo',estavel=True)
+        if _mesmo_no(atual,no):break
+        if atual['x']<no['x']-2:
+            raise SeletorPastaNaoConfirmado('A árvore saiu do ramo esperado; não foi enviado OK.')
+    else:
+        raise SeletorPastaNaoConfirmado('Limite ao retornar do ramo; não foi enviado OK.')
+    tecla('left')  # ramo comprovadamente aberto, agora selecionado: fecha
+    img,d,atual=_ler_selecao(capturar,letra,'fechar_ramo',estavel=True)
+    if not _mesmo_no(atual,no):
+        raise SeletorPastaNaoConfirmado('O ramo não permaneceu selecionado; não foi enviado OK.')
+    tecla('down')
+    return _ler_selecao(capturar,letra,'proximo_irmao',diferente=no)
+
+
+def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel):
+    img,d,no=estado
+    coluna=no['x']
+    for passo in range(160):
+        ponto_seguro()
+        if abs(no['x']-coluna)>2:
+            raise SeletorPastaNaoConfirmado('O próximo item não pertence ao nível esperado; não foi enviado OK.')
+        if no['nome']==_normalizar(nome):
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'segmento','nivel':nivel,
+                  'passos':passo,'confirmado':True}),flush=True)
+            return img,d,no
+        img,d,no=_avancar_irmao(capturar,tecla,letra,no)
+    raise SeletorPastaNaoConfirmado('Limite de pastas por nível atingido; não foi enviado OK.')
+
+
+def _entrar_no(capturar, tecla, letra, pai):
+    tecla('right')
+    def confirmar(img,d):
+        no=_no_selecionado(img,d)
+        if not _drive_selecionado(d,letra) or no is None:return False
+        if no['x']>pai['x']+2:return True  # ramo já aberto: Right foi ao primeiro filho
+        # Right em ramo fechado mantém o pai; o filho pode estar abaixo da
+        # área visível. Down fará a rolagem e sua indentação será conferida.
+        return _mesmo_no(no,pai)
+    img,d=_aguardar_dialogo(capturar,confirmar,fase='expandir_ancestral',estavel=True)
+    no=_no_selecionado(img,d)
+    if _mesmo_no(no,pai):
+        tecla('down')
+        img,d,no=_ler_selecao(capturar,letra,'primeiro_filho',diferente=pai)
+    if no['x']<=pai['x']+2:
+        raise SeletorPastaNaoConfirmado('Primeiro filho não confirmado; não foi enviado OK.')
+    return img,d,no
+
+
+def _ok_final(imagem, detalhes):
+    if detalhes['ok'] is not None:
+        px,py=detalhes['ok']
+        for x,y,w,h in detalhes.get('botoes_ok',[]):
+            if not (x<px<x+w and y<py<y+h):continue
+            dentro=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
+            if [_normalizar(p['texto']) for p in dentro]==['ok']:
+                return detalhes['ok']
+    from app import tela
+    from app.formulario_livros import _rotulo
+    confirmados=[]
+    for x,y,w,h in detalhes.get('botoes_ok',[]):
+        leituras=[]
+        margem=max(1,round(h*.15))
+        area=(x+margem,y+margem,x+w-margem,y+h-margem)
+        for preparo in ('cinza','binaria'):
+            ponto_seguro()
+            dados=tela.ler_dados_ocr_linha_rotulo(imagem.crop(area),escala=4,preparo=preparo)
+            palavras=[{'texto':t,'x':dados['left'][i]/4,'y':dados['top'][i]/4,
+                       'w':dados['width'][i]/4,'h':dados['height'][i]/4}
+                      for i,t in enumerate(dados['text']) if str(t).strip()]
+            if [_normalizar(p['texto']) for p in palavras]!=['ok']:continue
+            try:rotulo=_rotulo(palavras,'OK')
+            except ValueError:continue
+            if not (0<=rotulo['x']<rotulo['x']+rotulo['w']<=area[2]-area[0]
+                    and 0<=rotulo['y']<rotulo['y']+rotulo['h']<=area[3]-area[1]):continue
+            leituras.append((area[0]+rotulo['x']+rotulo['w']/2,area[1]+rotulo['y']+rotulo['h']/2))
+        if len(leituras)==2 and abs(leituras[0][0]-leituras[1][0])<=3 and abs(leituras[0][1]-leituras[1][1])<=3:
+            confirmados.append(tuple(round(v) for v in leituras[0]))
+    # Bordas duplicadas do mesmo botão não criam alvos distintos.
+    if confirmados and all(abs(p[0]-confirmados[0][0])<=3 and abs(p[1]-confirmados[0][1])<=3 for p in confirmados):
+        return confirmados[0]
+    return None
 
 
 def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
-    """Navega sem colar; só confirma a folha nova e exclusiva informada."""
+    """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
     caminho=PureWindowsPath(caminho_remoto)
-    if not caminho.is_absolute() or not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name):
+    if (not caminho.is_absolute() or not re.fullmatch(r'[A-Za-z]:',caminho.drive)
+            or '..' in caminho.parts or not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name)):
         raise SeletorPastaNaoConfirmado('Destino precisa ser uma pasta exclusiva de livros.')
-    imagem, detalhes = _aguardar_dialogo(capturar)
+    imagem, detalhes = _aguardar_dialogo(capturar,fase='abrir_seletor')
     x,y,w,h=detalhes['combo']
     combo_palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
     if _drive(combo_palavras,caminho.drive[0]) is None:
@@ -175,24 +358,24 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
         if alvo is None:raise SeletorPastaNaoConfirmado('Unidade Client C não encontrada na lista.')
         clicar(*alvo)
         imagem, detalhes = _aguardar_dialogo(capturar,
-            lambda img, d:_drive_selecionado(d, caminho.drive[0]))
+            lambda img, d:_drive_selecionado(d, caminho.drive[0]),fase='unidade_client_c')
     partes=caminho.parts[1:]
-    # O print mostra perfil já aberto. Não presume Users como raiz visível.
-    visiveis=[(i,_no(detalhes,n)) for i,n in enumerate(partes)]
-    visiveis=[(i,n) for i,n in visiveis if n is not None]
-    if not visiveis:raise SeletorPastaNaoConfirmado('Nenhum ancestral conhecido visível; revisão da árvore necessária.')
-    indice,no=visiveis[-1]
-    for seguinte in partes[indice+1:]:
-        clicar(*no['posicao'])
-        _aguardar_no_selecionado(capturar, partes[indice], caminho.drive[0])
-        tecla('right')
-        imagem, detalhes = _aguardar_dialogo(capturar,
-            lambda img, d:_drive_selecionado(d,caminho.drive[0]) and
-                _filho(d, partes[indice], seguinte) is not None)
-        filho = _filho(detalhes, partes[indice], seguinte)
-        if filho is None:raise SeletorPastaNaoConfirmado('Próxima pasta não confirmada como descendente.')
-        indice+=1; no=filho
-    clicar(*no['posicao'])
-    imagem, detalhes = _aguardar_no_selecionado(capturar, caminho.name, caminho.drive[0])
+    nos=_nos(detalhes)
+    if not nos:raise SeletorPastaNaoConfirmado('Nenhum item da árvore reconhecido; não foi enviado OK.')
+    clicar(*nos[0]['posicao'])  # foco em linha medida, antes de Home
+    _ler_selecao(capturar,caminho.drive[0],'foco_arvore')
+    tecla('home')
+    estado=_ler_selecao(capturar,caminho.drive[0],'inicio_arvore')
+    for indice,nome in enumerate(partes):
+        estado=_buscar_irmao(capturar,tecla,caminho.drive[0],estado,nome,indice)
+        if indice<len(partes)-1:
+            estado=_entrar_no(capturar,tecla,caminho.drive[0],estado[2])
+    folha=estado[2]
+    def confirmar_final(img,d):
+        if not _drive_selecionado(d,caminho.drive[0]) or not _mesmo_no(_no_selecionado(img,d),folha):return False
+        d['ok']=_ok_final(img,d)
+        return d['ok'] is not None
+    imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final,fase='confirmar_destino_e_ok')
+    ponto_seguro()
     clicar(*detalhes['ok'])
     return True
