@@ -46,6 +46,10 @@ global perder o rótulo/campo quando a lista abre, usa recortes locais
 concordantes ligados às bordas atuais. O diagnóstico readonly também
 informa se a lista estava aberta na captura da falha.
 Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
+Se a escolha já aplicou Client C com a letra correta e fechou a lista,
+duas leituras do campo fechado liberam a árvore sem enviar Tab extra.
+Campo omitido pelo Tesseract pode receber opinião do OCR nativo local,
+com concordância e sem substituir identidades contraditórias.
 
 Ao procurar Users na raiz, se o nome não aparecer na leitura global, tenta
 o recorte local com opiniões concordantes, sem enviar Down primeiro.
@@ -89,6 +93,10 @@ O botão OK precisa ser reconhecido na captura final. Se houver falha,
 salva sem clicar ou gerar novamente.
 Acrescente `--pasta Users` para verificar, sem ações, se Users está visível
 no ramo atual da captura salva.
+Para conferir somente a unidade da última falha, sem repetir emissão:
+`python scripts\revisar_seletor_pasta.py --ultima-falha --somente-unidade`.
+Em `client_c_letras_no_campo`, `M` significa que Client C(M:) foi lido
+na imagem salva; isso não confirma seleção de pastas nem geração de PDFs.
 
 O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
 publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.

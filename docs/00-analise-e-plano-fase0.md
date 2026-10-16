@@ -4987,6 +4987,44 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.136 Destino M aplicado antes da confirmação da opção (16/10/2026)
+
+**Evidência real:** prévia confirmada em38s; exportar_pdf falhou em163s
+com “A mudança da opção de unidade não foi confirmada”. Operador viu
+Client C(M:) com lista já fechada. Tail16:51:20 confirma fechamento do
+passo0 e destinoFalse;16:51:30 confirma abertura do passo1;16:51:40
+opcao_unidade=False com lista_aberta=False,opcao_lida=False,capturas4.
+A árvore/barra nem foi alcançada. Isso comprova fechamento da lista na
+espera que exigia popup aberto, além de falha na leitura do campo aplicado.
+Não identifica qual variante de OCR perdeu o texto; não houve PNG local
+real para reproduzir sua legibilidade neste ambiente.
+
+**Correção:** somente na espera da opção, duas leituras literais do
+destino Client C+letra configurada também confirmam uma aplicação já
+fechada. Nesse caso não envia Tab à árvore. Se o popup permanece aberto,
+confirma o campo literal, envia Tab uma vez e relê fechamento. Estado
+aberto/fechado e geometria continuam parte das duas confirmações. Hash
+de repintura do popup não sobrepõe o destino literal. Client Z, outra
+letra, leitura única ou estado alternando não autorizam barra/OK.
+
+Se o campo não é reconhecido no OCR global/Tesseract isolado, usa OCR
+nativo local4/6 na mesma ROI medida e normalizada, sem preset da letra.
+Somente duas opiniões consistentes e caixas dentro da ROI podem refinar
+o campo; qualquer identidade contraditória impede consenso. Mantém limites
+do leitor nativo, cancelamento e falha fechada na indisponibilidade.
+Não modifica menu, datas, prévia, barra ou conferência dos três PDFs.
+
+Diagnóstico readonly acrescenta --somente-unidade para conferir só o
+campo/lista da última captura local. Resultado informa letras Client C
+reconhecidas e se a lista estava aberta; não examina árvore/OK nem emite.
+
+**Validação:** 193 testes passaram. Incluem aplicação que fecha a lista,
+realce oscilando/ambíguo, campo omitido, unidade errada, leitura única,
+estado alternando, contradições, cancelamento e diagnóstico readonly.
+OCR nativo simulado; Tesseract e CLI somente-unidade também conferidos
+em imagem sintética. Sintaxe Python e diff --check limpos. Nenhum teste
+GUI ou emissão aqui; ainda requer validação no Domínio/Windows real.
+
 ### 0.135 Confirmação após Tab e barra direita sem Down na raiz (16/10/2026)
 
 **Evidência real:** prévia confirmada em50s, exportar_pdf falha em130s
