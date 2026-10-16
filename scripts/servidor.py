@@ -35,6 +35,7 @@ def main(argv=None):
     parser.add_argument("--porta", type=int)
     parser.add_argument("--certificado", type=Path, help="Certificado HTTPS em PEM.")
     parser.add_argument("--chave-tls", type=Path, help="Chave HTTPS em PEM.")
+    parser.add_argument("--logs-detalhados", action="store_true", help="Mostra também OCR e tentativas no terminal; padrão resumido.")
     args = parser.parse_args(argv)
     if args.rede_local:
         if args.host != "127.0.0.1" or args.porta is not None or args.certificado or args.chave_tls:
@@ -97,9 +98,11 @@ def main(argv=None):
         print("Uma execução por sessão. Ctrl+C aguarda a rotina atual terminar.")
         if args.simular:
             print("SIMULAÇÃO: nenhum documento fiscal será gerado.")
-        uvicorn.run(app, host=args.host, port=args.porta, workers=1, access_log=False,
-                    ssl_certfile=str(args.certificado) if args.certificado else None,
-                    ssl_keyfile=str(args.chave_tls) if args.chave_tls else None)
+        from app.console_servidor import saida_servidor
+        with saida_servidor(ROOT / 'data',detalhado=args.logs_detalhados):
+            uvicorn.run(app, host=args.host, port=args.porta, workers=1, access_log=False,
+                        ssl_certfile=str(args.certificado) if args.certificado else None,
+                        ssl_keyfile=str(args.chave_tls) if args.chave_tls else None)
     except (OSError, ValueError):
         logging.getLogger(__name__).exception("Falha ao iniciar servidor.")
         print("Servidor não iniciado; confira dependências, porta, certificados e arquivos locais. Veja data/servidor.log.")

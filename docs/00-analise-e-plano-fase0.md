@@ -4987,6 +4987,54 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.131 Console do servidor com diagnóstico técnico local (16/10/2026)
+
+**Pedido esclarecido:** operador queria reduzir os logs do terminal.
+Recolher o histórico web não atendia esse pedido. OCR JSON e tentativas de
+espera ocupavam muitas linhas entre as etapas, dificultando acompanhar.
+
+**Correção:** servidor usa console resumido por padrão, filtrando somente
+prefixos técnicos/esperas conhecidos. Etapas, mensagens humanas e stderr
+continuam; --logs-detalhados mostra tudo. Técnica e etapas são gravadas em
+data/servidor_detalhes.log com rotação2MB/3backups, local/gitignored. Listas
+OCR livres dos avisos de espera não são duplicadas. Há aviso de atividade
+a cada10s quando novas mensagens técnicas chegam sem outra saída visível.
+Não inventa percentual nem sucesso. Buffer isolado por thread, suporte a
+prints fragmentados e restauração de stdout no fim/exceção. Falha ao abrir
+ou gravar diagnóstico faz saída voltar ao completo. Não muda execução,
+autenticação, eventos do painel ou scripts individuais por CLI.
+
+**Validação:** testes de mensagens parciais/flush, threads, etapas/falhas,
+rotação/erro de escrita, stderr/exceção, atividade e opção real do script
+com Uvicorn simulado. Nenhuma emissão fiscal ou desktop foi acionado.
+Smoke adicional com Uvicorn real e fiscal sintético confirmou tarefa via
+API autenticada, console resumido, arquivo detalhado e encerramento limpo.
+
+### 0.132 Setas sem mudar a seleção: recorte da raiz e barra física (16/10/2026)
+
+**Evidência:** novo log mostra proximo_no com unidade_confirmada=True,
+selecao_lida=True e selecao_mudou=False. Não há clicar_pasta_visivel.
+Portanto a unidade e a leitura da seleção funcionaram; Down não gerou uma
+mudança observada. Operador mostrou a seta inferior da barra destacada e
+o caminho Users → perfil local → dominio-automation-engine → saida.
+Não atribuir sem diagnóstico a causa somente ao OCR ou à tecla/foco.
+
+**Correção:** somente ao buscar Users na raiz e após confirmar seleção
+estagnada, tenta o nome completo no recorte medido, com opiniões locais
+concordantes. Se não aparecer, seta inferior exige botão/trilho/triângulo
+medidos, incluindo estado escuro com seta clara. Cada clique tem releitura,
+unidade/geometria conferidas e precisa mudar/estabilizar conteúdo antes do
+próximo. Limite finito; não segura mouse sem observação. Users selecionado
+é conferido antes de entrar no perfil. Guardas dos descendentes continuam.
+Perfil/caminho vêm da configuração, não são fixados ao usuário deste PC.
+
+**Validação:** imagens/árvore sintéticas de duas polaridades/escalas,
+ausência de botão/trilho, OCR divergente, homônimo, unidade, atraso,
+cancelamento, rolagem sem efeito e limite. Ainda não validado contra o
+Domínio Windows. Diagnóstico readonly continua sem emitir/clicar e agora
+informa também se recorte/seta foram reconhecidos.
+Suíte final: 808 testes passaram. Sintaxe Python e diff --check limpos.
+
 ### 0.130 Histórico do servidor recolhido na interface (16/10/2026)
 
 **Pedido:** diminuir ou minimizar o histórico do servidor. O bloco

@@ -97,6 +97,22 @@ antes de emitir. Tela presa no início tenta recuperação calibrada, até
 cinco Esc e até três tentativas de fechar a aba, parando no painel azul. Foco é conferido nos checkpoints de
 mouse/teclado; perda de foco bloqueia ações posteriores nessa execução.
 
+### Logs do terminal do servidor
+
+Os atalhos do servidor usam saída resumida: etapas, falhas e mensagens
+importantes continuam no terminal. Tentativas repetidas e detalhes técnicos
+de OCR ficam em `data/servidor_detalhes.log`, com rotação de até quatro
+arquivos de cerca de 2 MB. A cada dez segundos com diagnóstico novo sem
+outra mensagem visível, o console informa que está reconhecendo a tela.
+Erros/tracebacks no stderr continuam visíveis. Se o arquivo não puder ser
+gravado, o console volta à saída completa e avisa.
+
+Para conferir todos os detalhes também no terminal, acrescente
+`--logs-detalhados`, por exemplo:
+`python scripts/servidor.py --rede-local --executar --logs-detalhados`.
+Os testes individuais por CLI continuam com seu diagnóstico habitual.
+Os arquivos locais de diagnóstico não devem ser publicados.
+
 ### Onde guardar os Livros Fiscais por empresa
 
 Para o primeiro piloto, use **Lucro Presumido por empresa** no início do
