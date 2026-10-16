@@ -205,6 +205,15 @@ por papel e autoria verificável de aprovação são trabalho pendente.
 
 ## Quando consideraremos concluído
 
+Pedido de 16/10, para depois da estabilização das rotinas: acompanhamento
+visual contínuo, com animação de atividade (“holograma”), etapa real atual,
+última ação confirmada, tempo decorrido e atualização periódica enquanto
+o Domínio processa. Usar eventos reais do worker; não inventar percentual
+ou prazo para aparentar rapidez. Mostrar claramente espera, pausa, falha,
+cancelamento e geração já sinalizada com encerramento pendente. Respeitar
+preferência por movimento reduzido. Nenhum texto fiscal/OCR livre ou captura
+de cliente entra na animação. Este item está planejado, não implementado.
+
 O piloto de Lucro Presumido estará concluído quando Resumo, EFD e os
 três livros estiverem homologados, o lote cumprir a ordem prevista, os arquivos forem
 conferidos e uma falha controlada mostrar recuperação e continuação

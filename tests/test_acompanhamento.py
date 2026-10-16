@@ -317,6 +317,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.confirmacao_sped = confirmacao
         self.competencia = self.stack.enter_context(patch.object(d, "selecionar_competencia_anterior", return_value=True))
         self.fechar_sped = self.stack.enter_context(patch.object(d, "_fechar_tela_geracao", return_value=True))
+        self.fechar_efd = self.stack.enter_context(patch.object(d, "_fechar_formulario_efd", return_value=True))
         self.stack.enter_context(patch.object(d.tela, "recortar_a_partir_de", return_value=("frame", 0, 0)))
         self.stack.enter_context(patch.object(d.tela, "recortar_centro", return_value=("frame", 0, 0)))
         self.stack.enter_context(patch.object(d.tela, "achar_texto_windows", return_value=None))
@@ -344,10 +345,31 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
             escalas_adicionais=(4,),ocr_windows=True,comparacao_exata=True,
             rever_a_cada=5,limite_segundos=180)
         self.assertTrue(any(e["step"] == "encerrar" and e["status"] == "confirmado" and e["evidence"] == "tela_principal_reconhecida" for e in self.rotina.eventos))
+        self.dominio.interacao.pressionar_enter.assert_called_once()
+        self.fechar_efd.assert_called_once_with(self.rotina, '')
+        self.fechar_sped.assert_not_called()
+
+    def test_efd_aviso_remoto_positivo_recebe_enter_unico_e_fecha_formulario(self):
+        self.preparar_sped('efd_contribuicoes', 'Contribui', 'sucesso')
+        d = self.dominio
+        self.stack.enter_context(patch.object(d.interacao, 'janela_dominio_ou_remota_em_foco',
+                                             return_value=True, create=True))
+        def resultado(*args, **kwargs):
+            d.interacao.janela_dominio_em_foco.return_value = False
+            return 'frame', (100, 100), False
+        self.espera.side_effect = resultado
+        def dispensar():
+            d.interacao.janela_dominio_em_foco.return_value = True
+        d.interacao.pressionar_enter.side_effect = dispensar
+        self.assertTrue(d.gerar_efd_contribuicoes())
+        self.espera.assert_called_once()
+        d.interacao.pressionar_enter.assert_called_once()
+        self.fechar_efd.assert_called_once_with(self.rotina, '')
+        self.fechar_sped.assert_not_called()
 
     def test_efd_gerada_fechar_falha_e_limpeza_confirma_sem_regerar(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
-        self.fechar_sped.return_value=False
+        self.fechar_efd.return_value=False
         self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
         self.stack.enter_context(patch.object(self.dominio,'_verificar_retorno_tela_principal',return_value='tela_principal_reconhecida'))
         self.assertTrue(self.dominio.gerar_efd_contribuicoes())
@@ -357,7 +379,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
 
     def test_efd_excecao_no_fechamento_preserva_geracao_e_encerra_com_painel_confirmado(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
-        self.fechar_sped.side_effect=RuntimeError('mensagem privada')
+        self.fechar_efd.side_effect=RuntimeError('mensagem privada')
         self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
         self.stack.enter_context(patch.object(self.dominio,'_verificar_retorno_tela_principal',return_value='tela_principal_reconhecida'))
         self.assertTrue(self.dominio.gerar_efd_contribuicoes())
@@ -379,10 +401,11 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
     def test_efd_cancelamento_apos_resultado_nao_e_promovido_a_sucesso(self):
         from app.controle_execucao import ExecucaoInterrompida
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
-        self.fechar_sped.side_effect=ExecucaoInterrompida('reinicio_solicitado')
-        self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
+        self.fechar_efd.side_effect=ExecucaoInterrompida('reinicio_solicitado')
+        limpar = self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
         with self.assertRaises(ExecucaoInterrompida):self.dominio.gerar_efd_contribuicoes()
         self.assertEqual(self.rotina.eventos[-1]['status'],'falha')
+        limpar.assert_not_called()
 
     def test_efd_aviso_informativo_preserva_leituras_na_segunda_espera(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
@@ -419,7 +442,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
         self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=False))
         self.assertFalse(self.dominio.gerar_efd_contribuicoes())
         self.dominio.interacao.pressionar_enter.assert_not_called()
-        self.fechar_sped.assert_not_called()
+        self.fechar_efd.assert_not_called()
         self.assertIn('gerar_documento',self.rotina.confirmadas)
 
     def test_efd_aviso_ainda_lido_apenas_4x_nao_clica_fechar_nem_regera(self):
@@ -430,7 +453,7 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
             None if texto=='Arquivo gerado com sucesso' else (100,100))
         self.stack.enter_context(patch.object(d,'_limpar_ao_encerrar',return_value=False))
         self.assertFalse(d.gerar_efd_contribuicoes())
-        self.fechar_sped.assert_not_called()
+        self.fechar_efd.assert_not_called()
         d.interacao.pressionar_enter.assert_called_once()
         self.espera.assert_called_once()
 
@@ -441,13 +464,13 @@ class TestFluxoAcompanhado(_BaseAcompanhamento):
             None if texto=='Arquivo gerado com sucesso' else (100,100))
         self.stack.enter_context(patch.object(d,'_limpar_ao_encerrar',return_value=False))
         self.assertFalse(d.gerar_efd_contribuicoes())
-        self.fechar_sped.assert_not_called()
+        self.fechar_efd.assert_not_called()
         d.interacao.pressionar_enter.assert_called_once()
         self.espera.assert_called_once()
 
     def test_efd_foco_perdido_na_ultima_conferencia_nao_promove(self):
         self.preparar_sped('efd_contribuicoes','Contribui','sucesso')
-        self.fechar_sped.return_value=False
+        self.fechar_efd.return_value=False
         self.stack.enter_context(patch.object(self.dominio,'_limpar_ao_encerrar',return_value=True))
         self.dominio.interacao.janela_dominio_em_foco.return_value=False
         self.assertFalse(self.dominio.gerar_efd_contribuicoes())

@@ -556,7 +556,8 @@ def _confirmar_saida_aviso_efd(item_menu, janela, texto_confirmacao):
     from .controle_execucao import ponto_seguro
     for tentativa in range(6):
         ponto_seguro()
-        if janela is None or not interacao.janela_dominio_em_foco(janela):
+        em_foco = getattr(interacao, 'janela_dominio_ou_remota_em_foco', interacao.janela_dominio_em_foco)
+        if janela is None or not em_foco(janela):
             print('EFD: foco perdido após confirmar o resultado; fechamento bloqueado.', flush=True)
             return False
         imagem = tela.capturar_tela()
@@ -570,13 +571,73 @@ def _confirmar_saida_aviso_efd(item_menu, janela, texto_confirmacao):
                         print('EFD: aviso permanece após Enter; fechamento direto bloqueado.', flush=True)
                         return False
                 if _achar_texto_reforcado(imagem, item_menu, **opcoes) is not None:
-                    return True
+                    return interacao.janela_dominio_em_foco(janela)
                 from types import SimpleNamespace
                 if _verificar_retorno_tela_principal(SimpleNamespace(janela_dominio=janela)) == 'tela_principal_reconhecida':
                     return True
         if tentativa < 5:
             time.sleep(.3)
     print('EFD: saída do aviso não confirmada; não repito a geração.', flush=True)
+    return False
+
+
+def _fechar_formulario_efd(acompanhamento, prefixo=''):
+    """Relê Fechar no formulário atual; nunca usa a posição anterior à geração.
+
+    O aviso positivo já foi confirmado e dispensado uma única vez. Um título
+    ou botão ilegível não comprova fechamento; só o painel calibrado comprova.
+    """
+    from .controle_execucao import ponto_seguro
+    from .formulario_livros import _palavras, _rotulo
+    janela = acompanhamento.janela_dominio
+    for tentativa in range(4):
+        ponto_seguro()
+        if janela is None or not interacao.janela_dominio_em_foco(janela):
+            return False
+        imagem = tela.capturar_tela()
+        with tela.reutilizar_ocr():
+            titulo = _achar_texto_reforcado(imagem, 'EFD Contribuições',
+                escalas_adicionais=(4,), ocr_windows=True)
+            if titulo is None:
+                # Não confundir falha de OCR do título com formulário fechado.
+                if _verificar_retorno_tela_principal(acompanhamento) == 'tela_principal_reconhecida':
+                    return True
+            else:
+                area, dx, dy = tela.recortar_a_partir_de(imagem, *titulo)
+                pos = None
+                for preparo in ('cinza', 'binaria'):
+                    ponto_seguro()
+                    try:
+                        dados = tela.ler_dados_ocr_formulario(area, escala=4, preparo=preparo, psm=6)
+                        palavras = _palavras(dados, 4)
+                        # Qualquer modal reconhecido impede clicar no formulário.
+                        for aviso in TITULOS_ERRO:
+                            try:
+                                _rotulo(palavras, aviso)
+                            except ValueError:
+                                continue
+                            return False
+                        botao = _rotulo(palavras, 'Fechar')
+                        if not (0 <= botao['x'] < botao['x']+botao['w'] <= area.width
+                                and 0 <= botao['y'] < botao['y']+botao['h'] <= area.height):
+                            continue
+                        pos = (round(dx+botao['x']+botao['w']/2),
+                               round(dy+botao['y']+botao['h']/2))
+                        break
+                    except ExecucaoInterrompida:
+                        raise
+                    except (ValueError, KeyError, TypeError, IndexError, RuntimeError, OSError):
+                        continue
+                if pos is not None:
+                    ponto_seguro()
+                    if not interacao.janela_dominio_em_foco(janela):
+                        return False
+                    print('EFD_RESULTADO fechar_formulario=literal_atual; geracao_ja_sinalizada=True', flush=True)
+                    interacao.clicar(*pos)
+                    return _verificar_retorno_tela_principal(acompanhamento) == 'tela_principal_reconhecida'
+        if tentativa < 3:
+            time.sleep(.3)
+    salvar(tela.capturar_tela(), f'{prefixo}erro_fechar_formulario_efd.png')
     return False
 
 
@@ -623,8 +684,11 @@ def gerar_sped(item_menu, texto_confirmacao, prefixo="", data_inicial=None, data
             resultado = _concluir_geracao_apos_limpeza(acompanhamento, recuperou)
         acompanhamento.concluir(resultado)
         return resultado
+    except ExecucaoInterrompida as erro:
+        _registrar_excecao_efd(acompanhamento, erro, prefixo)
+        acompanhamento.concluir(False, evidencia='excecao')
+        raise  # Parar nunca autoriza limpeza, nova geração ou sucesso.
     except Exception as erro:
-        from .controle_execucao import ExecucaoInterrompida
         _registrar_excecao_efd(acompanhamento, erro, prefixo)
         recuperou = _limpar_ao_encerrar(acompanhamento)
         if (rotina == 'efd_contribuicoes' and not isinstance(erro, ExecucaoInterrompida)
@@ -858,13 +922,16 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
         return False
     acompanhamento.confirmar("aviso_resultado_reconhecido")
     acompanhamento.iniciar("encerrar")
+    if acompanhamento.rotina == 'efd_contribuicoes':
+        print('EFD_RESULTADO geracao_sinalizada=True; encerramento_pendente=True', flush=True)
     xc, yc = ancora_confirm
     print(f"Âncora confirmação em: {(xc, yc)}")
     salvar(imagem, f"{prefixo}resultado.png")
 
     print("Confirmando com Enter (diálogo padrão de um só botão)...")
+    em_foco_resultado = getattr(interacao, 'janela_dominio_ou_remota_em_foco', interacao.janela_dominio_em_foco)
     if acompanhamento.rotina == 'efd_contribuicoes' and (acompanhamento.janela_dominio is None
-            or not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)):
+            or not em_foco_resultado(acompanhamento.janela_dominio)):
         print('EFD: foco do Domínio não confirmado; Enter não foi enviado.', flush=True)
         return False
     interacao.pressionar_enter()
@@ -900,9 +967,12 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     print("Confirmação fechada.")
 
     # 8. Fechar a tela de geração.
-    if acompanhamento.rotina == 'efd_contribuicoes' and not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio):
-        print('EFD: foco perdido antes de fechar o formulário; clique bloqueado.', flush=True)
-        return False
+    if acompanhamento.rotina == 'efd_contribuicoes':
+        if not _fechar_formulario_efd(acompanhamento, prefixo):
+            acompanhamento.registrar_encerramento_inconclusivo()
+            return False
+        acompanhamento.confirmar('tela_principal_reconhecida')
+        return True
     fechado = _fechar_tela_geracao(item_menu, prefixo, pos_fechar_conhecido)
     if not fechado:
         return False

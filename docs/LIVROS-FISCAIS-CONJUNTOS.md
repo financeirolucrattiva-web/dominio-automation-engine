@@ -32,6 +32,16 @@ na unidade Client C configurada até pasta nova exclusiva em saida/.
 Nome da folha, seleção e arquivos locais novos precisam ser confirmados.
 Ambiguidade impede confirmação, sem inventar coordenada ou colar caminho.
 
+Na correção de 16/10, a árvore é percorrida com Home/Down/Right/Left e
+releitura da seleção azul/nível; Down faz a rolagem quando a próxima pasta
+está fora da área visível. Em Client C segue Users → perfil local →
+dominio-automation-engine → saida → LIVROS com 12 dígitos desta emissão.
+O caminho é selecionado na árvore, nunca digitado nesse diálogo. A folha
+exclusiva permite conferir apenas os três PDFs novos, preservando anteriores.
+O botão OK precisa ser reconhecido na captura final. Se houver falha,
+`python scripts\revisar_seletor_pasta.py --ultima-falha` lê a captura local
+salva sem clicar ou gerar novamente.
+
 O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
 publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.
 Nome final usa tipo, nome cadastrado e competência; arquivos anteriores
