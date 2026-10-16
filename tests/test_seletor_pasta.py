@@ -65,9 +65,17 @@ def arvore_destino():
 
 class ArvoreSintetica:
     """TreeView de quatro linhas: teclado e rolagem só mudam o estado sintético."""
-    def __init__(self, raizes=None, drive='Client C (M:\\)'):
+    def __init__(self, raizes=None, drive='Client C (M:\\)', unidades=None, ocultar_lista_ocr=False):
         self.raizes = arvore_destino() if raizes is None else raizes
         self.drive = drive
+        self.unidades = list(unidades if unidades is not None else
+                             ('Servidor (C:\\)', 'Client C (M:\\)', 'Client Z (Z:\\)'))
+        self.indice_combo = self.unidades.index(drive) if drive in self.unidades else 0
+        self.ocultar_lista_ocr = ocultar_lista_ocr
+        self.foco_combo = False
+        self.teclas_combo = []
+        self.cliques_combo = 0
+        self.inicio_arvore_drives = []
         self.selecao = self.raizes[0] if self.raizes else None
         self.topo = 0
         self.combo_aberto = False
@@ -103,12 +111,16 @@ class ArvoreSintetica:
     def capturar(self):
         self.capturas += 1
         self._mostrar_selecao()
-        imagem, palavras = quadro(drive=self.drive, pastas=())
+        texto_combo = self.unidades[self.indice_combo] if self.foco_combo else self.drive
+        imagem, palavras = quadro(drive=texto_combo, pastas=())
         desenho = ImageDraw.Draw(imagem)
+        # A estabilidade compara pixels do combo, não apenas os dados OCR simulados.
+        desenho.text((108, 81), texto_combo, fill='black')
         if self.combo_aberto:
             desenho.rectangle((100, 101, 480, 160), fill='white', outline='black')
-            for i, texto in enumerate(('Servidor (C:\\)', 'Client C (M:\\)')):
-                palavras.append({'texto': texto, 'x': 110, 'y': 110 + i*25, 'w': 170, 'h': 12})
+            if not self.ocultar_lista_ocr:
+                for i, texto in enumerate(self.unidades[:4]):
+                    palavras.append({'texto': texto, 'x': 110, 'y': 110 + i*25, 'w': 170, 'h': 12})
         else:
             for i, (no, nivel, _) in enumerate(self.linhas()[self.topo:self.topo+4]):
                 x, y = 70 + nivel*18, 140 + i*25
@@ -124,15 +136,18 @@ class ArvoreSintetica:
     def clicar(self, x, y):
         if 345 <= x <= 390 and 310 <= y <= 340:
             self.cliques_ok.append((self.drive, self.caminho_selecionado()))
+        elif 100 < x < 480 and 76 < y < 101:
+            self.cliques_combo += 1
+            self.combo_aberto = not self.combo_aberto
+            self.foco_combo = True
+            self.foco_arvore = False
         elif self.combo_aberto:
-            if 130 <= y <= 155:
-                self.drive = 'Client C (M:\\)'
-                self.unidades_escolhidas.append(self.drive)
+            indice = int((y - 110) // 25)
+            if 0 <= indice < len(self.unidades):
+                self.indice_combo = indice
+                self._aplicar_unidade()
                 self.combo_aberto = False
                 self.foco_arvore = False
-        elif 100 < x < 480 and 76 < y < 101:
-            self.combo_aberto = True
-            self.foco_arvore = False
         elif 30 < x < 480 and 110 < y < 290:
             visiveis = self.linhas()[self.topo:self.topo+4]
             candidatos = [(no, linha) for linha, (no, _, _) in enumerate(visiveis)
@@ -140,9 +155,32 @@ class ArvoreSintetica:
             if candidatos:
                 self.selecao = candidatos[0][0]
                 self.foco_arvore = True
+                self.foco_combo = False
+                self.inicio_arvore_drives.append(self.drive)
                 self._mostrar_selecao()
 
+    def _aplicar_unidade(self):
+        atual = self.unidades[self.indice_combo]
+        if atual != self.drive:
+            self.unidades_escolhidas.append(atual)
+        self.drive = atual
+
     def tecla(self, tecla):
+        if self.foco_combo:
+            if tecla not in ('home', 'down', 'tab'):
+                raise AssertionError('Combo permite Home/Down/Tab; nunca Enter/Esc/caminho.')
+            self.teclas.append(tecla)
+            self.teclas_combo.append(tecla)
+            if tecla == 'home':
+                self.indice_combo = 0
+            elif tecla == 'down':
+                self.indice_combo = min(self.indice_combo + 1, len(self.unidades)-1)
+            else:
+                self._aplicar_unidade()
+                self.combo_aberto = False
+                self.foco_combo = False
+                self.foco_arvore = True
+            return
         if tecla not in ('home', 'down', 'right', 'left'):
             raise AssertionError('Somente as setas observadas e Home são permitidos.')
         if not self.foco_arvore:
@@ -173,10 +211,10 @@ class ArvoreSintetica:
 
 
 class TestNavegacaoTeclado(unittest.TestCase):
-    def executar(self, arvore):
+    def executar(self, arvore, destino=DESTINO):
         with patch.object(seletor, '_palavras', side_effect=lambda imagem: imagem.info['palavras_sinteticas']), \
              patch.object(seletor.time, 'sleep'):
-            return seletor.selecionar_pasta(DESTINO, arvore.capturar, arvore.clicar, arvore.tecla)
+            return seletor.selecionar_pasta(destino, arvore.capturar, arvore.clicar, arvore.tecla)
 
     def assert_destino_unico(self, arvore):
         self.assertEqual(arvore.cliques_ok, [('Client C (M:\\)',
@@ -231,6 +269,130 @@ class TestNavegacaoTeclado(unittest.TestCase):
         self.assertTrue(self.executar(arvore))
         self.assertEqual(arvore.unidades_escolhidas, ['Client C (M:\\)'])
         self.assert_destino_unico(arvore)
+
+    def test_combo_teclado_sem_ocr_da_lista_aplica_client_c_antes_da_arvore(self):
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        self.assertTrue(self.executar(arvore))
+        self.assert_destino_unico(arvore)
+        self.assertIn('home', arvore.teclas_combo)
+        self.assertIn('down', arvore.teclas_combo)
+        self.assertIn('tab', arvore.teclas_combo)
+        self.assertTrue(arvore.inicio_arvore_drives)
+        self.assertEqual(set(arvore.inicio_arvore_drives), {'Client C (M:\\)'})
+
+    def test_client_c_ja_correto_nao_reabre_combo(self):
+        arvore = ArvoreSintetica(ocultar_lista_ocr=True)
+        self.assertTrue(self.executar(arvore))
+        self.assert_destino_unico(arvore)
+        self.assertEqual(arvore.cliques_combo, 0)
+        self.assertEqual(arvore.teclas_combo, [])
+
+    def test_client_z_com_letra_esperada_nao_substitui_client_c(self):
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True,
+            unidades=('Servidor (C:\\)', 'Client Z (M:\\)', 'Client C (M:\\)'))
+        self.assertTrue(self.executar(arvore))
+        self.assert_destino_unico(arvore)
+        self.assertEqual(set(arvore.inicio_arvore_drives), {'Client C (M:\\)'})
+        self.assertGreaterEqual(arvore.teclas_combo.count('down'), 2)
+
+    def test_unidade_ausente_bloqueia_sem_explorar_arvore_ou_clicar_ok(self):
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True,
+            unidades=('Servidor (C:\\)', 'Client Z (Z:\\)'))
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            self.executar(arvore)
+        self.assertEqual(arvore.cliques_ok, [])
+        self.assertEqual(arvore.inicio_arvore_drives, [])
+        self.assertLessEqual(arvore.teclas_combo.count('down'), 40)
+
+    def test_combo_tem_limite_antes_de_client_c_fora_do_limite(self):
+        unidades = ['Servidor (C:\\)'] + [f'Volume {i}' for i in range(45)] + ['Client C (M:\\)']
+        arvore = ArvoreSintetica(drive=unidades[0], unidades=unidades, ocultar_lista_ocr=True)
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            self.executar(arvore)
+        self.assertEqual(arvore.cliques_ok, [])
+        self.assertEqual(arvore.inicio_arvore_drives, [])
+        self.assertLessEqual(arvore.teclas_combo.count('down'), 40)
+
+    def test_letra_configurada_nao_e_substituida_pelo_padrao_m(self):
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True,
+            unidades=('Servidor (C:\\)', 'Client C (M:\\)', 'Client C (Q:\\)'))
+        self.assertTrue(self.executar(arvore, destino=DESTINO.replace('M:', 'Q:', 1)))
+        self.assertEqual(arvore.cliques_ok, [('Client C (Q:\\)',
+            ('Users', 'usuario', 'dominio-automation-engine', 'saida', FOLHA))])
+        self.assertEqual(set(arvore.inicio_arvore_drives), {'Client C (Q:\\)'})
+
+    def test_cancelamento_apos_down_do_combo_nao_aplica_nem_clica_ok(self):
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        controle = ControleExecucao()
+        tecla = arvore.tecla
+        def interromper(tecla_enviada):
+            era_combo = arvore.foco_combo
+            tecla(tecla_enviada)
+            if era_combo and tecla_enviada == 'down':
+                controle.interromper('teste')
+        arvore.tecla = interromper
+        with controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+            self.executar(arvore)
+        self.assertEqual(arvore.teclas_combo[-1], 'down')
+        self.assertEqual(arvore.drive, 'Servidor (C:\\)')
+        self.assertEqual(arvore.inicio_arvore_drives, [])
+        self.assertEqual(arvore.cliques_ok, [])
+
+    def test_captura_atrasada_do_combo_nao_repete_down_nem_pula_client_c(self):
+        referencia = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        self.assertTrue(self.executar(referencia))
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        capturar, tecla = arvore.capturar, arvore.tecla
+        pendentes = []
+        def enviar(tecla_enviada):
+            era_combo = arvore.foco_combo
+            anterior = capturar()
+            tecla(tecla_enviada)
+            if era_combo and tecla_enviada == 'down':
+                pendentes.extend((anterior, anterior.copy()))
+        def captura_atrasada():
+            return pendentes.pop(0) if pendentes else capturar()
+        arvore.tecla, arvore.capturar = enviar, captura_atrasada
+        self.assertTrue(self.executar(arvore))
+        self.assert_destino_unico(arvore)
+        self.assertEqual(arvore.teclas_combo, referencia.teclas_combo)
+
+    def test_tokenizacao_ocr_diferente_sem_mudar_pixels_nao_prova_down_aplicado(self):
+        referencia = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        self.assertTrue(self.executar(referencia))
+        arvore = ArvoreSintetica(drive='Servidor (C:\\)', ocultar_lista_ocr=True)
+        capturar, clicar, tecla = arvore.capturar, arvore.clicar, arvore.tecla
+        anterior_fechado, pendentes = [], []
+
+        def focar(x, y):
+            if 100 < x < 480 and 76 < y < 101:
+                anterior_fechado[:] = [capturar()]
+            clicar(x, y)
+
+        def enviar(tecla_enviada):
+            era_combo = arvore.foco_combo
+            tecla(tecla_enviada)
+            if era_combo and tecla_enviada == 'down':
+                original = anterior_fechado[0]
+                atrasada = original.copy()
+                palavras = original.info['palavras_sinteticas']
+                dentro = [p for p in palavras if 100 < p['x'] < 480 and 76 < p['y'] < 101]
+                # A mesma legenda passa de dois tokens para um token. A imagem
+                # continua sendo o quadro antigo do combo fechado, pixel a pixel.
+                self.assertGreater(len(dentro), 1)
+                atrasada.info['palavras_sinteticas'] = [p for p in palavras if p not in dentro] + [{
+                    'texto': ' '.join(p['texto'] for p in dentro), 'x': 108, 'y': 81,
+                    'w': 170, 'h': 12}]
+                self.assertEqual(atrasada.tobytes(), original.tobytes())
+                pendentes.extend((atrasada, atrasada.copy()))
+
+        def captura_atrasada():
+            return pendentes.pop(0) if pendentes else capturar()
+
+        arvore.clicar, arvore.tecla, arvore.capturar = focar, enviar, captura_atrasada
+        self.assertTrue(self.executar(arvore))
+        self.assert_destino_unico(arvore)
+        self.assertEqual(arvore.teclas_combo, referencia.teclas_combo)
 
     def test_folha_ausente_nao_envia_ok_no_pai(self):
         arvore = ArvoreSintetica()

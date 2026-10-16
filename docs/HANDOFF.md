@@ -1,5 +1,27 @@
 # Domínio Automation Engine — handoff
 
+## Livros chegou ao PDF; escolha da unidade por teclado — 16/10/2026
+
+Log real novo confirma LIVROS_OK, clique único e gerar_previa confirmado;
+depois exportar_pdf falha com “Unidade Client C não encontrada na lista”,
+sem percorrer segmentos. A causa está na escolha da unidade: ainda lia
+somente o OCR global da lista aberta. Não alterar de novo o OK da prévia.
+
+O combo medido recebe Home/Down e Tab para aplicar/fechar. Só navega na
+árvore depois de conferir Client C e a letra configurada no campo atual.
+Espera mudança e duas capturas estáveis entre avanços, sem repetir Down
+por atraso; limite de 40 opções, cancelamento entre ações e nenhum Enter.
+Recorte do campo normaliza seleção azul e usa escalas 4/6 com opiniões
+concordantes quando o OCR global omite a unidade ou a letra. Log informa
+unidade_client_c antes de segmento, sem nomes locais. Diagnóstico somente
+leitura revisar_seletor_pasta agora informa letras Client C reconhecidas.
+
+Testes cobrem lista sem OCR, unidade já correta, Client Z com a mesma
+letra, outra letra configurada, captura atrasada, limites/cancelamento e
+OCR real sobre figuras sintéticas. Não houve execução fiscal aqui; esta
+correção da escolha da unidade ainda precisa da rodada manual no Windows.
+Validação final: 775 testes passaram; sintaxe Python e diff --check limpos.
+
 ## Livros parou antes do OK; lote das três rotinas — 16/10/2026
 
 Novo log real: seleção dos três livros e período confirmados, depois
