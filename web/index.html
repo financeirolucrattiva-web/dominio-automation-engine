@@ -37,6 +37,7 @@
           <label class="confirmacao"><input id="piloto-parcial" type="checkbox"><span>Se houver rotinas pendentes, testar somente as disponíveis. As pendentes continuarão registradas como não executadas.</span></label>
           <label class="confirmacao"><input id="piloto-apuracao" type="checkbox" required><span>Conferi a empresa e a apuração dessa competência está fechada.</span></label>
           <button id="piloto-executar" type="submit" disabled>Executar sequência nesta empresa</button>
+          <button id="piloto-ir-lote" type="button" class="secundario">Preparar lote para várias empresas</button>
         </form>
         <p id="piloto-aviso" class="discreto" role="status"></p>
         <p class="discreto">Acompanhe cada rotina nos resultados do lote. Falha permanece no histórico; a próxima só começa após confirmar o retorno ao painel azul. Uma rotina pendente não é considerada emitida.</p>
@@ -87,6 +88,7 @@
       </details></section>
       <section class="bloco configuracao"><details id="config-lotes"><summary>Executar lote por empresas</summary>
         <form id="form-lote">
+          <p class="discreto">Para as três rotinas do Presumido, filtre esse regime, selecione as empresas e revise a sequência. Um envio executa as três em cada empresa, na ordem cadastrada.</p>
           <label for="lote-filtro">Filtrar empresas por regime</label><select id="lote-filtro"><option value="">Todos os regimes</option></select>
           <div class="controle"><button id="lote-selecionar" type="button" class="secundario">Selecionar empresas visíveis</button><button id="lote-limpar" type="button" class="secundario">Limpar seleção</button></div>
           <div class="tabela-scroll"><table><thead><tr><th>Selecionar</th><th>Empresa</th><th>Regime</th><th></th></tr></thead><tbody id="lote-empresas"></tbody></table></div>

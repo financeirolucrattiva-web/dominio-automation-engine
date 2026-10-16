@@ -25,21 +25,11 @@ def _achar_opcao_pdf(imagem):
     return pos
 
 
-ESPACO_OK_FECHAR = 31  # medido: o OK fica ~31 px acima do Fechar, na mesma coluna
-
-
 def _achar_ok(imagem):
-    """OK por texto; senão, calculado a partir de "Fechar" (como no fluxo que já
-    rodou ao vivo). "OK" tem 2 letras e o OCR quase nunca o lê; "Fechar" lê bem
-    (captura real de 15/10: Fechar em (1158, 264), OK em ~(1158, 233))."""
-    pos = tela.achar_texto_ou_no_centro(imagem, 'OK', escala=4)
-    if pos is not None:
-        return pos
-    fechar = tela.achar_texto_ou_no_centro(imagem, 'Fechar', escala=2)
-    if fechar is None:
-        return None
-    print('LIVROS_OK calculado a partir de Fechar (OK não lido por OCR).', flush=True)
-    return (fechar[0], fechar[1] - ESPACO_OK_FECHAR)
+    """Confirma o botão literal e suas bordas na captura atual, sem emitir."""
+    from app.botao_livros import achar_ok_livros
+    return achar_ok_livros(imagem, registrar=lambda detalhe:
+        print('LIVROS_OK '+json.dumps(detalhe, ensure_ascii=False), flush=True))
 
 
 def _captura_falha(dominio, prefixo):
@@ -361,7 +351,14 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     acompanhamento.iniciar('gerar_previa')
     pos=_achar_ok(imagem)
     if pos is None:return False
+    ponto_seguro()
+    if (acompanhamento.janela_dominio is None
+            or not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio)):
+        print('LIVROS_OK {"fase":"clique","motivo":"foco_nao_confirmado","confirmado":false}',flush=True)
+        return False
     antes_do_ok=imagem  # formulário de antes do OK
+    print('LIVROS_OK '+json.dumps({'fase':'clique','motivo':'enviando_ok_confirmado',
+                                 'posicao':list(pos)}),flush=True)
     interacao.clicar(*pos)
     def previa(imagem):
         if tela.achar_texto(imagem,'CNPJ',escala=2) is None:return None
@@ -372,7 +369,10 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         # lê como frase; com o rótulo CNPJ já achado, a palavra REGISTRO sozinha basta
         # (mesma âncora do fluxo individual); o PDF exportado ainda é conferido por tipo.
         return tela.achar_texto(imagem,'REGISTRO',escala=2)
+    print('LIVROS_OK {"fase":"previa","motivo":"aguardando_estado"}',flush=True)
     imagem=_aguardar(dominio,'previa',previa,prefixo,referencia=antes_do_ok)
+    print('LIVROS_OK '+json.dumps({'fase':'previa','motivo':'espera_concluida',
+                                 'confirmado':imagem is not None}),flush=True)
     if imagem is None:return False
     # A prévia cobre o cabeçalho do Domínio: sem o código legível, a identidade
     # vem do nome conferido antes + CNPJ/período da prévia. Código legível e

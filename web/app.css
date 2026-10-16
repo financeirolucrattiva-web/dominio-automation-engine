@@ -8,7 +8,7 @@ main {width:100%; min-width:0; padding:34px; max-width:1500px; margin:auto} head
 .indicador {border-radius:20px; background:#e3eaf2; padding:9px 13px; font-size:12px; white-space:nowrap} .indicador.online {background:#def3eb; color:#086649}
 .bloco {background:white; border:1px solid #e0e7ef; border-radius:12px; padding:23px; box-shadow:0 3px 10px #15325505}
 .resumo {display:grid; grid-template-columns:repeat(3,1fr); gap:17px; margin:20px 0} .resumo span {display:block; color:#6c7d91; font-size:10px; letter-spacing:1.4px; font-weight:700} .resumo strong {display:block; font-size:18px; margin-top:10px}
-.colunas {display:grid; grid-template-columns:minmax(290px, .9fr) minmax(340px,1.35fr); gap:20px} .discreto {font-size:13px; color:#708095} .login {max-width:470px; margin:35px auto}
+.colunas {display:grid; grid-template-columns:minmax(290px, .9fr) minmax(340px,1.35fr); gap:20px} .colunas > * {min-width:0} .discreto {font-size:13px; color:#708095} .login {max-width:470px; margin:35px auto}
 form {display:flex; flex-direction:column; gap:9px} label {font-size:13px; font-weight:600; margin-top:9px} input,select {font:inherit; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:7px; background:white; color:#24354a; min-width:0}
 input:focus,select:focus,button:focus-visible {outline:3px solid #98d8ed; outline-offset:2px} input:disabled {background:#f2f5f8; color:#667588} .datas {display:grid; grid-template-columns:1fr 1fr; gap:10px} .datas label {display:block; margin-bottom:8px}
 .confirmacao {display:flex; align-items:flex-start; gap:10px; line-height:1.6; font-weight:400; margin:13px 0} .confirmacao input {width:18px; height:18px; flex-shrink:0; margin:3px 0 0}

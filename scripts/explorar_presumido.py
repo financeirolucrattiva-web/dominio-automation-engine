@@ -1,4 +1,4 @@
-"""Teste individual do Presumido no mesmo worker/lote do painel.
+"""Presumido por empresa ou lote no mesmo worker do painel.
 
 Pare o servidor antes de usar este script no Windows. Pendências não
 viram execução; teste parcial exige --somente-disponiveis explícito.
@@ -16,7 +16,9 @@ sys.path.insert(0,str(ROOT))
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--empresa',help='Código da empresa cadastrada no Lucro Presumido.')
+    empresas=parser.add_mutually_exclusive_group()
+    empresas.add_argument('--empresa',help='Código da empresa cadastrada no Lucro Presumido.')
+    empresas.add_argument('--empresas',help='Códigos do Presumido separados por vírgula, na ordem do lote.')
     parser.add_argument('--competencia',help='AAAA-MM de competência passada fechada.')
     parser.add_argument('--apuracao-confirmada',action='store_true')
     parser.add_argument('--somente-disponiveis',action='store_true',help='Teste parcial explícito: pendências ficam registradas sem emissão.')
@@ -29,30 +31,34 @@ def main(argv=None):
     from app.executor_servidor import ExecutorDominio
     from scripts.piloto_console import (acompanhar_lote, encerrar_servico, periodo_competencia,
                                         salvar_diagnostico, solicitar_cancelamento)
-    print('PRESUMIDO POR EMPRESA — Resumo, EFD Contribuições e três Livros Fiscais.',flush=True)
+    print('PRESUMIDO POR EMPRESA OU LOTE — Resumo, EFD Contribuições e três Livros Fiscais.',flush=True)
     print('Use este atalho com o servidor parado e Domínio aberto no painel azul.',flush=True)
     print('Se o servidor estiver ligado, execute pelo painel: Lucro Presumido por empresa.',flush=True)
-    codigo=args.empresa or input('Código da empresa cadastrada no Presumido: ').strip()
+    informadas=args.empresas if args.empresas is not None else args.empresa
+    if informadas is None:
+        informadas=input('Código(s) do Presumido, separados por vírgula para lote: ').strip()
+    codigos=[c.strip() for c in informadas.split(',')]
     competencia=args.competencia or input('Competência fechada (MM/AAAA ou AAAA-MM): ').strip()
     repo=RepositorioTarefas(ROOT/'data/servidor.sqlite3')
     try:
         inicio,fim=periodo_competencia(competencia)
-        selecao={'empresas':[codigo],'inicio':inicio,'fim':fim}
+        selecao={'empresas':codigos,'inicio':inicio,'fim':fim}
         plano=repo.configuracao.planejar(selecao,piloto_presumido=True)
     except ValueError:
         parser.error('Confira empresa do Presumido, competência passada completa e cadastro das rotinas.')
     cadastro=repo.configuracao.listar()
     nomes={r['id']:r['nome'] for r in cadastro['rotinas']}
-    print('Sequência disponível: '+', '.join(nomes[r] for r in plano['empresas'][0]['rotinas']))
+    for empresa in plano['empresas']:
+        print('Empresa '+empresa['codigo']+' — sequência: '+', '.join(nomes[r] for r in empresa['rotinas']),flush=True)
     for pendencia in plano['pendencias']:print('NÃO EXECUTADA — integração pendente: '+pendencia['nome'])
     if plano['quantidade_pendencias'] and not args.somente_disponiveis:
         parser.error('O teste completo ainda está bloqueado. Use --somente-disponiveis apenas para testar as rotinas integradas.')
     esperadas={'resumo_acumulador','efd_contribuicoes','livros_fiscais'}
-    rotinas=plano['empresas'][0]['rotinas']
-    if not args.somente_disponiveis and (len(rotinas)!=3 or set(rotinas)!=esperadas):
+    if not args.somente_disponiveis and any(len(e['rotinas'])!=3 or set(e['rotinas'])!=esperadas
+                                          for e in plano['empresas']):
         parser.error('Para executar as três rotinas, configure no Presumido Resumo, EFD Contribuições e Livros Fiscais. Nenhum cadastro será alterado automaticamente.')
-    print(f'Empresa cadastrada de código {codigo}; período {inicio} a {fim}.',flush=True)
-    confirmada=args.apuracao_confirmada or input('Confirma que ESSE mês está apurado e fechado NESSA empresa? Digite S: ').strip().upper()=='S'
+    print(f"{len(plano['empresas'])} empresa(s); {plano['quantidade_rotinas']} rotinas; período {inicio} a {fim}.",flush=True)
+    confirmada=args.apuracao_confirmada or input('Confirma que ESSE mês está apurado e fechado em TODAS as empresas listadas? Digite S: ').strip().upper()=='S'
     if not confirmada:parser.error('Confirme uma competência apurada antes de emitir.')
     pedido={**selecao,'request_id':str(uuid.uuid4()),'apuracao_confirmada':True,
             'plano_hash':plano['hash'],'piloto_presumido':True}
