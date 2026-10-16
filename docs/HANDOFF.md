@@ -1,5 +1,38 @@
 # Domínio Automation Engine — handoff
 
+## M aplicado e lista fechada durante a espera da opção — 16/10/2026
+
+Nova tentativa confirmou a prévia em38s e falhou exportar_pdf em163s.
+Operador confirmou Client C(M:) visível com lista fechada. Tail16:51
+mostra passo0/fechar_unidade confirmado, passo1/abrir_unidade confirmado,
+depois opcao_unidade=False com lista_aberta=False,opcao_lida=False em
+quatro capturas. Não chegou à barra. Portanto não atribuir esta tentativa
+à medição/rolagem da barra; a confirmação exigia popup ainda aberto e o
+campo aplicado também não era lido.
+
+Na espera de opção, destino literal Client C+letra configurada em duas
+capturas concordantes pode confirmar a escolha com lista aberta ou já
+fechada. Estado aberto/fechado continua parte da concordância. Fechada:
+completa a medição da árvore sem enviar Tab extra. Aberta: envia Tab uma
+vez e confirma fechamento normalmente. Pintura oscilando não derruba a
+leitura literal do destino. Tipo/letra errados ou M em uma única captura
+não liberam a árvore/OK.
+
+Campo omitido pode receber segunda opinião do OCR nativo Windows em
+escalas4/6 na mesma ROI normalizada. Só após falha do consenso Tesseract;
+exige ao menos duas opiniões concordantes, sem ignorar contradições.
+Caixas fora da ROI são recusadas. Timeout/indisponibilidade não criam
+confirmação e cancelamento propaga. Logs mostram contagens e origem sem
+texto livre. Uso nativo permanece local; testes dele aqui são simulados.
+
+Diagnóstico somente leitura: revisar_seletor_pasta.py --ultima-falha
+--somente-unidade evita leituras da árvore/OK e informa letras Client C
+lidas no campo da captura salva, sem repetir emissão nem agir na tela.
+Validação: 193 testes passaram, incluindo aplicação que fecha a lista,
+realce oscilando/ambíguo e recuperação do campo omitido. OCR nativo
+simulado; Tesseract e diagnóstico readonly também conferidos em imagem
+sintética. Sintaxe e diff --check limpos. Falta validar no Windows real.
+
 ## Unidade fechada sem concordância; prioridade à barra para Users — 16/10/2026
 
 Nova tentativa: prévia confirmou50s; exportar_pdf falhou130s. Operador viu

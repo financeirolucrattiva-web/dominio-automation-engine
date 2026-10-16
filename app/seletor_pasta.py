@@ -187,20 +187,45 @@ def _refinar_unidade(imagem,palavras,combo):
     area=(x+2,y+2,x+w-h,y+h-2)  # interior, excluindo borda e botão da seta
     leituras=[]
     recorte=normalizar_selecao(imagem.crop(area))
+    def adicionar(dados,escala):
+        if not dados:return
+        indices=[i for i,t in enumerate(dados['text']) if str(t).strip()]
+        if not indices or any(dados['left'][i]<0 or dados['top'][i]<0
+                or dados['width'][i]<=0 or dados['height'][i]<=0
+                or dados['left'][i]+dados['width'][i]>recorte.width*escala
+                or dados['top'][i]+dados['height'][i]>recorte.height*escala for i in indices):return
+        ps=[{'texto':str(dados['text'][i]),'x':area[0]+dados['left'][i]/escala,
+             'y':area[1]+dados['top'][i]/escala,'w':dados['width'][i]/escala,
+             'h':dados['height'][i]/escala} for i in indices]
+        linhas=_linhas(ps)
+        identidade=_identidade_unidade(linhas[0]) if len(linhas)==1 else None
+        if identidade and re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade):
+            leituras.append((identidade,ps))
+    def consenso():
+        return len(leituras)>=2 and len({identidade for identidade,_ in leituras})==1
     for escala,preparo in ((4,'cinza'),(4,'binaria'),(6,'cinza'),(6,'binaria')):
         ponto_seguro()
         try:
             dados=tela.ler_dados_ocr_linha_rotulo(recorte,escala=escala,preparo=preparo)
-            ps=[{'texto':t,'x':area[0]+dados['left'][i]/escala,'y':area[1]+dados['top'][i]/escala,
-                 'w':dados['width'][i]/escala,'h':dados['height'][i]/escala}
-                for i,t in enumerate(dados['text']) if str(t).strip()]
-            linhas=_linhas(ps)
-            identidade=_identidade_unidade(linhas[0]) if len(linhas)==1 else None
+            adicionar(dados,escala)
         except ExecucaoInterrompida:raise
         except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
-        if identidade and re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade):
-            leituras.append((identidade,ps))
-    if len(leituras)>=2 and len({letra for letra,_ in leituras})==1:
+    if not consenso():
+        # O OCR global pode perder o campo depois que o GO-Global fecha o
+        # popup. Segunda opinião local, na mesma imagem e área medida.
+        antes=len(leituras)
+        for escala in (4,6):
+            ponto_seguro()
+            try:
+                dados=tela.ler_dados_ocr_windows(recorte,escala=escala)
+                if dados is None:break
+                adicionar(dados,escala)
+            except ExecucaoInterrompida:raise
+            except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'leitura_campo_unidade',
+              'opinioes_tesseract':antes,'opinioes_windows':len(leituras)-antes,
+              'confirmado':consenso()}),flush=True)
+    if consenso():
         return [p for p in palavras if p not in dentro]+leituras[0][1]
     return palavras
 
@@ -326,7 +351,8 @@ def _primeira_opcao_unidade(imagem,detalhes):
     return realce is not None and realce[1]-detalhes['lista'][1]<=detalhes['combo'][3]*.5
 
 
-def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=False):
+def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=False,
+                            letra_aplicada=None):
     """Cada evento remoto precisa aparecer antes de enviar o próximo."""
     anterior=None
     leitor=_LeitorDialogo(somente_unidade=True)
@@ -342,17 +368,25 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
         try:
             detalhes=leitor.ler(imagem)
             lista_aberta=detalhes['lista'] is not None
-            assinatura=(_opcao_unidade(imagem,detalhes) if aberta
-                        else _assinatura_unidade(imagem,detalhes))
+            destino_lido=(letra_aplicada is not None
+                          and _drive_selecionado(detalhes,letra_aplicada))
+            if destino_lido:
+                # O destino literal no campo é mais específico que a pintura
+                # do popup. Também aceita aplicação que já fechou a lista.
+                assinatura=('campo_destino',detalhes['combo'],letra_aplicada)
+            else:
+                assinatura=(_opcao_unidade(imagem,detalhes) if aberta
+                            else _assinatura_unidade(imagem,detalhes))
             mudou=assinatura is not None and assinatura!=diferente
-            topo_confirmado=not primeira or _primeira_opcao_unidade(imagem,detalhes)
+            topo_confirmado=destino_lido or not primeira or _primeira_opcao_unidade(imagem,detalhes)
             observado={'dialogo_lido':True,'lista_aberta':lista_aberta,
                        'opcao_lida':assinatura is not None,'opcao_mudou':mudou,
                        'combo':list(detalhes['combo']),
                        'lista':list(detalhes['lista']) if lista_aberta else None,
                        'capturas':tentativa+1,'confirmacao_extra':confirmacao_extra}
+            if letra_aplicada is not None:observado['unidade_destino_lida']=destino_lido
             if primeira:observado['primeira_opcao_confirmada']=topo_confirmado
-            if lista_aberta==aberta and mudou and topo_confirmado:
+            if destino_lido or (lista_aberta==aberta and mudou and topo_confirmado):
                 estado=(assinatura,detalhes['lista'])
                 if estado==anterior:
                     print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':True,
@@ -413,7 +447,13 @@ def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
         tecla('home' if passo==0 else 'down')
         imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='opcao_unidade',
                                              diferente=None if passo==0 else anterior,
-                                             primeira=passo==0)
+                                             primeira=passo==0,letra_aplicada=letra)
+        if lista['lista'] is None:
+            if not _drive_selecionado(lista,letra):
+                raise SeletorPastaNaoConfirmado('Unidade aplicada não é o destino configurado; não foi enviado OK.')
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_client_c',
+                  'passo':passo,'confirmado':True,'origem':'campo_aplicado'}),flush=True)
+            return imagem,_completar_dialogo(lista)
         ponto_seguro()
         tecla('tab')  # fecha/aplica a lista, sem Enter nem OK implícito
         # Lista e campo podem atualizar em quadros diferentes. Quando a

@@ -14,6 +14,8 @@ def main(argv=None):
     origem.add_argument('--imagem',type=Path,help='PNG local do seletor.')
     origem.add_argument('--ultima-falha',action='store_true',help='Última captura local da falha dos livros.')
     parser.add_argument('--pasta',help='Confere se esse nome está visível no ramo atual, sem clicar.')
+    parser.add_argument('--somente-unidade',action='store_true',
+                        help='Confere somente campo/lista de unidades, sem OCR da árvore ou do OK.')
     args=parser.parse_args(argv)
     caminho=args.imagem
     if args.ultima_falha:
@@ -27,6 +29,14 @@ def main(argv=None):
     try:
         with Image.open(caminho) as arquivo:imagem=arquivo.convert('RGB')
         unidade=seletor.medir_dialogo(imagem,somente_unidade=True)
+        if args.somente_unidade:
+            resultado={'dialogo_confirmado':True,'combo':list(unidade['combo']),
+                       'lista_unidades_aberta':unidade['lista'] is not None,
+                       'client_c_letras_no_campo':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                           if seletor._drive_selecionado(unidade,letra)]}
+            print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
+            print('Somente a unidade foi analisada. Nenhum clique, tecla ou emissão foi executado.')
+            return 0
         if unidade['lista'] is not None:
             resultado={'dialogo_confirmado':True,'combo':list(unidade['combo']),
                        'lista_unidades_aberta':True,'lista':list(unidade['lista']),
