@@ -179,6 +179,8 @@ Windows e homologação do livro ICMS; veja
 [LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
 No seletor, a unidade Client C é escolhida pelo teclado e conferida no
 campo atual; a rotina não depende de ler as opções da lista aberta.
+Espera a lista abrir antes da tecla e confirma a escolha antes de Tab;
+só começa a árvore após confirmar fechamento e unidade aplicada.
 Pastas visíveis do mesmo ramo recebem clique direto com confirmação da
 seleção. Durante cada espera, capturas idênticas dispensam repetir OCR.
 A busca de Users pode usar a seta inferior medida da barra, incluindo

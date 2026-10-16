@@ -33,10 +33,18 @@ Nome da folha, seleção e arquivos locais novos precisam ser confirmados.
 Ambiguidade impede confirmação, sem inventar coordenada ou colar caminho.
 
 A unidade é selecionada por Home/Down no combo medido, com Tab para
-aplicar e fechar a lista. Cada mudança exige nova captura estável; não
+aplicar e fechar a lista. Confirma a borda da lista antes de enviar tecla,
+o realce/valor pendente antes de Tab e o fechamento antes da árvore.
+Cada mudança exige duas capturas concordantes do controle; não
 repete Down durante atraso. Só começa a árvore ao ler Client C com a letra
 configurada no campo fechado. Servidor C e Client Z não são aceitos.
 PASTA_NAVEGACAO registra unidade_client_c antes das fases dos segmentos.
+clique_seta_unidade, abrir_unidade, opcao_unidade e fechar_unidade mostram
+onde uma troca não confirmou, com geometria e sem nomes de pastas.
+Variação de pixels da árvore não impede confirmar a unidade. Se o OCR
+global perder o rótulo/campo quando a lista abre, usa recortes locais
+concordantes ligados às bordas atuais. O diagnóstico readonly também
+informa se a lista estava aberta na captura da falha.
 Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
 
 Se Down não mudar a seleção ao procurar Users na raiz, tenta o nome literal

@@ -26,9 +26,21 @@ def main(argv=None):
     from app import seletor_pasta as seletor
     try:
         with Image.open(caminho) as arquivo:imagem=arquivo.convert('RGB')
-        detalhes=seletor.medir_dialogo(imagem)
+        unidade=seletor.medir_dialogo(imagem,somente_unidade=True)
+        if unidade['lista'] is not None:
+            resultado={'dialogo_confirmado':True,'combo':list(unidade['combo']),
+                       'lista_unidades_aberta':True,'lista':list(unidade['lista']),
+                       'realce_confirmado':seletor._realce_unidade(imagem,unidade) is not None,
+                       'client_c_letras_no_campo':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                           if seletor._drive_selecionado(unidade,letra)],
+                       'arvore_liberada':False}
+            print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
+            print('Nenhum clique, tecla ou emissão foi executado. A lista de unidades estava aberta na captura.')
+            return 0
+        detalhes=seletor._completar_dialogo(unidade)
         no=seletor._no_selecionado(imagem,detalhes)
         resultado={'dialogo_confirmado':True,'combo':list(detalhes['combo']),
+                   'lista_unidades_aberta':False,
                    'arvore':list(detalhes['arvore']),'linhas_visiveis':len(seletor._nos(detalhes)),
                    'client_c_letras_confirmadas':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                        if seletor._drive_selecionado(detalhes,letra)],

@@ -34,6 +34,36 @@ def dialogo():
 
 
 class TestSeletorOCR(unittest.TestCase):
+    def test_lista_aberta_cobre_arvore_e_mostra_opcao_pendente_sem_mudar_campo(self):
+        imagem=dialogo()
+        desenho=ImageDraw.Draw(imagem)
+        fonte=fonte_teste()
+        desenho.rectangle((107,62,530,84),fill='white')
+        desenho.text((112,65),'Servidor (C:)',font=fonte,fill='black')
+        desenho.rectangle((105,87,560,166),fill='white',outline='black')
+        desenho.text((112,92),'Servidor (C:)',font=fonte,fill='black')
+        desenho.rectangle((107,115,558,138),fill='#0078d7')
+        desenho.text((112,118),'Client C (M:)',font=fonte,fill='white')
+        desenho.text((112,144),'Client Z (Z:)',font=fonte,fill='black')
+        detalhes=seletor.medir_dialogo(imagem,somente_unidade=True)
+        self.assertIsNotNone(detalhes['lista'])
+        self.assertEqual(seletor._assinatura_unidade(imagem,detalhes)[1],'servidor:c')
+        opcao=seletor._opcao_unidade(imagem,detalhes)
+        self.assertEqual(opcao[1][0],'realce')
+        self.assertTrue(114<=opcao[1][1][1]<=116)
+        self.assertFalse(seletor._primeira_opcao_unidade(imagem,detalhes))
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            seletor.medir_dialogo(imagem)
+
+    def test_identidade_da_unidade_preserva_letra_e_tipo_com_barras_ocr_diferentes(self):
+        def identidade(texto):
+            return seletor._identidade_unidade([{'texto':t} for t in texto.split()])
+        for texto in (r'Client C (M:\)', 'Client C (M:/)', 'Client C (M:|)', 'Client C (M:)'):
+            self.assertEqual(identidade(texto),'clientc:m')
+        self.assertNotEqual(identidade('Client Z (M:)'),'clientc:m')
+        self.assertNotEqual(identidade('Servidor (M:)'),'clientc:m')
+        self.assertNotEqual(identidade('Client C (Q:)'),'clientc:m')
+
     def test_nome_curto_azul_omitido_no_ocr_global_e_lido_no_recorte_com_margem(self):
         imagem=dialogo()
         desenho=ImageDraw.Draw(imagem)
