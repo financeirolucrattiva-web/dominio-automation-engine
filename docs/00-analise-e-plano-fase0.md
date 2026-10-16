@@ -4987,6 +4987,20 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.130 Histórico do servidor recolhido na interface (16/10/2026)
+
+**Pedido:** diminuir ou minimizar o histórico do servidor. O bloco
+Histórico no servidor exibia toda a tabela aberta e crescia com as linhas.
+
+**Alteração:** details nativo fechado por padrão; clicar no título abre ou
+recolhe. Quando aberto, tabela com rolagem interna e cabeçalho fixo.
+Atualização dos dados preserva a escolha de abrir/recolher. Mantém os IDs
+e ações existentes. Cache da interface v17 para distribuir HTML/CSS novos.
+Nenhuma limpeza/exclusão de registros, logs ou arquivos fiscais.
+
+**Validação:** verificação de sintaxe do service worker, diff --check e
+smoke Chromium da interface com executor fiscal simulado. Não opera Domínio.
+
 ### 0.129 Client C confirmado, Users visível e avanço da árvore falhou (16/10/2026)
 
 **Evidência:** log real confirma gerar_previa, exportar_pdf e unidade_client_c

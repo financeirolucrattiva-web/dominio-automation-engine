@@ -1,5 +1,13 @@
 # Domínio Automation Engine — handoff
 
+## Histórico da interface recolhido — 16/10/2026
+
+Pedido para diminuir/minimizar histórico do servidor: bloco Histórico no
+servidor agora usa details, fechado inicialmente, com rolagem interna e
+cabeçalho fixo ao expandir. Mantém tabela/IDs/ações e registros existentes;
+não limpa banco, logs nem PDFs. O polling só atualiza tbody e preserva a
+escolha de abrir/recolher. Cache da interface atualizado para v17.
+
 ## Client C confirmou; pasta visível e OCR sem repetição — 16/10/2026
 
 Novo log real confirma unidade_client_c passo1, depois proximo_no falha
