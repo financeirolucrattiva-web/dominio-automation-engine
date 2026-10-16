@@ -1,5 +1,30 @@
 # Domínio Automation Engine — handoff
 
+## Client C confirmou; pasta visível e OCR sem repetição — 16/10/2026
+
+Novo log real confirma unidade_client_c passo1, depois proximo_no falha
+antes de segmento0. Print mostra MIT selecionado e Users já visível na
+mesma raiz. A escolha de unidade da PR30 funcionou; a falha agora está no
+avanço/leitura da árvore, não no OK ou na geração da prévia. Operador pediu
+também mais rapidez no OCR.
+
+Busca da pasta agora prefere clique literal visível, no mesmo nível e
+antes de cruzar ancestral. Relê a captura antes de clicar e confirma nome
+inteiro/seleção azul/nível/unidade antes de Right. Homônimo, clique sem
+efeito e perda de leitura bloqueiam. Setas/rolagem continuam para pastas
+fora da tela. Recorte de seleção azul recebe margem branca e aceita nomes
+curtos, mantendo duas leituras concordantes. Logs mostram posição do clique
+e distinguem falha de unidade, seleção não lida e seleção que não mudou.
+
+Cache local da espera evita repetir OCR/contornos com pixels idênticos;
+qualquer mudança ou nova espera lê novamente. Não há cache persistente de
+coordenadas. Diagnóstico sem emissão: revisar_seletor_pasta.py
+--ultima-falha --pasta Users. Não executado contra o Domínio aqui; precisa
+do teste manual no Windows. Não prometer ganho de tempo real sem medi-lo.
+Validação: 783 testes passaram; 44 focados em navegação/cache/OCR. O
+diagnóstico CLI foi exercitado em imagem sintética, sem qualquer ação GUI.
+Sintaxe Python e diff --check limpos.
+
 ## Livros chegou ao PDF; escolha da unidade por teclado — 16/10/2026
 
 Log real novo confirma LIVROS_OK, clique único e gerar_previa confirmado;

@@ -4987,6 +4987,42 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.129 Client C confirmado, Users visível e avanço da árvore falhou (16/10/2026)
+
+**Evidência:** log real confirma gerar_previa, exportar_pdf e unidade_client_c
+passo1. Em seguida proximo_no não confirmado, sem segmento0; exportar_pdf
+termina com falha em 140s. Print tem MIT selecionado e Users já visível na
+mesma raiz. A PR30 resolveu a escolha da unidade. Não afirmar que Users
+estava fora da tela nem que a falha foi na geração do PDF. A recuperação
+parou ao detectar foco XamlExplorerHostIslandWindow, sem autorizar ações
+fora do Domínio. Operador também pediu reduzir a demora de OCR.
+
+**Causa do bloqueio:** busca ainda precisava avançar/ler cada irmão
+intermediário, mesmo com o destino já visível. proximo_no não diferencia
+falta de mudança da seleção de falta de leitura; não há evidência bastante
+para atribuir o problema somente à tecla ou somente ao OCR.
+
+**Correção:** prefere texto literal visível no mesmo nível, abaixo da
+seleção atual e antes de qualquer ancestral que delimite outro ramo.
+Relê captura antes do clique único; confere nome inteiro, seleção azul,
+nível e unidade antes de expandir. Não aceita homônimo de outro ramo.
+Setas/rolagem permanecem para destinos fora da tela. Recorte selecionado
+ganha margem branca para OCR de nomes curtos e mantém opiniões concordantes.
+Logs trazem posição/nível do clique e flags de seleção/unidade/mudança.
+
+**Rapidez:** cache limitado à espera compara pixels exatos; mesma captura
+reutiliza OCR/contornos, qualquer mudança ou nova espera lê de novo.
+Continua capturando/checkpoint entre tentativas e não repete ações por
+atraso. Não reduz guardas nem promete tempo real ainda não medido.
+
+**Validação:** cenários sintéticos de pasta visível com Down sem efeito,
+homônimo/ancestral, clique ignorado, mudança antes do clique, cancelamento,
+rolagem e cache. OCR real local em figura com MIT selecionado e Users
+visível. Não executado contra o Domínio real; falta teste manual Windows.
+Diagnóstico sem ações: revisar_seletor_pasta.py --ultima-falha --pasta Users.
+Suíte completa: 783 testes passaram (44 focados em navegação/cache/OCR),
+diagnóstico CLI em figura sintética e sintaxe/diff --check limpos.
+
 ### 0.121 Conferência do PDF do Resumo e esperas sem OCR desnecessário (15/10/2026)
 
 **Evidência (execução de 3m24s e o PDF real exportado):** preview 62 s, exportar PDF
