@@ -39,6 +39,17 @@ configurada no campo fechado. Servidor C e Client Z não são aceitos.
 PASTA_NAVEGACAO registra unidade_client_c antes das fases dos segmentos.
 Se a unidade não mudar, ficar ambígua ou atingir o limite, não envia OK.
 
+Quando o nome da pasta desejada já está visível no mesmo ramo/nível,
+relê a captura e clica no texto diretamente, confirmando seleção azul,
+nome completo, nível e unidade antes de expandir. Não precisa ler cada
+pasta intermediária para chegar a Users. Não pula para homônimos de outro
+ramo. Se o destino não aparece, mantém a navegação por teclado/rolagem.
+O OCR/contornos são reutilizados somente dentro da mesma espera e somente
+quando todos os pixels da captura continuam iguais; mudança exige leitura
+nova. Isso reduz repetição de OCR em tela parada, sem reduzir confirmações.
+O log clicar_pasta_visivel registra posição/nível sem nomes locais;
+leitura_selecao diferencia unidade, falta de leitura e ausência de mudança.
+
 Na correção de 16/10, a árvore é percorrida com Home/Down/Right/Left e
 releitura da seleção azul/nível; Down faz a rolagem quando a próxima pasta
 está fora da área visível. Em Client C segue Users → perfil local →
@@ -48,6 +59,8 @@ exclusiva permite conferir apenas os três PDFs novos, preservando anteriores.
 O botão OK precisa ser reconhecido na captura final. Se houver falha,
 `python scripts\revisar_seletor_pasta.py --ultima-falha` lê a captura local
 salva sem clicar ou gerar novamente.
+Acrescente `--pasta Users` para verificar, sem ações, se Users está visível
+no ramo atual da captura salva.
 
 O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
 publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.

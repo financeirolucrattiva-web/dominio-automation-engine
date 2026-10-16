@@ -34,6 +34,25 @@ def dialogo():
 
 
 class TestSeletorOCR(unittest.TestCase):
+    def test_nome_curto_azul_omitido_no_ocr_global_e_lido_no_recorte_com_margem(self):
+        imagem=dialogo()
+        desenho=ImageDraw.Draw(imagem)
+        desenho.rectangle((32,104,558,330),fill='white')
+        fonte=fonte_teste()
+        largura=round(desenho.textlength('MIT',font=fonte))+2
+        desenho.rectangle((66,120,66+largura,138),fill='#0078d7')
+        desenho.text((67,122),'MIT',font=fonte,fill='white')
+        desenho.text((67,158),'Users',font=fonte,fill='black')
+        palavras=[p for p in seletor._palavras(imagem) if not (102<p['y']<148 and p['x']>30)]
+        with patch.object(seletor,'_palavras',return_value=palavras):
+            detalhes=seletor.medir_dialogo(imagem)
+        no=seletor._no_selecionado(imagem,detalhes)
+        self.assertIsNotNone(no)
+        self.assertEqual(no['nome'],'mit')
+        alvo=seletor._alvo_visivel(detalhes,no,'Users')
+        self.assertIsNotNone(alvo)
+        self.assertTrue(66<alvo['posicao'][0]<115 and 158<alvo['posicao'][1]<180)
+
     def test_cliente_parcial_no_ocr_global_e_timeout_isolado_permitem_recorte(self):
         from app import tela
         imagem=dialogo()

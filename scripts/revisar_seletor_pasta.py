@@ -13,6 +13,7 @@ def main(argv=None):
     origem=parser.add_mutually_exclusive_group(required=True)
     origem.add_argument('--imagem',type=Path,help='PNG local do seletor.')
     origem.add_argument('--ultima-falha',action='store_true',help='Última captura local da falha dos livros.')
+    parser.add_argument('--pasta',help='Confere se esse nome está visível no ramo atual, sem clicar.')
     args=parser.parse_args(argv)
     caminho=args.imagem
     if args.ultima_falha:
@@ -33,6 +34,11 @@ def main(argv=None):
                        if seletor._drive_selecionado(detalhes,letra)],
                    'selecao_confirmada':no is not None,
                    'ok_confirmado':seletor._ok_final(imagem,detalhes) is not None}
+        if args.pasta:
+            alvo=(no if no and no['nome']==seletor._normalizar(args.pasta)
+                  else seletor._alvo_visivel(detalhes,no,args.pasta) if no else None)
+            resultado['pasta_visivel_no_ramo']=alvo is not None
+            resultado['posicao_pasta']=list(alvo['posicao']) if alvo else None
         print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
     except (OSError,ValueError,RuntimeError) as erro:
         print('PASTA_DIAGNOSTICO '+json.dumps({'dialogo_confirmado':False,'tipo':type(erro).__name__}))

@@ -163,6 +163,8 @@ Windows e homologação do livro ICMS; veja
 [LIVROS-FISCAIS-CONJUNTOS.md](docs/LIVROS-FISCAIS-CONJUNTOS.md).
 No seletor, a unidade Client C é escolhida pelo teclado e conferida no
 campo atual; a rotina não depende de ler as opções da lista aberta.
+Pastas visíveis do mesmo ramo recebem clique direto com confirmação da
+seleção. Durante cada espera, capturas idênticas dispensam repetir OCR.
 O Resumo segue **Relatórios → Acompanhamentos → Resumo por Acumulador**,
 preenche as duas datas e exporta o PDF para `saida/`, como nos prints.
 O procedimento de teste está em

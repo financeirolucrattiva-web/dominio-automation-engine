@@ -126,6 +126,7 @@ class ArvoreSintetica:
                 x, y = 70 + nivel*18, 140 + i*25
                 if no is self.selecao:
                     desenho.rectangle((x, y, x + len(no['nome'])*7, y + 12), fill='#0078d7')
+                desenho.text((x, y), no['nome'], fill='white' if no is self.selecao else 'black')
                 palavras.append({'texto': no['nome'], 'x': x, 'y': y,
                                  'w': len(no['nome'])*7, 'h': 12})
         imagem.info['palavras_sinteticas'] = palavras
@@ -151,7 +152,7 @@ class ArvoreSintetica:
         elif 30 < x < 480 and 110 < y < 290:
             visiveis = self.linhas()[self.topo:self.topo+4]
             candidatos = [(no, linha) for linha, (no, _, _) in enumerate(visiveis)
-                          if 135 + linha*25 <= y <= 160 + linha*25]
+                          if 135 + linha*25 <= y < 160 + linha*25]
             if candidatos:
                 self.selecao = candidatos[0][0]
                 self.foco_arvore = True
@@ -227,7 +228,7 @@ class TestNavegacaoTeclado(unittest.TestCase):
         self.assertNotIn('dominio-automation-engine', [p['texto'] for p in inicial.info['palavras_sinteticas']])
         self.assertTrue(self.executar(arvore))
         self.assert_destino_unico(arvore)
-        self.assertGreater(arvore.teclas.count('down'), 3)
+        self.assertGreater(arvore.teclas.count('down'), 0)  # projeto ainda começa fora do viewport
         self.assertIn('right', arvore.teclas)
 
     def test_perfil_ja_expandido_e_destino_abaixo_da_tela(self):
@@ -237,6 +238,97 @@ class TestNavegacaoTeclado(unittest.TestCase):
         self.assertTrue(perfil['aberta'])
         self.assertTrue(self.executar(arvore))
         self.assert_destino_unico(arvore)
+
+    def test_users_visivel_na_raiz_dispensa_down_ate_confirmar_users(self):
+        arvore = ArvoreSintetica()
+        clicar, tecla = arvore.clicar, arvore.tecla
+        users_confirmado = [False]
+        def selecionar(x, y):
+            clicar(x, y)
+            if arvore.caminho_selecionado() == ('Users',):
+                users_confirmado[0] = True
+        def navegar(tecla_enviada):
+            if tecla_enviada == 'down' and not users_confirmado[0]:
+                raise AssertionError('Down não responde antes de selecionar Users visível.')
+            tecla(tecla_enviada)
+        arvore.clicar, arvore.tecla = selecionar, navegar
+        self.assertTrue(self.executar(arvore))
+        self.assertTrue(users_confirmado[0])
+        self.assert_destino_unico(arvore)
+        self.assertIn('down', arvore.teclas)  # rolagem ainda necessária dentro do perfil
+
+    def test_homonimo_visivel_apos_outro_ancestral_nao_recebe_clique(self):
+        falso = pasta('Outro', [pasta('usuario', [pasta('dominio-automation-engine', [
+            pasta('saida', [pasta(FOLHA)])])])], aberta=True)
+        arvore = ArvoreSintetica([pasta('Users', [pasta('Public')], aberta=True), falso])
+        clicar = arvore.clicar
+        selecionadas = []
+        def selecionar(x, y):
+            clicar(x, y)
+            selecionadas.append(arvore.caminho_selecionado())
+        arvore.clicar = selecionar
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            self.executar(arvore)
+        self.assertNotIn(('Outro', 'usuario'), selecionadas)
+        self.assertEqual(arvore.cliques_ok, [])
+
+    def test_clique_users_ignorado_nao_envia_right_nem_ok(self):
+        arvore = ArvoreSintetica()
+        clicar = arvore.clicar
+        ignorados = []
+        def selecionar(x, y):
+            visiveis = arvore.linhas()[arvore.topo:arvore.topo+4]
+            if any(caminho == ('Users',) and 135+i*25 <= y < 160+i*25
+                   for i, (_, _, caminho) in enumerate(visiveis)):
+                ignorados.append((x, y))
+                return
+            clicar(x, y)
+        arvore.clicar = selecionar
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            self.executar(arvore)
+        self.assertEqual(len(ignorados), 1)
+        self.assertNotIn('right', arvore.teclas)
+        self.assertEqual(arvore.cliques_ok, [])
+
+    def test_alvo_visivel_rele_posicao_atual_antes_do_clique(self):
+        arvore = ArvoreSintetica()
+        clicar = Mock(wraps=arvore.clicar)
+        with patch.object(seletor, '_palavras', side_effect=lambda imagem: imagem.info['palavras_sinteticas']), \
+             patch.object(seletor.time, 'sleep'):
+            imagem = arvore.capturar()
+            detalhes = seletor.medir_dialogo(imagem)
+            atual = seletor._no_selecionado(imagem, detalhes)
+            antigo = seletor._alvo_visivel(detalhes, atual, 'Users')['posicao']
+            arvore.raizes.insert(1, pasta('Pasta nova'))
+            resultado = seletor._selecionar_visivel(arvore.capturar, clicar, 'M',
+                                                   (imagem, detalhes, atual), 'Users', 0)
+        self.assertIsNotNone(resultado)
+        clicar.assert_called_once()
+        self.assertNotEqual(clicar.call_args.args, antigo)
+        self.assertEqual(arvore.caminho_selecionado(), ('Users',))
+
+    def test_cancelamento_apos_reler_alvo_visivel_impede_clique(self):
+        arvore = ArvoreSintetica()
+        controle = ControleExecucao()
+        clicar = Mock(wraps=arvore.clicar)
+        with patch.object(seletor, '_palavras', side_effect=lambda imagem: imagem.info['palavras_sinteticas']):
+            imagem = arvore.capturar()
+            detalhes = seletor.medir_dialogo(imagem)
+            atual = seletor._no_selecionado(imagem, detalhes)
+            alvo = seletor._alvo_visivel
+            chamadas = [0]
+            def cancelar_na_releitura(*args):
+                resultado = alvo(*args)
+                chamadas[0] += 1
+                if chamadas[0] == 2:
+                    controle.interromper('teste')
+                return resultado
+            with patch.object(seletor, '_alvo_visivel', side_effect=cancelar_na_releitura), \
+                 controlar_execucao(controle), self.assertRaises(ExecucaoInterrompida):
+                seletor._selecionar_visivel(arvore.capturar, clicar, 'M',
+                                           (imagem, detalhes, atual), 'Users', 0)
+        clicar.assert_not_called()
+        self.assertEqual(arvore.cliques_ok, [])
 
     def test_homonimo_em_ramo_expandido_errado_nao_comprova_caminho(self):
         arvore = ArvoreSintetica()
@@ -522,6 +614,38 @@ class TestNavegacaoTeclado(unittest.TestCase):
         self.assertEqual(arvore.caminho_selecionado(),
                          ('Users', 'usuario', 'dominio-automation-engine', 'saida', FOLHA))
         self.assertEqual(arvore.cliques_ok, [])
+
+
+class TestCacheLeituraDialogo(unittest.TestCase):
+    def test_pixels_iguais_leem_ocr_uma_vez_e_nova_espera_rele(self):
+        for tipo in ('dialogo', 'unidade'):
+            with self.subTest(tipo=tipo):
+                imagem, palavras = quadro()
+                capturar = Mock(return_value=imagem)
+                with patch.object(seletor, '_palavras', return_value=palavras) as ocr, \
+                     patch.object(seletor.time, 'sleep'):
+                    def esperar():
+                        if tipo == 'dialogo':
+                            return seletor._aguardar_dialogo(capturar, estavel=True)
+                        return seletor._aguardar_unidade(capturar)
+                    esperar()
+                    self.assertEqual(capturar.call_count, 2)
+                    self.assertEqual(ocr.call_count, 1)
+                    esperar()
+                    self.assertEqual(capturar.call_count, 4)
+                    self.assertEqual(ocr.call_count, 2)
+
+    def test_pixels_mudaram_reavaliam_dialogo_mesmo_sem_mudar_rotulos(self):
+        imagem, palavras = quadro()
+        diferente = imagem.copy()
+        diferente.putpixel((35, 115), (0, 0, 0))  # área da árvore também deve estabilizar
+        capturar = Mock(side_effect=[imagem, diferente, diferente])
+        with patch.object(seletor, '_palavras', return_value=palavras) as ocr, \
+             patch.object(seletor.time, 'sleep'):
+            final, _ = seletor._aguardar_dialogo(capturar, estavel=True)
+        self.assertIs(final, diferente)
+        self.assertEqual(capturar.call_count, 3)
+        self.assertEqual(ocr.call_count, 2)
 
 
 class TestUnidadeClientC(unittest.TestCase):
