@@ -1,5 +1,28 @@
 # Domínio Automation Engine — handoff
 
+## Medição da barra: recusa confirmada e classes corrigidas — 16/10/2026
+
+O operador confirmou ausência de clique; tail do diagnóstico mostrou
+rolar_raiz/seta_ou_trilho_nao_confirmados às15:17:47, após unidade correta
+e seleção estagnada. Isso comprova recusa antes do clique, não qual guarda
+geométrica falhou. PNG real não foi disponibilizado como arquivo local.
+
+Reproduzidas rejeições indevidas: hOCR6px rejeitava botão19px; bbox da
+área de texto podia excluir a barra; V de1px tinha área de contorno zero;
+controle flat não tinha quadrado/divisória em torno do botão. Escala agora
+vem da altura medida do combo Unidade; ROI pode alcançar seu bordo direito
+medido. Associação, bounds e dimensão são conferidos. Conta pixels do V;
+trilho vertical físico+glifo único com dois braços permitem clique no
+centro exato da seta sem quadrado projetado. Duas setas, sentido errado,
+geometria adulterada ou trilho que não chega ao glifo bloqueiam.
+
+Diagnóstico medicao_barra mostra apenas geometria/contagens/motivo fechado.
+Erro distingue recusa de medição de limite de rolagens. Fluxo continua
+restrito a Users na raiz; pós-clique exige mudança/estabilidade. Nenhuma
+emissão aqui e nenhuma afirmação de reprodução do desenho real Windows.
+Validação final: 819 testes passaram; 26 focados na barra. Sintaxe Python
+e diff --check limpos. Ainda precisa do teste manual no Domínio.
+
 ## Console resumido e raiz do seletor sem avanço — 16/10/2026
 
 Operador esclareceu que queria reduzir texto do terminal, não só recolher

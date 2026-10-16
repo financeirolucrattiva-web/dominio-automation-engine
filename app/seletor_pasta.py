@@ -405,6 +405,10 @@ def _recuperar_raiz_sem_avanco(capturar,clicar,letra,estado,nome,max_rolagens=8)
         _drive_selecionado(d,letra) and _mesmo_no(_no_selecionado(img,d),anterior),
         fase='raiz_sem_avanco',estavel=True)
     coluna=anterior['x']
+    medicao={}
+    def registrar_barra(dados):
+        medicao.update(dados)
+        print('PASTA_NAVEGACAO '+json.dumps(dados),flush=True)
     for passo in range(max_rolagens+1):
         ponto_seguro()
         if not _drive_selecionado(d,letra):
@@ -430,13 +434,14 @@ def _recuperar_raiz_sem_avanco(capturar,clicar,letra,estado,nome,max_rolagens=8)
                   'passos':passo,'confirmado':True,'origem':'recorte_raiz'}),flush=True)
             return img,d,selecionado
         if passo==max_rolagens:break
-        barra=medir_seta_baixo(img,d['arvore'],altura)
+        barra=medir_seta_baixo(img,d['arvore'],altura,combo=d['combo'],registrar=registrar_barra)
         if barra is None:
             print('PASTA_NAVEGACAO {"fase":"rolar_raiz","motivo":"seta_ou_trilho_nao_confirmados","confirmado":false}',flush=True)
-            break
+            motivo=medicao.get('motivo','seta_ou_trilho_nao_confirmados')
+            raise SeletorPastaNaoConfirmado('Seta de rolagem não reconhecida ('+motivo+'); não foi enviado OK.')
         img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
             fase='barra_atual_antes_clique',estavel=True)
-        barra=medir_seta_baixo(img,d['arvore'],altura)
+        barra=medir_seta_baixo(img,d['arvore'],altura,combo=d['combo'],registrar=registrar_barra)
         if barra is None:
             raise SeletorPastaNaoConfirmado('A barra mudou antes do clique; não foi enviado OK.')
         antes=img.crop(barra['conteudo']).tobytes()
@@ -449,7 +454,7 @@ def _recuperar_raiz_sem_avanco(capturar,clicar,letra,estado,nome,max_rolagens=8)
             return (_drive_selecionado(detalhes,letra) and detalhes['arvore']==geometria
                     and imagem.crop(barra['conteudo']).tobytes()!=antes)
         img,d=_aguardar_dialogo(capturar,mudou,fase='confirmar_rolagem_raiz',estavel=True)
-    raise SeletorPastaNaoConfirmado('Raiz não confirmada por recorte/rolagem medida; não foi enviado OK.')
+    raise SeletorPastaNaoConfirmado('Limite de rolagens atingido sem localizar Users; não foi enviado OK.')
 
 
 def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel, clicar=None):

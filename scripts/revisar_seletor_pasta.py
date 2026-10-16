@@ -43,9 +43,12 @@ def main(argv=None):
                 from app.arvore_raiz import localizar_raiz, medir_seta_baixo
                 altura=max(p['h'] for p in no['linha'])
                 recorte=localizar_raiz(imagem,detalhes,args.pasta,no['x'],altura)
-                barra=medir_seta_baixo(imagem,detalhes['arvore'],altura)
+                medicao={}
+                barra=medir_seta_baixo(imagem,detalhes['arvore'],altura,
+                    combo=detalhes['combo'],registrar=medicao.update)
                 resultado['pasta_por_recorte_confirmada']=recorte is not None
                 resultado['seta_rolagem_confirmada']=barra is not None
+                resultado['medicao_barra']=medicao
         print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
     except (OSError,ValueError,RuntimeError) as erro:
         print('PASTA_DIAGNOSTICO '+json.dumps({'dialogo_confirmado':False,'tipo':type(erro).__name__}))

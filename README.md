@@ -181,6 +181,8 @@ No seletor, a unidade Client C é escolhida pelo teclado e conferida no
 campo atual; a rotina não depende de ler as opções da lista aberta.
 Pastas visíveis do mesmo ramo recebem clique direto com confirmação da
 seleção. Durante cada espera, capturas idênticas dispensam repetir OCR.
+A busca de Users pode usar a seta inferior medida da barra, incluindo
+controles flat e setas finas; clique e mudança de conteúdo são conferidos.
 Na interface, Histórico no servidor começa recolhido; clique no título
 para consultar as execuções em uma área com rolagem interna.
 O Resumo segue **Relatórios → Acompanhamentos → Resumo por Acumulador**,

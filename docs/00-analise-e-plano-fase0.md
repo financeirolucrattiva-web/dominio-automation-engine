@@ -4987,6 +4987,36 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.133 Barra recusada antes do clique: escala, ROI e glifo (16/10/2026)
+
+**Evidência real:** tentativa encerrou exportar_pdf em149s com raiz não
+confirmada. Operador disse que não clicou na seta. Tail enviado depois
+confirmou rolar_raiz/seta_ou_trilho_nao_confirmados às15:17:47, precedido
+de unidade correta e seleção sem mudança. Não houve rolagem confirmada.
+Esse log comprova a recusa, mas não qual filtro da medição a provocou.
+
+**Defeitos reproduzidos em figuras sintéticas:** botão19px rejeitado
+quando OCR lia o nome com6px; bbox da área de texto excluía a barra;
+V fino tinha área de contorno zero embora houvesse11pixels com dois braços;
+controle flat era eliminado por não ter quadrado/divisória no botão.
+
+**Correção:** usa combo Unidade atual como referência física de escala e
+limite lateral. Confere vínculo espacial/bounds, sem expandir fora da
+imagem. Contagem real de pixels trata V fino; trilho físico com duas
+bordas contínuas até o fim, direção para baixo e glifo único permitem
+clicar no glifo exato sem inventar um quadrado. Sentido cima, braço único,
+trilho incompleto e ambiguidade não autorizam ação. Recusa e limite de
+rolagens agora são mensagens distintas. Diagnóstico fechado inclui ROI,
+escala, contagens e motivo; nenhum texto de pasta/empresa é exposto.
+
+**Validação:** regressões das classes acima em DPI1/2, polaridades,
+margens clássicas, geometria inválida, trilho interrompido, cancelamento
+e clique único. A alteração do seletor permanece limitada à raiz Users.
+Não executado no Domínio; sem PNG local da falha real, não declarar o
+estilo do Windows nem a causa geométrica específica como comprovados.
+Suíte final: 819 testes passaram, incluindo 26 da barra. Sintaxe Python e
+diff --check limpos.
+
 ### 0.131 Console do servidor com diagnóstico técnico local (16/10/2026)
 
 **Pedido esclarecido:** operador queria reduzir os logs do terminal.
