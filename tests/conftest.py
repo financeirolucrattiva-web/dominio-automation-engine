@@ -7,3 +7,11 @@ import pytest
 def seletor_percurso_por_setas(monkeypatch):
     from app import seletor_pasta
     monkeypatch.setattr(seletor_pasta, "MODO_DIGITACAO", False)
+
+
+@pytest.fixture(autouse=True)
+def geometria_dos_campos_limpa():
+    from app import leitura_resumo
+    leitura_resumo.esquecer_geometria()
+    yield
+    leitura_resumo.esquecer_geometria()

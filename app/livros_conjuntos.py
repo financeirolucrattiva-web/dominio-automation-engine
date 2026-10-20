@@ -199,7 +199,7 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignora
                 leitor = PdfReader(entrada, strict=True)
                 if not leitor.pages:
                     continue
-                texto = leitor.pages[0].extract_text() or ''
+                textos = arquivos.textos_da_pagina_do_livro(leitor.pages[0])
                 paginas = len(leitor.pages)
                 for pagina in leitor.pages[1:]:
                     pagina.extract_text()
@@ -209,7 +209,7 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignora
             motivos = {}
             for tipo in TIPOS:
                 try:
-                    arquivos.validar_livro(texto, tipo, inicial, final, cnpj)
+                    arquivos.validar_livro_dos_textos(textos, tipo, inicial, final, cnpj)
                     tipos.append(tipo)
                 except ValueError as erro:
                     motivos[tipo] = str(erro)  # mensagens fixas do validador, sem dados do PDF
@@ -452,7 +452,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
     _conferir_conjunto(pasta,inicial,final,cnpj,empresa[0],artefatos=artefatos,ignorar=previos)
-    dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio)  # garante que nenhum Acrobat ficou na frente
+    dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio, espera=3)  # garante que nenhum Acrobat ficou na frente
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')

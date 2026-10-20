@@ -410,4 +410,49 @@ class TestIcmsPeriodoAntesDoCnpj(unittest.TestCase):
                                    'registro_icms',INICIO,FIM,CNPJ)
 
 
+class TestCabecalhosReaisDoDominio(unittest.TestCase):
+    """Cabeçalhos no formato `layout` dos PDFs reais de 20/10/2026 (empresa e CNPJ fictícios)."""
+    ENTRADAS = (
+        "                L I V R O   R E G I S T R O   D E   E N T R A D A S   -   R E   -   M O D E L O   P 1\n\n"
+        "     R E G I S T R O  D E  E N T R A D A S            (*)  CÓDIGO DE VALORES FISCAIS\n"
+        "                                                      1-OPERAÇÕES COM CRÉDITO DO IMPOSTO\n"
+        "EMPRESA:    EMPRESA FICTICIA LTDA                     2-OPER. SEM CRÉDITO DO IMPOSTO - ISENTAS\n"
+        "INSC.EST.:141502851      CNPJ:   12.345.678/0001-95   3-OPERAÇÕES SEM CRÉDITO DO IMPOSTO - OUTRAS\n"
+        "FOLHA:      001          MES OU PERÍODO/ANO:      01/08/2026   a   31/08/2026\n\n"
+        "     DOCUMENTOS FISCAIS      IPI VALORES FISCAISCODIFICAÇÃOICMS VALORES FISCAIS\n")
+    SAIDAS = (
+        "        L I V R O   R E G I S T R O   D E   S A Í D A S   -   R S   -   M O D E L O   P 2\n\n"
+        "                R E G I S T R O  D E  S A Í D A S\n"
+        "EMPRESA:    EMPRESA FICTICIA LTDA\n"
+        "INSC.EST.:  141502851       CNPJ:    12.345.678/0001-95\n"
+        "FOLHA:      001      MÊS OU PERÍODO/ANO:      01/08/2026    a 31/08/2026\n\n"
+        "   DOCUMENTOS FISCAIS      CODIFICAÇÃO      V A L O R E S   F I S C A I S\n")
+    ICMS = (
+        "R E G I S T R O   D E   A P U R A C A O   D O   I C M S      PERIODO:01/08/2026      a  31/08/2026\n\n"
+        "EMPRESA  :   EMPRESA FICTICIA LTDA\n"
+        "INSC.EST.:   141502851        CNPJ    :    12.345.678/0001-95\n"
+        "FOLHA    :   001              LIVRO   :    000        E N T R A D A S\n"
+        "   CODIFICAÇÃO     I C M S  -  V A L O R E S   F I S C A I S\n")
+
+    def test_cada_cabecalho_real_e_reconhecido_so_como_o_proprio_tipo(self):
+        textos = {'registro_entradas': self.ENTRADAS, 'registro_saidas': self.SAIDAS, 'registro_icms': self.ICMS}
+        for esperado, texto in textos.items():
+            reconhecidos = []
+            for tipo in textos:
+                try:
+                    arquivos.validar_livro(texto, tipo, INICIO, FIM, CNPJ)
+                    reconhecidos.append(tipo)
+                except ValueError:
+                    pass
+            self.assertEqual(reconhecidos, [esperado])
+
+    def test_pagina_usa_layout_antes_da_ordem_embaralhada_do_arquivo(self):
+        pagina = Mock()
+        pagina.extract_text.side_effect = lambda extraction_mode: (
+            self.ICMS if extraction_mode == 'layout' else 'EMPRESA : X CNPJ : Y R E G I S T R O')
+        textos = arquivos.textos_da_pagina_do_livro(pagina)
+        self.assertEqual(textos[0], self.ICMS)
+        self.assertEqual(arquivos.validar_livro_dos_textos(textos, 'registro_icms', INICIO, FIM, CNPJ), CNPJ)
+
+
 if __name__=='__main__':unittest.main()

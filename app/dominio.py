@@ -1355,11 +1355,15 @@ def _linha_base_leitores_pdf():
         return None  # inventário indisponível não equivale a nenhum PDF aberto
 
 
-def _fechar_leitores_pdf(linha_base, janela=None):
-    """Fecha só leitores novos e reconfirma a janela principal; propaga Parar."""
+def _fechar_leitores_pdf(linha_base, janela=None, espera=20):
+    """Fecha só leitores novos e reconfirma a janela principal; propaga Parar.
+
+    `espera`: quanto aguardar um leitor APARECER. Quem já fechou os leitores durante a espera
+    do arquivo (Livros) passa um valor curto, em vez de gastar 20 s sem nada para fechar."""
     ponto_seguro_sem_foco()
     try:
-        interacao.fechar_leitores_pdf_novos(linha_base)
+        (interacao.fechar_leitores_pdf_novos(linha_base) if espera == 20
+         else interacao.fechar_leitores_pdf_novos(linha_base, espera=espera))
     except ExecucaoInterrompida:
         raise
     except Exception:

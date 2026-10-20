@@ -104,6 +104,39 @@ def nomear_relatorio_cadastrado(caminho, pasta_saida, tipo, nome_empresa, inicio
     return destino
 
 
+def textos_da_pagina_do_livro(pagina):
+    """Texto da página por posição (`layout`) e, como segunda opinião, na ordem do arquivo.
+
+    A ordem do arquivo do Domínio embaralha o cabeçalho (período e CNPJ longe do título); o modo
+    `layout` ordena de cima para baixo e da esquerda para a direita.
+    """
+    textos = []
+    for modo in ("layout", "plain"):
+        try:
+            texto = pagina.extract_text(extraction_mode=modo) or ""
+        except Exception:
+            continue
+        if texto.strip():
+            textos.append(texto)
+    return textos
+
+
+def validar_livro_da_pagina(pagina, tipo, inicio, fim, cnpj_esperado=None):
+    """`validar_livro` sobre os textos da página; aceita se algum deles confirma."""
+    return validar_livro_dos_textos(textos_da_pagina_do_livro(pagina), tipo, inicio, fim, cnpj_esperado)
+
+
+def validar_livro_dos_textos(textos, tipo, inicio, fim, cnpj_esperado=None):
+    """Aceita se algum dos textos (por posição / ordem do arquivo) confirma o livro."""
+    ultimo_erro = ValueError("PDF sem texto legível.")
+    for texto in textos:
+        try:
+            return validar_livro(texto, tipo, inicio, fim, cnpj_esperado)
+        except ValueError as erro:
+            ultimo_erro = erro
+    raise ultimo_erro
+
+
 def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
     """Confirma tipo/período e devolve CNPJ inequívoco do cabeçalho.
 
@@ -130,7 +163,13 @@ def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
             raise ValueError("O PDF não contém o título do livro solicitado.")
         cabecalho = compacto[compacto.index(titulo):]
     # O período precisa estar no cabeçalho, antes das linhas de movimentos.
-    limites = [cabecalho.find(m) for m in ("CODIFICACAO", "VALORESFISCAIS", "DEBITODOIMPOSTO", "CREDITODOIMPOSTO") if m in cabecalho]
+    # A legenda do Livro de Entradas ("CÓDIGO DE VALORES FISCAIS", "1-OPERAÇÕES COM CRÉDITO DO IMPOSTO")
+    # fica ao lado do título, antes da empresa/CNPJ/período: não marca o início das tabelas.
+    cabecalho = cabecalho.replace("CODIGODEVALORESFISCAIS", "").replace("COMCREDITODOIMPOSTO", "")
+    cabecalho = cabecalho.replace("SEMCREDITODOIMPOSTO", "")
+    limites = [cabecalho.find(m) for m in ("CODIFICACAO", "DOCUMENTOSFISCAIS", "VALORESFISCAIS") if m in cabecalho]
+    if not limites:
+        limites = [cabecalho.find(m) for m in ("DEBITODOIMPOSTO", "CREDITODOIMPOSTO") if m in cabecalho]
     if limites:
         cabecalho = cabecalho[:min(limites)]
     else:
@@ -285,11 +324,11 @@ def finalizar_pdf(caminho, tipo, inicio, fim, cnpj_esperado=None, nome_empresa=N
         leitor = PdfReader(arquivo, strict=True)
         if not leitor.pages:
             raise ValueError("PDF sem páginas.")
-        texto = leitor.pages[0].extract_text() or ""
         if tipo == "resumo_acumulador":
+            texto = leitor.pages[0].extract_text() or ""
             cnpj = validar_resumo_acumulador(texto, inicio, fim, cnpj_esperado)
         else:
-            cnpj = validar_livro(texto, tipo, inicio, fim, cnpj_esperado)
+            cnpj = validar_livro_da_pagina(leitor.pages[0], tipo, inicio, fim, cnpj_esperado)
         # Força leitura de todas as páginas antes de declarar o arquivo pronto.
         for pagina in leitor.pages[1:]:
             pagina.extract_text()

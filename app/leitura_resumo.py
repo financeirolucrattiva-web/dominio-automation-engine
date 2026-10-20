@@ -295,12 +295,49 @@ def formulario_resumo_reconhecido(imagem, registrar=None):
     return None
 
 
+# Geometria dos campos de data já confirmada por duas leituras da tela inteira (~10-15 s cada
+# chamada). O diálogo abre sempre no mesmo lugar: reutiliza enquanto a faixa dos rótulos ao lado
+# dos campos continuar idêntica; qualquer diferença (janela movida, outro formulário) refaz tudo.
+_GEOMETRIA_LEMBRADA={}
+_LIMITE_ASSINATURA=6.0
+
+
+def esquecer_geometria():
+    _GEOMETRIA_LEMBRADA.clear()
+
+
+def _assinatura_dos_rotulos(imagem,campos):
+    x=min(c['retangulo'][0] for c in campos.values())
+    y1=min(c['retangulo'][1] for c in campos.values())
+    y2=max(c['retangulo'][1]+c['retangulo'][3] for c in campos.values())
+    caixa=(max(x-70,0),max(y1-4,0),x,min(y2+4,imagem.height))
+    if caixa[2]-caixa[0]<20 or caixa[3]-caixa[1]<10:return None
+    return imagem.crop(caixa).convert('L').resize((35,16))
+
+
+def _distancia(a,b):
+    return sum(abs(p-q) for p,q in zip(a.tobytes(),b.tobytes()))/len(a.tobytes())
+
+
 def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
     """Mede controles e exige duas leituras completas concordantes por data.
 
     O período solicitado não entra neste leitor. Leituras completas
     conflitantes recusam confirmação; não escolhe pela data esperada.
+    Com a geometria lembrada (e os rótulos idênticos) pula a leitura da tela inteira.
     """
+    chave=(bool(livros),imagem.size)
+    lembrada=_GEOMETRIA_LEMBRADA.get(chave)
+    if lembrada is not None:
+        campos,assinatura=lembrada
+        atual=_assinatura_dos_rotulos(imagem,campos)
+        if atual is not None and _distancia(atual,assinatura)<=_LIMITE_ASSINATURA:
+            try:
+                if registrar:registrar({'fase':'geometria','confirmado':True,'motivo':'geometria_lembrada'})
+                return _ler_valores(imagem,campos,[],registrar,salvar_recorte)
+            except ValueError:
+                pass  # leitura do recorte falhou: esquece e refaz a medição completa
+        _GEOMETRIA_LEMBRADA.pop(chave,None)
     from app import tela
     contextos=[]; completos=[]
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4),
@@ -353,7 +390,16 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
         raise ValueError('Dois campos não confirmados por bordas ou leituras completas concordantes.')
     if len({tuple(c[p]['retangulo'] for p in ('inicial','final')) for c in contextos})!=1:
         raise ValueError('Geometria dos campos conflitante entre leituras.')
-    campos=contextos[0]; resultado={}
+    campos=contextos[0]
+    resultado=_ler_valores(imagem,campos,completos,registrar,salvar_recorte)
+    assinatura=_assinatura_dos_rotulos(imagem,campos) if len(contextos)>=2 else None
+    if assinatura is not None:_GEOMETRIA_LEMBRADA[(bool(livros),imagem.size)]=(campos,assinatura)
+    return resultado
+
+
+def _ler_valores(imagem,campos,completos,registrar,salvar_recorte):
+    from app import tela
+    resultado={}
     for papel,campo in campos.items():
         original=imagem.crop(campo['area_texto'])
         normalizada=normalizar_selecao(original)

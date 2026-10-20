@@ -5174,6 +5174,41 @@ estava na frente. Hipótese: Adobe/diálogo restante da rodada de Livros que fal
 **Validação:** testes (ICMS com período antes do CNPJ, 12 Esc, contagens ajustadas); suíte com as
 mesmas 14 falhas de ambiente da base. Não validado ao vivo.
 
+### 0.148 Conferência dos livros por posição do texto e primeira rodada de otimização de tempo (20/10/2026)
+
+**Evidência (PDFs reais gerados em 20/10 e eventos de execução):** com o lote completo rodando, o
+Livros ainda falhava em `conferir_pdf`. Os 3 PDFs reais mostraram que a extração padrão do pypdf
+embaralha o cabeçalho (período e CNPJ longe do título, título do ICMS depois da empresa); no modo
+`layout` (texto ordenado por posição) os três cabeçalhos saem em ordem e são reconhecidos, cada um
+só como o próprio tipo. Tempos medidos por etapa (s): Resumo 212 (período 85, prévia 31,
+exportar 36), EFD 114 (encerrar 94), Livros 379 (abrir 36, período 69, prévia 37, exportar 163,
+conferir/encerrar 73).
+
+**Correção de conferência:** `textos_da_pagina_do_livro` extrai em `layout` e, como segunda opinião,
+na ordem do arquivo; `validar_livro_dos_textos` aceita se algum confirma. O fim do cabeçalho passa
+a ser `CODIFICACAO`/`DOCUMENTOS FISCAIS`/`VALORES FISCAIS`, ignorando a legenda do Livro de
+Entradas ("CÓDIGO DE VALORES FISCAIS", "COM CRÉDITO DO IMPOSTO"), que fica ao lado do título.
+`finalizar_pdf` e `_conferir_conjunto` usam o mesmo caminho. Cabeçalhos reais (empresa fictícia)
+entraram nos testes.
+
+**Otimização 1 — geometria dos campos de data lembrada** (`leitura_resumo.ler_campos`): a medição
+da tela inteira (6 leituras OCR, ~10–15 s) rodava a cada leitura do período (4–6 vezes por
+rotina), sempre com o mesmo resultado. Depois de confirmada por duas leituras, a geometria fica
+guardada por (Resumo/Livros, tamanho da tela) junto com uma assinatura da faixa dos rótulos; só é
+reutilizada se a faixa continuar igual e a leitura do recorte de cada campo (duas leituras
+concordantes, como antes) confirmar a data; qualquer diferença esquece e refaz a medição completa.
+Estimativa: ~60 s a menos por rotina, a confirmar nos eventos.
+
+**Otimização 2 — Livros não espera 20 s por um Adobe que já fechou:** `_fechar_leitores_pdf(...,
+espera=3)` depois de `_aguardar_arquivos`, que já fecha os leitores enquanto espera os PDFs.
+
+**Ainda lentos (próximos alvos, medidos):** Procurar Pasta (~90 s: unidade ~30 s e ~10 s por nível,
+com OCR da tela inteira a cada passo), análise do botão OK da prévia (~13–20 s por rotina),
+encerramento do EFD (94 s, causa ainda não registrada), esperas de renderização da prévia.
+
+**Validação:** testes novos (geometria lembrada, cabeçalhos reais); suíte completa sem falhas
+novas em relação à base. Não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e
