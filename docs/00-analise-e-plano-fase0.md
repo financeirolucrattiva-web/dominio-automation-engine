@@ -5032,6 +5032,30 @@ Regressão de livros, PDFs, botões, destino, barra e cancelamento passou.
 Tesseract real em figuras sintéticas; Windows simulado. Sintaxe Python
 e diff --check limpos. Falta a execução manual no Windows do escritório.
 
+### 0.142 Procurar Pasta: título ilegível bloqueava a leitura do diálogo; ensaio ao vivo (20/10/2026)
+
+**Evidência (`data/servidor_detalhes.log` e captura local de 20/10 14:56):** nas rodadas
+com a versão #42 o Livros chegava à exportação e falhava ~115 s depois no seletor, com
+`PASTA_NAVEGACAO opcao_unidade confirmado=false, dialogo_lido=false` em 12 capturas. A
+captura da falha mostra o diálogo correto, com Unidade = "Client C (M:\)" já aplicada e a
+árvore da unidade. O OCR local lê Unidade, OK e Cancelar, mas NÃO lê o título
+"Procurar Pasta" (branco sobre a barra azul), e `medir_dialogo` exigia esse título
+(`Rótulo ausente ou ambíguo: Procurar Pasta`): o diálogo nunca era "lido", então nenhuma
+das correções posteriores da unidade chegava a rodar.
+
+**Correção:** o título passa a ser opcional. Sem ele, a identidade do diálogo nativo vem da
+estrutura completa (rótulo Unidade + botões OK e Cancelar alinhados abaixo, além do combo e da
+árvore já exigidos); falta de qualquer um recusa. Na captura real: leitura do diálogo em 4,4 s,
+combo e árvore medidos, Client C (M:) confirmada. Também: `selecionar_pasta(..., clicar_ok=False)`
+(ensaio sem OK) e `scripts/navegar_seletor_pasta.py` + atalho "Testar Seletor de Pasta": com o
+"Procurar Pasta" aberto, navega até uma pasta exclusiva de teste em `saida/` e para ANTES do OK,
+imprimindo cada passo (~30 s por tentativa, sem refazer a emissão de ~2 min); a pasta de teste
+vazia é removida. Só geração/navegação; nenhuma transmissão.
+
+**Validação:** testes (título ilegível lido pela estrutura; sem OK/Cancelar/Unidade recusa;
+parâmetro do ensaio). Não validado ao vivo: a descida pela árvore (Users, usuário, projeto, saida,
+LIVROS...) com esta versão.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

@@ -37,6 +37,31 @@ class TestSeletor(unittest.TestCase):
     def test_recusa_nome_reutilizavel(self):
         with self.assertRaises(ValueError):seletor.selecionar_pasta('M:\\saida',Mock(),Mock(),Mock())
 
+    def test_titulo_branco_sobre_azul_ilegivel_nao_impede_ler_o_dialogo_pela_estrutura_nativa(self):
+        # Captura real de 20/10: o OCR não lê "Procurar Pasta" (branco sobre a barra azul),
+        # mas lê Unidade, OK e Cancelar. Antes: "dialogo_lido: false" em todas as capturas.
+        imagem, palavras = quadro()
+        sem_titulo = [p for p in palavras if p['texto'] not in ('Procurar', 'Pasta')]
+        with patch.object(seletor, '_palavras', return_value=sem_titulo):
+            dados = seletor.medir_dialogo(imagem)
+        self.assertEqual(dados['combo'], (100, 76, 381, 25))
+        self.assertEqual(dados['arvore'], (30, 110, 451, 181))
+        self.assertEqual(dados['ok'], (362, 326))
+
+    def test_sem_titulo_exige_ok_e_cancelar_e_nao_aceita_qualquer_tela(self):
+        imagem, palavras = quadro()
+        for removidos in ({'Procurar', 'Pasta', 'OK'}, {'Procurar', 'Pasta', 'Cancelar'}, {'Procurar', 'Pasta', 'Unidade:'}):
+            with self.subTest(sorted(removidos)):
+                restantes = [p for p in palavras if p['texto'] not in removidos]
+                with patch.object(seletor, '_palavras', return_value=restantes), self.assertRaises(ValueError):
+                    seletor.medir_dialogo(imagem)
+
+    def test_ensaio_sem_ok_navega_mas_nao_clica_no_ok(self):
+        # selecionar_pasta(..., clicar_ok=False) é o modo do ensaio ao vivo da navegação.
+        import inspect
+        self.assertIn('clicar_ok', inspect.signature(seletor.selecionar_pasta).parameters)
+        self.assertTrue(inspect.signature(seletor.selecionar_pasta).parameters['clicar_ok'].default)
+
     def test_medicao_sem_ok_global_permite_navegar_mas_nao_fornece_confirmacao(self):
         imagem, palavras = quadro()
         palavras = [p for p in palavras if p['texto'] != 'OK']

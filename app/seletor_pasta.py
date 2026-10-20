@@ -110,7 +110,8 @@ def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None,usar_ref
     import numpy as np
     palavras = _palavras(imagem)
     from app.formulario_livros import _rotulo
-    titulo = _rotulo(palavras, 'Procurar Pasta')
+    try:titulo = _rotulo(palavras, 'Procurar Pasta')
+    except ValueError:titulo = None  # branco sobre a barra azul: o OCR não o lê (captura real de 20/10)
     try:cancelar = _rotulo(palavras, 'Cancelar')
     except ValueError:cancelar = None
     try:
@@ -126,7 +127,16 @@ def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None,usar_ref
             if len(cv2.approxPolyDP(c,.02*cv2.arcLength(c,True),True)) == 4:
                 caixas.add((x,y,w,h))
     try:unidade=_rotulo(palavras,'Unidade')
-    except ValueError:unidade=_rotulo_unidade_local(imagem,caixas,titulo)
+    except ValueError:
+        if titulo is None:raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
+        unidade=_rotulo_unidade_local(imagem,caixas,titulo)
+    if titulo is None:
+        # Sem o título legível, a identidade do diálogo nativo vem da estrutura completa:
+        # rótulo Unidade + botões OK e Cancelar alinhados abaixo dele (a árvore e o combo
+        # são exigidos adiante). Título fictício só para as checagens de ordem vertical.
+        if ok is None or cancelar is None or not (unidade['y'] < ok['y'] and abs(ok['y']-cancelar['y']) < 2*ok['h']):
+            raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
+        titulo = {'x':unidade['x']-20,'y':unidade['y']-3*unidade['h'],'w':0.0,'h':unidade['h']}
     if not (titulo['y'] < unidade['y']):
         raise SeletorPastaNaoConfirmado('Seletor nativo não confirmado.')
     altura=unidade['h']
@@ -947,7 +957,7 @@ def _iniciar_arvore(capturar,clicar,tecla,letra,detalhes):
 
 
 @cache_da_navegacao()
-def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
+def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
     """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
     caminho=PureWindowsPath(caminho_remoto)
     if (not caminho.is_absolute() or not re.fullmatch(r'[A-Za-z]:',caminho.drive)
@@ -972,6 +982,11 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
         d['ok']=_ok_final(img,d)
         return d['ok'] is not None
     imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final,fase='confirmar_destino_e_ok')
+    if not clicar_ok:
+        # Ensaio de navegação: a pasta certa está selecionada e o OK foi localizado, mas
+        # nada é confirmado (o operador fecha o diálogo com Cancelar).
+        print('Destino dos livros: ensaio concluído, pasta final selecionada; OK NÃO clicado.',flush=True)
+        return True
     ponto_seguro()
     clicar(*detalhes['ok'])
     return True
