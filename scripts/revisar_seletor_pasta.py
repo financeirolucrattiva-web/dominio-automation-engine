@@ -8,6 +8,33 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 
 
+def salvar_recorte_unidade(imagem,combo):
+    """Contato local só do combo; não inclui árvore, relatório ou empresa."""
+    import uuid
+    from PIL import Image, ImageDraw
+    from app.leitura_resumo import normalizar_selecao
+    from app import seletor_pasta as seletor
+    x,y,w,h=combo
+    if min(x,y)<0 or w<=h+4 or h<=4 or x+w>imagem.width or y+h>imagem.height:
+        raise ValueError('Campo Unidade fora dos limites da captura.')
+    area=seletor._area_unidade(combo)
+    campo=imagem.crop((x,y,x+w,y+h)).resize((w*4,h*4),Image.Resampling.NEAREST)
+    normal=normalizar_selecao(imagem.crop(area))
+    normal=normal.resize((normal.width*4,normal.height*4),Image.Resampling.NEAREST)
+    folha=Image.new('RGB',(campo.width+16,campo.height+normal.height+68),'white')
+    desenho=ImageDraw.Draw(folha)
+    desenho.text((8,6),'Campo completo (4x); vermelho: area enviada ao OCR',fill='black')
+    folha.paste(campo,(8,24))
+    desenho.rectangle((8+(area[0]-x)*4,24+(area[1]-y)*4,
+                       8+(area[2]-x)*4-1,24+(area[3]-y)*4-1),outline='red',width=1)
+    desenho.text((8,campo.height+32),'Recorte normalizado (4x)',fill='black')
+    folha.paste(normal,(8,campo.height+52))
+    pasta=ROOT/'capturas'; pasta.mkdir(exist_ok=True)
+    nome='unidade_ocr_'+uuid.uuid4().hex[:8]+'.png'
+    folha.save(pasta/nome)
+    return 'capturas/'+nome
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     origem=parser.add_mutually_exclusive_group(required=True)
@@ -16,7 +43,11 @@ def main(argv=None):
     parser.add_argument('--pasta',help='Confere se esse nome está visível no ramo atual, sem clicar.')
     parser.add_argument('--somente-unidade',action='store_true',
                         help='Confere somente campo/lista de unidades, sem OCR da árvore ou do OK.')
+    parser.add_argument('--detalhar-unidade',action='store_true',
+                        help='Com --somente-unidade: motivos por leitor e recorte do campo salvo localmente.')
     args=parser.parse_args(argv)
+    if args.detalhar_unidade and not args.somente_unidade:
+        parser.error('--detalhar-unidade requer --somente-unidade.')
     caminho=args.imagem
     if args.ultima_falha:
         arquivos=list((ROOT/'capturas').glob('*erro_livros_conjuntos.png'))
@@ -28,12 +59,19 @@ def main(argv=None):
     from app import seletor_pasta as seletor
     try:
         with Image.open(caminho) as arquivo:imagem=arquivo.convert('RGB')
-        unidade=seletor.medir_dialogo(imagem,somente_unidade=True)
+        observacoes=[]
+        unidade=(seletor.medir_dialogo(imagem,somente_unidade=True,
+                    registrar_unidade=observacoes.append) if args.detalhar_unidade
+                 else seletor.medir_dialogo(imagem,somente_unidade=True))
+        for observacao in observacoes:
+            print('PASTA_UNIDADE_OCR '+json.dumps(observacao,ensure_ascii=False))
         if args.somente_unidade:
             resultado={'dialogo_confirmado':True,'combo':list(unidade['combo']),
                        'lista_unidades_aberta':unidade['lista'] is not None,
                        'client_c_letras_no_campo':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                            if seletor._drive_selecionado(unidade,letra)]}
+            if args.detalhar_unidade:
+                resultado['recorte_local']=salvar_recorte_unidade(imagem,unidade['combo'])
             print('PASTA_DIAGNOSTICO '+json.dumps(resultado,ensure_ascii=False))
             print('Somente a unidade foi analisada. Nenhum clique, tecla ou emissão foi executado.')
             return 0

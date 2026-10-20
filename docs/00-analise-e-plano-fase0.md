@@ -4987,6 +4987,41 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.137 Diagnóstico da identidade recusada no campo Unidade (20/10/2026)
+
+**Evidência real:** `--ultima-falha --somente-unidade` reconhece diálogo,
+combo [559,321,380,20] e lista fechada, mas retorna Client C vazio,
+opinioes_tesseract=0 e opinioes_windows=0. O contador atual acumula somente
+identidades aceitas, portanto não comprova OCR vazio nem ausência do motor
+Windows. A área derivada desse combo mede 358×16 pixels; nenhum arquivo
+real dessa captura está disponível neste ambiente para testar a leitura.
+
+**Reprodução parcial:** figura sintética com combo dessas dimensões e OCR
+Tesseract real também pode produzir zero identidades, embora retorne texto
+com pontuação errada. Isso reproduz o sintoma, sem comprovar a causa no
+Windows do operador. Margem adicional não resolveu essa figura. Não se
+afrouxou sintaxe nem se inferiu M a partir da intenção de navegação.
+
+**Mudança:** diagnóstico opcional `--detalhar-unidade`, usado junto a
+`--somente-unidade`, distingue motivo por motor/variante e registra
+quantidade de palavras/linhas, área e consenso. Motivos fechados não
+carregam texto OCR livre ou mensagens de exceção. Retorno None do leitor
+nativo significa apenas ausência de resultado, sem atribuir causa.
+Salva localmente só o campo completo e a cópia normalizada, ampliados,
+com a área OCR marcada no original. Arquivo único em capturas/, ignorado
+pelo Git; não recorta nem exporta árvore/relatório. Limites da imagem
+são conferidos antes de salvar. Não há cliques ou emissão nesse comando.
+
+A aceitação normal e a ordem das leituras permanecem iguais. Diagnóstico
+serve para a próxima evidência real, sem adicionar outra tentativa fiscal.
+Ainda não há correção confirmada da leitura real ou da exportação final.
+
+**Validação:** 206 testes passaram, incluindo 13 casos novos de motivos,
+ausência de texto livre, não vazamento da área externa ao combo, aceitação
+idêntica com/sem observador, cancelamento e limites da imagem. CLI detalhado
+e PNG conferidos em figura sintética com Tesseract real; leitor Windows
+simulado. Sintaxe Python e diff --check limpos. Nenhuma GUI fiscal aqui.
+
 ### 0.136 Destino M aplicado antes da confirmação da opção (16/10/2026)
 
 **Evidência real:** prévia confirmada em38s; exportar_pdf falhou em163s
