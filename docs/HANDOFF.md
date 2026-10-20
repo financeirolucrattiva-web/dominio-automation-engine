@@ -1,5 +1,34 @@
 # Domínio Automation Engine — handoff
 
+## Unidade ainda sem identidade: diagnóstico por variante — 20/10/2026
+
+O diagnóstico real em 61c7bb1 reconheceu o diálogo, combo
+[559,321,380,20] e lista fechada, mas retornou Client C vazio e zero
+opiniões aceitas em ambos os motores. Esses contadores não dizem que o
+OCR veio vazio: contam apenas identidades aprovadas após caixas, linha
+única e sintaxe. A área atual é [561,323,919,339], de 358×16 pixels.
+Ainda não há arquivo da captura real aqui para medir sua legibilidade.
+
+Acrescentado --detalhar-unidade, obrigatório junto a --somente-unidade.
+Informa motivos fechados por leitor/variante: sem palavras, sem resultado
+do leitor, erro, caixas fora da área, linhas ambíguas ou identidade
+rejeitada/reconhecida. Relata contagens, área e consenso; não imprime
+texto OCR livre, mensagens de exceção ou caminhos de unidades.
+Windows retornando None permanece sem causa atribuída.
+
+Salva em capturas/unidade_ocr_<id>.png um contato local só do campo:
+original ampliado com a área OCR marcada e cópia normalizada ampliada.
+Não inclui árvore ou relatório. Só essa opção de diagnóstico salva o
+recorte; a rotina normal não ganha passadas OCR ou cliques. As regras
+de tipo/letra, pontuação, consenso e coordenadas permanecem iguais.
+O próximo passo é conferir os motivos e o recorte local da última falha,
+sem repetir a emissão. A correção da leitura real continua pendente.
+
+Validação: 206 testes passaram, incluindo 13 novos casos de motivos,
+privacidade, equivalência das decisões e limites do recorte. CLI detalhado
+e PNG conferidos em figura sintética com Tesseract real; OCR Windows
+simulado. Sintaxe Python e diff --check limpos. Nenhuma GUI fiscal aqui.
+
 ## M aplicado e lista fechada durante a espera da opção — 16/10/2026
 
 Nova tentativa confirmou a prévia em38s e falhou exportar_pdf em163s.

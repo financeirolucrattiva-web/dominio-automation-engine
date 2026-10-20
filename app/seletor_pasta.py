@@ -103,7 +103,7 @@ def _rotulo_unidade_local(imagem,caixas,titulo):
     return confirmados[0]
 
 
-def medir_dialogo(imagem,*,somente_unidade=False):
+def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None):
     """Combo e árvore medidos, restritos pelos rótulos nativos inequívocos."""
     import cv2
     import numpy as np
@@ -132,7 +132,8 @@ def medir_dialogo(imagem,*,somente_unidade=False):
     combo=_caixa_unica([c for c in caixas if unidade['x']+unidade['w']<=c[0]<=unidade['x']+unidade['w']+4*altura
                   and c[1]<unidade['y']+altura/2<c[1]+c[3] and altura<c[3]<4*altura and c[2]>10*altura])
     lista=_lista_unidades(caixas,combo)
-    palavras=_refinar_unidade(imagem,palavras,combo)
+    palavras=(_refinar_unidade(imagem,palavras,combo) if registrar_unidade is None
+              else _refinar_unidade(imagem,palavras,combo,registrar=registrar_unidade))
     detalhes={'combo':combo,'lista':lista,'palavras':palavras,
               '_bordas':(caixas,altura,ok,cancelar)}
     if somente_unidade:
@@ -174,26 +175,41 @@ def _drive(palavras, letra):
     return achados[0] if achados else None
 
 
-def _refinar_unidade(imagem,palavras,combo):
+def _area_unidade(combo):
+    x,y,w,h=combo
+    return (x+2,y+2,x+w-h,y+h-2)
+
+
+def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
     """Relê o campo medido quando a tela inteira omite a unidade ou sua letra."""
     x,y,w,h=combo
     dentro=[p for p in palavras if x<p['x']<x+w and y<p['y']<y+h]
     texto=_normalizar(' '.join(p['texto'] for p in dentro))
-    if re.search(r'\bservidor\b|\bclient\s+[a-bd-z]\b',texto):return palavras
+    def informar(motor,motivo,**dados):
+        if registrar is not None:
+            registrar({'motor':motor,'motivo':motivo,**dados})
+    if re.search(r'\bservidor\b|\bclient\s+[a-bd-z]\b',texto):
+        informar('global','tipo_diferente_preservado')
+        return palavras
     letras='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    if any(_drive(dentro,l) is not None for l in letras):return palavras
+    if any(_drive(dentro,l) is not None for l in letras):
+        informar('global','client_c_reconhecido')
+        return palavras
     from app import tela
     from app.leitura_resumo import normalizar_selecao
-    area=(x+2,y+2,x+w-h,y+h-2)  # interior, excluindo borda e botão da seta
+    area=_area_unidade(combo)  # interior, excluindo borda e botão da seta
     leituras=[]
     recorte=normalizar_selecao(imagem.crop(area))
     def adicionar(dados,escala):
-        if not dados:return
+        if dados is None:return {'motivo':'sem_resultado_do_leitor'}
+        if not dados:return {'motivo':'dados_invalidos'}
         indices=[i for i,t in enumerate(dados['text']) if str(t).strip()]
-        if not indices or any(dados['left'][i]<0 or dados['top'][i]<0
+        if not indices:return {'motivo':'sem_palavras','palavras':0}
+        if any(dados['left'][i]<0 or dados['top'][i]<0
                 or dados['width'][i]<=0 or dados['height'][i]<=0
                 or dados['left'][i]+dados['width'][i]>recorte.width*escala
-                or dados['top'][i]+dados['height'][i]>recorte.height*escala for i in indices):return
+                or dados['top'][i]+dados['height'][i]>recorte.height*escala for i in indices):
+            return {'motivo':'caixas_fora_do_recorte','palavras':len(indices)}
         ps=[{'texto':str(dados['text'][i]),'x':area[0]+dados['left'][i]/escala,
              'y':area[1]+dados['top'][i]/escala,'w':dados['width'][i]/escala,
              'h':dados['height'][i]/escala} for i in indices]
@@ -201,15 +217,20 @@ def _refinar_unidade(imagem,palavras,combo):
         identidade=_identidade_unidade(linhas[0]) if len(linhas)==1 else None
         if identidade and re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade):
             leituras.append((identidade,ps))
+            return {'motivo':'identidade_reconhecida','palavras':len(indices),'linhas':len(linhas)}
+        return {'motivo':'linhas_ambiguas' if len(linhas)!=1 else 'identidade_nao_reconhecida',
+                'palavras':len(indices),'linhas':len(linhas)}
     def consenso():
         return len(leituras)>=2 and len({identidade for identidade,_ in leituras})==1
     for escala,preparo in ((4,'cinza'),(4,'binaria'),(6,'cinza'),(6,'binaria')):
         ponto_seguro()
         try:
             dados=tela.ler_dados_ocr_linha_rotulo(recorte,escala=escala,preparo=preparo)
-            adicionar(dados,escala)
+            resultado=adicionar(dados,escala)
         except ExecucaoInterrompida:raise
-        except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
+        except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError) as erro:
+            resultado={'motivo':'erro_leitura','tipo_erro':type(erro).__name__}
+        informar('tesseract',escala=escala,preparo=preparo,**resultado)
     if not consenso():
         # O OCR global pode perder o campo depois que o GO-Global fecha o
         # popup. Segunda opinião local, na mesma imagem e área medida.
@@ -218,13 +239,19 @@ def _refinar_unidade(imagem,palavras,combo):
             ponto_seguro()
             try:
                 dados=tela.ler_dados_ocr_windows(recorte,escala=escala)
-                if dados is None:break
-                adicionar(dados,escala)
+                resultado=adicionar(dados,escala)
             except ExecucaoInterrompida:raise
-            except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError):continue
+            except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError) as erro:
+                dados={}
+                resultado={'motivo':'erro_leitura','tipo_erro':type(erro).__name__}
+            informar('windows',escala=escala,preparo='normalizada',**resultado)
+            if dados is None:break
         print('PASTA_NAVEGACAO '+json.dumps({'fase':'leitura_campo_unidade',
               'opinioes_tesseract':antes,'opinioes_windows':len(leituras)-antes,
               'confirmado':consenso()}),flush=True)
+    informar('consenso','confirmado' if consenso() else 'nao_confirmado',
+             opinioes=len(leituras),identidades_distintas=len({i for i,_ in leituras}),
+             area=list(area),dimensoes=list(recorte.size))
     if consenso():
         return [p for p in palavras if p not in dentro]+leituras[0][1]
     return palavras

@@ -97,6 +97,12 @@ Para conferir somente a unidade da última falha, sem repetir emissão:
 `python scripts\revisar_seletor_pasta.py --ultima-falha --somente-unidade`.
 Em `client_c_letras_no_campo`, `M` significa que Client C(M:) foi lido
 na imagem salva; isso não confirma seleção de pastas nem geração de PDFs.
+Se a lista de letras vier vazia, acrescente `--detalhar-unidade` ao mesmo
+comando. Ele mostra os motivos de recusa por leitor e salva localmente
+`capturas/unidade_ocr_<id>.png`, com apenas o campo original/normalizado
+ampliado. Os contadores de opiniões aceitas iguais a zero não significam,
+por si só, que o OCR não retornou palavras. Esse diagnóstico não clica,
+não emite e não imprime texto OCR livre.
 
 O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
 publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.
