@@ -274,7 +274,7 @@ class TestRecuperarRaiz(unittest.TestCase):
         self.assertTrue(self.clicar.call_args_list[0].args[1] > 250)
         self.assertEqual(self.clicar.call_args_list[1].args, (90, 156))
 
-    def test_busca_users_prioriza_barra_sem_tentar_down_da_arvore(self):
+    def test_busca_users_tenta_down_uma_vez_e_recupera_pela_barra_sem_repetir(self):
         depois=self.imagem.copy(); depois.putpixel((80,180),(0,0,0))
         estado={'rolou':False}
         self.localizar.side_effect=lambda imagem,*args:self.alvo if imagem is depois else None
@@ -283,10 +283,15 @@ class TestRecuperarRaiz(unittest.TestCase):
         self.clicar.side_effect=clicar
         capturar=lambda:depois if estado['rolou'] else self.imagem
         tecla=Mock()
+        def ler_selecao(*args,**kwargs):
+            if args[2]=='proximo_no':
+                raise seletor.SeletorPastaNaoConfirmado('Down sem avanço nesta fixture.')
+            return self.imagem,self.detalhes,self.selecionado
+        self.ata.side_effect=ler_selecao
         resultado=seletor._buscar_irmao(capturar,tecla,'M',
             (self.imagem,self.detalhes,self.no),'Users',0,clicar=self.clicar)
         self.assertEqual(resultado[2]['nome'],'users')
-        tecla.assert_not_called()
+        tecla.assert_called_once_with('down')
         self.assertEqual(self.clicar.call_count,2)
         self.assertGreater(self.clicar.call_args_list[0].args[1],250)
         self.assertEqual(self.clicar.call_args_list[1].args,(90,156))

@@ -17,6 +17,7 @@ class PercursoComBarra(ArvoreAssincrona):
         self.rolagem_manual = False
         self.users_confirmado = False
         self.cliques_barra = []
+        self.down_sem_avanco = 0
         super().__init__(raizes=raizes, **kwargs)
 
     def _mostrar_selecao(self):
@@ -50,7 +51,11 @@ class PercursoComBarra(ArvoreAssincrona):
 
     def tecla(self, tecla):
         if not self.foco_combo and tecla == 'down' and not self.users_confirmado:
-            raise AssertionError('Down na árvore antes de localizar Users pela barra.')
+            # Novo percurso observado tenta o teclado. Esta fixture simula
+            # uma árvore que não responde: um Down deve cair na barra,
+            # sem repetir o evento para compensar atraso.
+            self.down_sem_avanco += 1
+            return
         super().tecla(tecla)
 
 
@@ -79,6 +84,7 @@ class TestPercursoUnidadeBarra(unittest.TestCase):
         self.assertTrue(self.executar(arvore))
         self.assertEqual(arvore.prematuros, [])
         self.assertEqual(len(arvore.cliques_barra), 1)
+        self.assertEqual(arvore.down_sem_avanco, 1)
         self.assertEqual(arvore.cliques_barra[0][0], 'Client C (M:\\)')
         self.assertTrue(arvore.users_confirmado)
         self.assertIn('down', arvore.enviados_combo)

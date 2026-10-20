@@ -4987,6 +4987,56 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.139 Campo M sem OCR mesmo após tirar o realce; referência explícita (20/10/2026)
+
+**Evidência real:** após 0.138, as variantes Tesseract ainda rejeitam o
+campo e Windows retorna zero palavras. Leitura original por/4 e por/6:
+`lient C (M:N)`. Tentativa eng com margem: `Client C ‘My` e `Client C ‘Hy`;
+não confirmou. Operador confirmou Client C(M:) com lista fechada e mostrou
+que um Down no campo Servidor C troca a unidade; clicar no vazio da árvore
+tira o azul e permite navegar com Down. Relatou Users após 14 Down, depois
+perfil darto, mais 28 Down até o projeto. Caminho mudará futuramente.
+Mesmo sem azul, diagnóstico ao vivo retornou UNIDADE: []. Portanto o
+novo percurso de foco sozinho não resolve a identidade da unidade.
+
+**Correção:** calibração manual local via scripts/calibrar_unidade_pasta.py
+--ao-vivo --client-c M. Operador confere M, lista fechada e campo sem azul,
+volta à tela em 5 segundos. Mede sem referência anterior e rejeita OCR
+canônico contraditório. Guarda só a ROI original RGB e metadados em JSON
+local ignorado pelo Git, escrita atômica, hashes e limites de tamanho.
+Não infere M de captura desconhecida nem usa texto aproximado como prova.
+Reconhecimento exige bytes RGB e dimensões idênticos. Referência inválida,
+imagem diferente ou contradição literal mantém leitura OCR normal.
+
+O seletor mantém origem visual explícita em unidade_visual, sem injetar
+palavras OCR. Exige dois quadros para aplicar a unidade, inclusive se M
+visual estiver presente já na primeira medição do diálogo. Down único no
+combo fechado só com Servidor C literal/realce azul medido. Campo M azul
+ilegível admite um clique no vazio branco interior medido da árvore,
+revalidado na segunda captura. Não repete clique. Após isso precisa M
+confirmado, lista fechada e campo sem realce, em dois quadros. Como o
+clique pode selecionar linha, reinicia raiz/Home antes do percurso.
+
+Navega pelos nomes/níveis do caminho informado, sem constantes 14/28,
+sem fixar darto ou o projeto. Prioriza o teclado observado; Down sem avanço
+na raiz admite a barra medida já existente. Nunca digita o caminho neste
+diálogo. Folha exclusiva/OK e conferência posterior dos PDFs permanecem.
+Diagnóstico --ao-vivo apenas captura após 5 segundos, sem teclas ou cliques.
+
+**Limite:** a calibração requer confirmação visual explícita do operador.
+Mudança de escala/fonte/imagem pede nova referência; nenhuma tolerância
+está habilitada. Testes usam pixels/TreeView sintéticos; não substituem a
+validação de calibração, percurso e três PDFs no Windows do escritório.
+
+**Validação local:** 281 testes passaram (37s). Incluem comparação RGB
+exata, um pixel diferente, arquivo/PNG/hash/metadados inválidos, escrita
+atômica, calibração sem consultar referência anterior, uma captura ao
+vivo sem ações, foco revalidado, unidade errada após foco, match visual
+isolado seguido de unidade diferente e percurso público com C→M, nomes
+de outro perfil/projeto/destino e quantidades diferentes de pastas.
+Regressão do seletor, livros, botões, PDFs, destino e cancelamento passou.
+Sintaxe Python e diff --check limpos; nenhuma emissão fiscal na nuvem.
+
 ### 0.138 Antialias preservado somente no campo Unidade (20/10/2026)
 
 **Evidência real:** contato enviado pelo operador mostra Client C(M:\)
