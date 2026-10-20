@@ -13,6 +13,26 @@ ARQUIVO=Path(__file__).resolve().parents[1]/'data'/'referencia_unidade_pasta.jso
 LIMITE=256*1024
 
 
+MOTIVOS_CALIBRACAO={
+    'unidade_ou_geometria_invalida':'Unidade ou geometria inválida.',
+    'campo_fora_da_captura':'Campo fora dos limites da captura.',
+    'campo_ainda_azul':'O campo Unidade ainda estava azul na captura. Clique no vazio branco dentro da árvore e volte a executar o comando.',
+    'campo_sem_texto_suficiente':'O recorte medido não contém texto suficiente. Confira a imagem local do campo antes de repetir.',
+    'lista_aberta':'A lista de unidades estava aberta. Feche a lista deixando Client C com a letra informada.',
+    'identidade_contraditoria':'O texto reconhecido indica outra unidade. Confira Client C e a letra antes de calibrar.',
+    'dialogo_nao_confirmado':'Procurar Pasta não foi confirmado na captura. Deixe a janela inteira visível e volte a ela nos cinco segundos.',
+    'captura_indisponivel':'Não foi possível ler a captura. Confira a origem informada e deixe o Domínio visível.',
+    'falha_salvar_referencia':'Não foi possível gravar a referência local. Confira o acesso à pasta data do projeto.',
+    'gravacao_nao_concluida':'A referência não foi gravada. Confira o diagnóstico do campo e a etapa informada.',
+}
+
+
+class CalibracaoUnidadeRecusada(ValueError):
+    def __init__(self,motivo):
+        self.motivo=motivo
+        super().__init__(MOTIVOS_CALIBRACAO[motivo])
+
+
 def gravar(imagem,combo,letra,*,arquivo=None):
     """O operador declara Client C/letra na captura atual, sem inferir OCR."""
     from app.foco_seletor import medir_realce_campo
@@ -21,16 +41,16 @@ def gravar(imagem,combo,letra,*,arquivo=None):
     letra=str(letra).upper()
     x,y,w,h=combo
     if not re.fullmatch('[A-Z]',letra) or min(x,y)<0 or w<=h+4 or h<=4:
-        raise ValueError('Unidade ou geometria inválida.')
+        raise CalibracaoUnidadeRecusada('unidade_ou_geometria_invalida')
     if x+w>imagem.width or y+h>imagem.height or w>2000 or h>200:
-        raise ValueError('Campo fora dos limites da captura.')
+        raise CalibracaoUnidadeRecusada('campo_fora_da_captura')
     if medir_realce_campo(imagem,combo) is not None:
-        raise ValueError('Clique no vazio da árvore para tirar o realce azul da unidade antes de calibrar.')
+        raise CalibracaoUnidadeRecusada('campo_ainda_azul')
     recorte=imagem.crop(_area_unidade(combo)).convert('RGB')
     tinta=np.asarray(recorte.convert('L'))<128
     ys,xs=np.nonzero(tinta)
     if len(xs)<h or int(xs.max())-int(xs.min())<2*h:
-        raise ValueError('Campo da unidade sem texto suficiente; referência não gravada.')
+        raise CalibracaoUnidadeRecusada('campo_sem_texto_suficiente')
     buffer=io.BytesIO(); recorte.save(buffer,format='PNG'); png=buffer.getvalue()
     dados={'versao':1,'tipo':'client_c','letra':letra,'confirmada_pelo_operador':True,
            'combo_origem':list(combo),'imagem_origem':list(imagem.size),

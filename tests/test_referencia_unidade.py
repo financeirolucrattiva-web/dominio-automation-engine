@@ -112,6 +112,13 @@ class TestReferenciaUnidade(unittest.TestCase):
 
 
 class TestCalibracaoCLI(unittest.TestCase):
+    def setUp(self):
+        from scripts import revisar_seletor_pasta as diagnostico
+        self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.raiz=Path(self.tmp.name)
+        self.patch=patch.object(diagnostico,'ROOT',self.raiz)
+        self.patch.start(); self.addCleanup(self.patch.stop)
+
     def carregar(self):
         caminho=Path(__file__).resolve().parents[1]/'scripts'/'calibrar_unidade_pasta.py'
         spec=importlib.util.spec_from_file_location('calibrar_unidade_teste',caminho)
@@ -159,6 +166,86 @@ class TestCalibracaoCLI(unittest.TestCase):
             capturar.assert_called_once_with()
             self.assertFalse(medir.call_args.kwargs['usar_referencia'])
             self.assertTrue(arquivo.exists())
+
+    def executar_recusa(self,*,imagem=None,detalhes=None,erro_medicao=None,erro_gravacao=None):
+        from app import tela
+        modulo=self.carregar()
+        im=dialogo() if imagem is None else imagem
+        fonte=self.raiz/'fonte.png'; im.save(fonte)
+        d={'combo':(105,60,456,27),'lista':None,'palavras':[]} if detalhes is None else detalhes
+        arquivo=self.raiz/'referencia.json'; arquivo.write_bytes(b'referencia anterior')
+        saida=io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(ref,'ARQUIVO',arquivo))
+            stack.enter_context(patch.object(seletor,'medir_dialogo',return_value=d,side_effect=erro_medicao))
+            capturar=stack.enter_context(patch.object(tela,'capturar_tela'))
+            if erro_gravacao is not None:
+                stack.enter_context(patch.object(ref,'gravar',side_effect=erro_gravacao))
+            stack.enter_context(contextlib.redirect_stdout(saida))
+            self.assertEqual(modulo.main(['--imagem',str(fonte),'--client-c','M']),1)
+        capturar.assert_not_called()
+        self.assertEqual(arquivo.read_bytes(),b'referencia anterior')
+        texto=saida.getvalue()
+        resultado=json.loads(next(l.removeprefix('UNIDADE_REFERENCIA ') for l in texto.splitlines()
+                                  if l.startswith('UNIDADE_REFERENCIA ')))
+        return resultado,texto
+
+    def test_campo_azul_informa_causa_e_salva_so_o_campo_da_captura_recusada(self):
+        from PIL import Image
+        im=dialogo(); im.putpixel((0,0),(255,0,255))
+        ImageDraw.Draw(im).rectangle((108,63,250,83),fill='#0078d7')
+        r,texto=self.executar_recusa(imagem=im)
+        self.assertEqual(r['motivo'],'campo_ainda_azul')
+        self.assertEqual(r['fase'],'gravar_referencia')
+        self.assertTrue(r['realce_no_campo']); self.assertFalse(r['lista_aberta'])
+        self.assertIn('Clique no vazio branco dentro da árvore',texto)
+        with Image.open(self.raiz/r['recorte_local']) as salvo:
+            self.assertEqual(salvo.width,456*4+16)
+            cores={c for _,c in salvo.convert('RGB').getcolors(salvo.width*salvo.height)}
+        self.assertIn((0,120,215),cores)
+        self.assertNotIn((255,0,255),cores)
+        self.assertEqual(len(list((self.raiz/'capturas').glob('*.png'))),1)
+
+    def test_campo_sem_texto_nao_e_confundido_com_campo_azul(self):
+        im=dialogo(); ImageDraw.Draw(im).rectangle((107,62,534,84),fill='white')
+        r,_=self.executar_recusa(imagem=im)
+        self.assertEqual(r['motivo'],'campo_sem_texto_suficiente')
+        self.assertFalse(r['realce_no_campo'])
+        self.assertIn('recorte_local',r)
+
+    def test_lista_aberta_tem_motivo_proprio_sem_gravar_referencia(self):
+        r,_=self.executar_recusa(detalhes={'combo':(105,60,456,27),'lista':(105,88,456,50),'palavras':[]})
+        self.assertEqual(r['motivo'],'lista_aberta')
+        self.assertEqual(r['fase'],'conferir_unidade')
+        self.assertTrue(r['lista_aberta'])
+
+    def test_identidade_contraditoria_tem_motivo_proprio(self):
+        d={'combo':(105,60,456,27),'lista':None,
+           'palavras':[{'texto':'Client Z (M:)','x':112,'y':65,'w':110,'h':12}]}
+        r,_=self.executar_recusa(detalhes=d)
+        self.assertEqual(r['motivo'],'identidade_contraditoria')
+
+    def test_dialogo_nao_confirmado_nao_salva_tela_inteira_nem_expoe_erro_ocr(self):
+        r,texto=self.executar_recusa(erro_medicao=ValueError('DADOS_PRIVADOS_DO_OCR'))
+        self.assertEqual(r['motivo'],'dialogo_nao_confirmado')
+        self.assertEqual(r['fase'],'medir_dialogo')
+        self.assertNotIn('DADOS_PRIVADOS_DO_OCR',texto)
+        self.assertNotIn('recorte_local',r)
+        self.assertFalse((self.raiz/'capturas').exists())
+
+    def test_falha_ao_salvar_referencia_nao_expoe_mensagem_do_sistema(self):
+        r,texto=self.executar_recusa(erro_gravacao=OSError('CAMINHO_PRIVADO'))
+        self.assertEqual(r['motivo'],'falha_salvar_referencia')
+        self.assertNotIn('CAMINHO_PRIVADO',texto)
+
+    def test_falha_ao_salvar_recorte_nao_oculta_motivo_original(self):
+        from scripts import revisar_seletor_pasta as diagnostico
+        im=dialogo(); ImageDraw.Draw(im).rectangle((108,63,250,83),fill='#0078d7')
+        with patch.object(diagnostico,'salvar_recorte_unidade',side_effect=OSError('DADOS_PRIVADOS')):
+            r,texto=self.executar_recusa(imagem=im)
+        self.assertEqual(r['motivo'],'campo_ainda_azul')
+        self.assertFalse(r['recorte_salvo'])
+        self.assertNotIn('DADOS_PRIVADOS',texto)
 
 
 if __name__=='__main__':unittest.main()

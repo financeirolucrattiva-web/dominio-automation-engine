@@ -4987,6 +4987,33 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
+
+**Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e
+UNIDADE_REFERENCIA gravada=false/tipo=ValueError. A saída não permite
+distinguir realce azul, lista aberta, geometria/texto ou identidade. Não
+se conclui que a referência foi gravada nem qual condição falhou.
+
+**Defeito confirmado no código:** o catch removia a causa específica das
+validações e dava uma orientação genérica. Agora as recusas controladas
+preservam código de motivo; a CLI informa fase e orientação fechada.
+Não publica texto OCR ou mensagens livres de exceção. Com combo medido,
+anexa geometria, flags de lista/azul e contato local somente do campo,
+reutilizando a captura recusada. Sem combo confirmado não salva a tela.
+Erro de gravação do contato não esconde a recusa principal. Referência
+anterior preservada; condições de aceitar unidade e percurso intactas.
+
+**Pendência:** executar só a calibração atualizada no Windows e conferir
+o motivo/recorte atual. Nenhuma nova emissão fiscal é necessária para
+identificar a causa desta recusa; o salvamento real continua não validado.
+
+**Validação local:** 58 testes passaram. Recusas de campo azul/vazio,
+lista aberta, unidade contraditória, falha de medição e acesso ao arquivo
+mantêm motivos distintos. Testes verificam contato sem pixels externos
+ao campo, não exposição de mensagens livres, referência preservada e
+falha secundária do contato sem esconder a causa. Percurso/foco continuam
+passando. Sintaxe e diff --check limpos; nenhuma GUI fiscal foi operada.
+
 ### 0.139 Campo M sem OCR mesmo após tirar o realce; referência explícita (20/10/2026)
 
 **Evidência real:** após 0.138, as variantes Tesseract ainda rejeitam o

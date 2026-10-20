@@ -125,6 +125,13 @@ impedem gravar. A referência só vale para pixels/dimensões idênticos e
 não transforma texto OCR malformado em confirmação. Não é enviada ao Git.
 Se escala/fonte mudar, recalibre; referência inválida volta ao OCR normal.
 
+Se a calibração recusar, UNIDADE_REFERENCIA informa `motivo` e `fase`,
+com orientação específica. Quando o campo foi medido, também informa
+`realce_no_campo`, `lista_aberta` e `recorte_local`, com imagem apenas
+do campo da mesma captura recusada. A referência anterior é preservada.
+Ausência de OCR sozinho não determina a causa; confira esses dados sem
+repetir a emissão dos livros.
+
 Para conferir sem emitir, use `python scripts\revisar_seletor_pasta.py
 --ao-vivo --somente-unidade` (em uma linha), voltando ao diálogo em cinco
 segundos. Espere M e origem_unidade=calibracao_visual_local. Isso confirma
