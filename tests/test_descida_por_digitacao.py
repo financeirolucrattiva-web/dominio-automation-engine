@@ -131,6 +131,35 @@ class TestDuploClique(unittest.TestCase):
         self.assertIn('clicar=clicar_duplo or clicar', codigo)
 
 
+class TestDuploCliqueFinal(unittest.TestCase):
+    def test_pasta_final_recebe_duplo_clique_e_so_depois_o_ok(self):
+        eventos = []
+        sel = {'leituras': ['saida'], 'x': 100, 'y': 200, 'w': 40, 'h': 14}
+        detalhes = {'ok': (500, 400)}
+
+        def aguardar(cap, confirmar=None, **k):
+            self.assertTrue(confirmar is None or confirmar('img', detalhes))
+            return 'img', detalhes
+        with patch.object(seletor, '_aguardar_dialogo', side_effect=aguardar), \
+                patch.object(seletor, '_selecionar_unidade', return_value=('img', detalhes)), \
+                patch.object(seletor, 'MODO_DIGITACAO', True), \
+                patch.object(seletor, '_focar_arvore_e_home'), \
+                patch.object(seletor, '_descer_por_digitacao'), \
+                patch.object(seletor, '_drive_selecionado', return_value=True), \
+                patch.object(seletor, '_nome_selecionado_aproximado', return_value=sel), \
+                patch.object(seletor, '_ok_final', return_value=(500, 400)), \
+                patch.object(seletor.time, 'sleep'), patch.object(seletor, 'ponto_seguro'):
+            seletor.selecionar_pasta('M:/Users/darto/projeto/saida', Mock(),
+                                     lambda *p: eventos.append(('clique', p)), Mock(),
+                                     clicar_duplo=lambda *p: eventos.append(('duplo', p)),
+                                     permitir_pasta_comum=True)
+        self.assertEqual(eventos, [('duplo', (88, 207)), ('clique', (500, 400))])
+
+    def test_pasta_comum_so_com_permissao(self):
+        with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
+            seletor.selecionar_pasta('M:/Users/darto/saida', Mock(), Mock(), Mock())
+
+
 class TestArvoreMudou(unittest.TestCase):
     def test_detecta_qualquer_mudanca_na_arvore_inclusive_rolagem_e_ignora_fora_dela(self):
         antes = Image.new('RGB', (200, 200), 'white')

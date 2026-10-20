@@ -5123,6 +5123,30 @@ até chegar em `saida`; aí clicar em OK.
 detecção de rolagem, `anteriores/`, ignorar PDFs prévios); suíte completa com as mesmas 14 falhas
 de ambiente da base. Não validado ao vivo.
 
+### 0.146 Duplo clique também na pasta final e pergunta de guias do Acrobat (20/10/2026)
+
+**Evidência (captura e relato do operador, 20/10):** a rodada com a seção 0.145 chegou quase ao
+fim: o diálogo de pasta foi percorrido e os 3 PDFs abriram no Acrobat, cada um numa guia. Faltou o
+duplo clique na pasta `saida` antes do OK, e ao pedir o fechamento o Acrobat perguntou "Deseja
+fechar todas as guias ou a guia atual?", o que segurou o fechamento (o `WM_CLOSE` não basta).
+
+**Correção:**
+- `selecionar_pasta`: depois de confirmar `saida` selecionada, dá duplo clique no ícone dela
+  (`PASTA_NAVEGACAO {"fase":"duplo_clique_final"}`), relê para confirmar que a seleção continua
+  nela e só então clica OK.
+- `interacao.fechar_pergunta_de_guias_do_acrobat`: enquanto um leitor novo, já pedido para fechar,
+  continua aberto, lê a tela (OCR direto, sem a trava de foco que o Acrobat na frente recusaria) e
+  clica em "Fechar todas as guias". O texto do botão também aparece na pergunta ("Deseja fechar
+  todas as guias ou...") e na caixa "Sempre fechar todas as guias", que nunca são clicadas: a
+  palavra antes ("deseja"/"sempre") e a palavra "ou" depois descartam essas ocorrências, e a
+  pergunta precisa estar visível.
+- O retorno à tela principal continua pelo `voltar_ao_inicio` (Alt+Tab e Esc até reconhecer a tela
+  azul), que roda depois do fechamento.
+
+**Validação:** testes (duplo clique antes do OK, escolha do botão certo no OCR sintético, pasta
+comum só com permissão); suíte completa com as mesmas 14 falhas de ambiente da base. Não validado
+ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

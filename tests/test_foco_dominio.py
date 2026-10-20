@@ -343,6 +343,25 @@ class TestFocoDominio(unittest.TestCase):
             self.assertEqual(self.modulo.fechar_leitores_pdf_novos(base, espera=3, intervalo=0), 0)
         self.assertEqual(self.fechadas, [])
 
+    def test_pergunta_de_guias_clica_no_botao_e_nunca_na_caixa_sempre_fechar(self):
+        def dados(linhas):
+            d = {'text': [], 'left': [], 'top': [], 'width': [], 'height': []}
+            for y, palavras in linhas:
+                x = 100
+                for p in palavras.split():
+                    d['text'].append(p); d['left'].append(x); d['top'].append(y)
+                    d['width'].append(60); d['height'].append(20)
+                    x += 70
+            return d
+        d = dados([(10, 'Deseja fechar todas as guias ou a guia atual?'),
+                   (60, 'Sempre fechar todas as guias'),
+                   (100, 'Fechar todas as guias Fechar a guia atual Cancelar')])
+        x, y = self.modulo._posicao_fechar_todas_as_guias(d, 1)
+        self.assertEqual(y, 110)  # linha do botão, não a da caixa Sempre (y=70)
+        self.assertEqual(x, 100 + (3 * 70 + 60) // 2)
+        sem_pergunta = dados([(60, 'Sempre fechar todas as guias')])
+        self.assertIsNone(self.modulo._posicao_fechar_todas_as_guias(sem_pergunta, 1))
+
     def test_clicar_duplo_move_e_da_duplo_clique_respeitando_a_trava_de_foco(self):
         mover, duplo = Mock(), Mock()
         self.modulo.pyautogui.moveTo = mover

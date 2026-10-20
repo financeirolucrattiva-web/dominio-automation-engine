@@ -271,6 +271,55 @@ def _clicar_x_da_janela(api, hwnd):
     return True
 
 
+def _posicao_fechar_todas_as_guias(dados, escala=2):
+    """(x, y) do botão "Fechar todas as guias" no OCR (`dados` no formato do tesseract).
+
+    O Acrobat com várias guias pergunta "Deseja fechar todas as guias ou a guia atual?".
+    O texto do botão aparece também na caixa "Sempre fechar todas as guias" (um pouco acima),
+    que NÃO pode ser clicada: a palavra antes de "Fechar" decide. Exige a pergunta visível.
+    """
+    palavras = [(i, re.sub(r"\W", "", t).casefold()) for i, t in enumerate(dados["text"]) if t.strip()]
+    texto = [p for _, p in palavras]
+    if "deseja" not in texto or "guias" not in texto:
+        return None
+    for posicao in range(len(palavras) - 1):
+        if texto[posicao] != "fechar" or texto[posicao + 1] != "todas":
+            continue
+        if posicao > 0 and texto[posicao - 1] in ("sempre", "deseja"):
+            continue  # caixa "Sempre fechar..." ou a pergunta "Deseja fechar..."
+        if posicao + 4 < len(texto) and texto[posicao + 4] == "ou":
+            continue
+        grupo = [palavras[n][0] for n in range(posicao, min(posicao + 4, len(palavras)))]
+        esquerda = min(dados["left"][i] for i in grupo)
+        direita = max(dados["left"][i] + dados["width"][i] for i in grupo)
+        topo = min(dados["top"][i] for i in grupo)
+        baixo = max(dados["top"][i] + dados["height"][i] for i in grupo)
+        return ((esquerda + direita) // 2 // escala, (topo + baixo) // 2 // escala)
+    return None
+
+
+def fechar_pergunta_de_guias_do_acrobat():
+    """Se o Acrobat perguntou "fechar todas as guias ou a guia atual?", clica em "Fechar todas as guias".
+
+    Só é chamada depois de pedir o fechamento de um leitor novo. Devolve True se clicou.
+    """
+    from app import tela
+    ponto_seguro_sem_foco()
+    imagem = tela.capturar_tela()
+    # OCR direto: com o Acrobat na frente a trava de foco de `_ler_dados_ocr` recusaria.
+    import pytesseract
+    dados = pytesseract.image_to_data(tela._preparar_para_ocr(imagem, 2), lang="por",
+                                      output_type=pytesseract.Output.DICT, timeout=tela.LIMITE_TESSERACT)
+    posicao = _posicao_fechar_todas_as_guias(dados, 2)
+    if posicao is None:
+        return False
+    print("Acrobat perguntou sobre as guias: clicando em Fechar todas as guias.", flush=True)
+    ponto_seguro_sem_foco()
+    pyautogui.moveTo(*posicao, duration=0.2)
+    pyautogui.click(*posicao)
+    return True
+
+
 def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
     """Uma varredura: pede o fechamento (WM_CLOSE, como o X) de leitores de PDF novos.
 
@@ -293,7 +342,16 @@ def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
             print("Fechando o leitor de PDF aberto pela exportação.", flush=True)
             api.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
             fechadas.add(hwnd)
-    return [h for h in fechadas if h in atuais]
+    ainda_abertas = [h for h in fechadas if h in atuais]
+    if ainda_abertas:
+        # Com várias guias (os 3 livros), o Acrobat segura o fechamento e pergunta.
+        try:
+            fechar_pergunta_de_guias_do_acrobat()
+        except ExecucaoInterrompida:
+            raise
+        except Exception:
+            print("Não consegui ler a pergunta de guias do Acrobat.", flush=True)
+    return ainda_abertas
 
 
 def fechar_leitores_pdf_novos(linha_base, espera=20, intervalo=0.5, calma=2.5, espera_clique=4):

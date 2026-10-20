@@ -1125,9 +1125,19 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, cl
             digitos=re.sub(r'\D','',caminho.name)
             if exclusiva and not any(sum(a==b for a,b in zip(re.sub(r'\D','',l),digitos))>=len(digitos)-1
                        and len(re.sub(r'\D','',l))==len(digitos) for l in sel['leituras']):return False
+            d['sel_final']=sel
             d['ok']=_ok_final(img,d)
             return d['ok'] is not None
         imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok')
+        if clicar_duplo is not None:
+            # Operador: a pasta final também recebe duplo clique antes do OK. Relê para
+            # garantir que a seleção continua nela.
+            sel=detalhes['sel_final']
+            ponto_seguro()
+            clicar_duplo(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'duplo_clique_final'}),flush=True)
+            time.sleep(0.8)
+            imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok')
         if not clicar_ok:
             print('Destino dos livros: ensaio concluído, pasta final selecionada; OK NÃO clicado.',flush=True)
             return True
