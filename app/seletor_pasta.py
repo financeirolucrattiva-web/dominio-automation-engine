@@ -1033,7 +1033,39 @@ def _focar_arvore_e_home(capturar,clicar,tecla,letra,detalhes):
     time.sleep(.4)
 
 
-def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6)):
+ICONE_DESLOCAMENTO_X = 12  # medido na captura real: ícone da pasta ~12 px à esquerda da caixa azul
+
+
+def _arvore_mudou_abaixo(antes, depois, sel, detalhes):
+    """Houve mudança de pixels abaixo da linha selecionada? (filhos aparecendo/sumindo)"""
+    from PIL import ImageChops
+    x,y,w,h=detalhes['arvore']
+    topo=int(sel['y']+sel['h']+2)
+    if topo>=y+h-2:return False
+    area=(x,topo,x+w,y+h)
+    return ImageChops.difference(antes.crop(area).convert('RGB'),depois.crop(area).convert('RGB')).getbbox() is not None
+
+
+def _expandir_no(capturar,clicar,tecla,letra,sel,detalhes,antes,esperas):
+    """Abre o ramo do nó selecionado. Neste diálogo a tecla Right não o abre: clica no ÍCONE
+    da pasta (pedido do operador) e só então tenta Right. Confere por mudança de pixels
+    abaixo da linha; sem mudança nas duas tentativas, recusa."""
+    tentativas=[]
+    if clicar is not None:
+        tentativas.append(('icone',lambda:clicar(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))))
+    tentativas.append(('right',lambda:tecla('right')))
+    for nome,acao in tentativas:
+        ponto_seguro(); acao()
+        time.sleep(esperas[0])
+        depois,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                                   fase='expandir_ramo',estavel=True)
+        mudou=_arvore_mudou_abaixo(antes,depois,sel,d)
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'expandir_ramo','metodo':nome,'ramo_mudou':mudou}),flush=True)
+        if mudou:return depois,d
+    raise SeletorPastaNaoConfirmado('O ramo não abriu (ícone e Right sem efeito); não foi enviado OK.')
+
+
+def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6),clicar=None):
     """Busca por digitação do TreeView: digita o nome, confere o nó azul por semelhança e
     indentação, expande com Right. Devolve (imagem, detalhes) com a folha selecionada."""
     x_anterior=None
@@ -1058,8 +1090,7 @@ def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6)):
         print('PASTA_NAVEGACAO '+json.dumps({'fase':'segmento','nivel':indice,'origem':'digitacao',
               'confirmado':True,'semelhanca':round(_semelhanca(sel['leituras'],nome),2)}),flush=True)
         if indice<len(partes)-1:
-            ponto_seguro(); tecla('right')
-            time.sleep(esperas[0])
+            _expandir_no(capturar,clicar,tecla,letra,sel,d,img,esperas)
     return img,d,x_anterior
 
 
@@ -1080,7 +1111,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
         # exatidão por OCR; cada nível é conferido por semelhança e indentação crescente.
         _focar_arvore_e_home(capturar,clicar,tecla,caminho.drive[0],detalhes)
         print('Destino dos livros: descendo pela árvore por digitação.',flush=True)
-        _descer_por_digitacao(capturar,tecla,caminho.drive[0],list(partes))
+        _descer_por_digitacao(capturar,tecla,caminho.drive[0],list(partes),clicar=clicar)
         def confirmar_final_digitado(img,d):
             if not _drive_selecionado(d,caminho.drive[0]):return False
             sel=_nome_selecionado_aproximado(img,d)

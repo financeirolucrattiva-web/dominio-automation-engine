@@ -5080,6 +5080,23 @@ indentação/nome errado/leitura transitória) e a captura real. Não validado a
 efeito real da digitação no TreeView do GO-Global e o Right expandir/entrar. Ensaio:
 "Testar Seletor de Pasta" com o diálogo aberto.
 
+### 0.144 Procurar Pasta: abrir o ramo clicando no ícone da pasta (20/10/2026)
+
+**Evidência (rodada de 16:17 e relato do operador):** a digitação funcionou no primeiro nível
+(`segmento nivel=0 origem=digitacao semelhanca=1.0`: "Users" selecionado), mas a tecla Right
+não abre o ramo neste diálogo. Sem o ramo aberto, digitar `darto` fez a busca do TreeView
+saltar para a primeira pasta com "d" no topo da lista (`Declaracoes Gravadas RFB`), o que o
+operador viu como "voltou ao início". Operador: é preciso clicar no ícone da pasta para abrir.
+
+**Correção:** `_expandir_no` clica no ícone da pasta do nó selecionado (~12 px à esquerda da
+caixa azul, no meio da linha; medido na captura real) e confere por mudança de pixels abaixo da
+linha selecionada (filhos aparecendo); sem mudança tenta Right; sem mudança nas duas, recusa
+ANTES de digitar o próximo nome (não deixa a busca saltar para outra pasta). Um clique por nível
+(sem repetir, para não fechar o ramo que abriu).
+
+**Validação:** testes (clique no ícone nas coordenadas esperadas, fallback para Right, recusa
+sem efeito, detecção de filhos abaixo da linha); não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e
