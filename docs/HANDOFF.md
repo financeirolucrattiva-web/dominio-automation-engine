@@ -1,5 +1,32 @@
 # Domínio Automation Engine — handoff
 
+## Calibração recusada com ValueError sem motivo — 20/10/2026
+
+Operador executou a calibração em 2423c35. O campo teve zero opiniões
+OCR e o comando retornou apenas UNIDADE_REFERENCIA gravada=false,
+tipo=ValueError. Esse log não prova campo azul, lista aberta, recorte
+sem texto ou identidade contraditória. Não atribuir uma dessas causas
+sem a nova saída; a calibração real continua pendente.
+
+Defeito do diagnóstico: o catch descartava as mensagens específicas de
+validação. Agora usa motivos fechados com fase e orientação correspondente,
+sem imprimir exceção/OCR livre. Se o combo foi medido, informa geometria,
+lista aberta e realce azul; salva localmente somente o contato do campo
+na mesma captura recusada (capturas/unidade_ocr_<id>.png). Sem medição,
+não salva a tela inteira. Falha ao salvar contato preserva a causa inicial.
+Referência anterior permanece intocada quando há recusa. As condições de
+aceitação, comparação RGB, navegação e emissão não foram alteradas.
+
+Próximo passo: atualizar e executar novamente apenas
+`python scripts\calibrar_unidade_pasta.py --ao-vivo --client-c M`, voltando
+ao Procurar Pasta em cinco segundos. Conferir motivo e recorte se recusar;
+não repetir emissão fiscal para diagnosticar a calibração.
+
+Validação: 58 testes passaram. Incluem causas distintas, privacidade do
+recorte, mensagens livres não expostas, nenhuma recaptura no diagnóstico,
+referência anterior preservada e regressão do percurso/foco. Sintaxe e
+diff --check limpos; apenas imagens sintéticas, sem GUI fiscal real.
+
 ## Unidade M ilegível: referência local e foco da árvore — 20/10/2026
 
 A correção de contraste abaixo não resolveu a captura do operador.
