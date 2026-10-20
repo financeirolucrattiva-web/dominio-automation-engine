@@ -4987,6 +4987,51 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.141 Unidade bloqueia a descida; execução trata o OCR observado e foca a árvore (20/10/2026)
+
+**Evidência:** operador informa que não ocorreu descida até Users. A rotina
+de busca existe, mas `_selecionar_unidade` bloqueia antes dela: a leitura
+real enviada em por/4 e por/6 foi `lient C (M:N)`, rejeitada pela sintaxe.
+O PR 41 mudou só diagnóstico da calibração. Não há novo resultado real
+de pasta/PDF. O comando calibrar_unidade_pasta não percorre pastas.
+
+**Mudança funcional:** reconhecimento local do campo aceita Client/lient
+com tipo explícito e letra explícita, dois-pontos e N como variação da
+barra. Só após duas opiniões concordantes dentro da ROI, uma linha e
+caixas válidas. O resultado OCR bruto é preservado; anotação semântica
+separada informa identidade confirmada. Uma leitura global isolada da
+variante não libera a unidade. My/Hy, tipo/letra divergentes, caixas fora
+do campo e opiniões contraditórias recusam. Não substitui a letra lida
+pela esperada. Essa correção dispensa referência manual para a saída real
+observada; não promete reconhecer qualquer campo sem leitura.
+
+O início da árvore passa a clicar no vazio medido, revalidado na captura
+atual com unidade confirmada. Home ancora a raiz e Down desce até Users,
+confirmando nome/nível antes de expandir. Foco já obtido pela recuperação
+da unidade é reutilizado sem segundo clique. Busca demais segmentos do
+caminho configurado, sem depender do nome do operador ou de 14/28 setas.
+O terminal informa descida/níveis; OK continua exclusivo da folha final.
+
+Cache de leitura da unidade existe só no contexto de uma navegação,
+associado a coordenadas, dimensões e bytes RGB exatos da ROI. Mudança na
+árvore não relê o campo idêntico; mudança no campo ou contradição literal
+atual exige confirmação correspondente. Contexto é descartado em retorno
+normal ou exceção. Referências persistentes manuais permanecem opcionais.
+
+**Pendência real:** atualizar e reiniciar servidor antes do teste individual
+de Livros Fiscais em agosto/2026 fechado. Não confundir teste sintético do
+percurso com emissão real; ainda não há log dos três PDFs salvos.
+
+**Validação:** 299 testes passaram. A nova integração usa árvore sintética
+com 19 raízes antes de Users e 33 pastas antes do projeto, sem referência
+gravada, injetando a saída textual real do OCR. Confirma C→M, um clique
+no vazio, Home/Down, cadeia completa e um OK exclusivo. Também verifica
+M já selecionado, outro tipo/letra, uma opinião insuficiente, contradição,
+caixas inválidas e cache por RGB exato descartado entre contextos.
+Regressão de livros, PDFs, botões, destino, barra e cancelamento passou.
+Tesseract real em figuras sintéticas; Windows simulado. Sintaxe Python
+e diff --check limpos. Falta a execução manual no Windows do escritório.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

@@ -108,6 +108,15 @@ ampliado. Os contadores de opiniões aceitas iguais a zero não significam,
 por si só, que o OCR não retornou palavras. Esse diagnóstico não clica,
 não emite e não imprime texto OCR livre.
 
+Na execução atual, a saída OCR observada `lient C (M:N)` é tratada dentro
+do campo medido, após duas opiniões concordantes. Preserva tipo/letra
+lidos e texto bruto; uma leitura global isolada não confirma a unidade.
+Para essa variante, a calibração abaixo é opcional. Após confirmar M, a
+rotina clica no vazio branco revalidado da árvore, ancora a raiz com Home
+e desce por Down até Users. Segue o restante do caminho por nomes/níveis,
+sem fixar contagens de setas. O terminal mostra cada nível confirmado.
+Atualizações exigem reiniciar o processo do servidor antes de testar.
+
 Quando o operador vê Client C(M:) mas o OCR continua recusando o campo,
 é possível guardar uma referência visual **explicitamente conferida**.
 Deixe Procurar Pasta em M, lista fechada, clique no vazio da árvore para

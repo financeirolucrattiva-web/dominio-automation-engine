@@ -10,6 +10,7 @@ import unicodedata
 import json
 import hashlib
 from app.controle_execucao import ExecucaoInterrompida, ponto_seguro
+from app.leitura_unidade import cache_da_navegacao
 
 
 class SeletorPastaNaoConfirmado(ValueError):
@@ -176,6 +177,7 @@ def _completar_dialogo(detalhes):
             'botoes_ok':botoes,
             'ok':(round(ok['x']+ok['w']/2),round(ok['y']+ok['h']/2)) if ok_valido else None}
     if detalhes.get('unidade_visual') is not None:resultado['unidade_visual']=detalhes['unidade_visual']
+    if detalhes.get('_foco_arvore_confirmado'):resultado['_foco_arvore_confirmado']=True
     return resultado
 
 
@@ -185,7 +187,8 @@ def _drive(palavras, letra):
         texto=_normalizar(' '.join(p['texto'] for p in linha))
         # "Client C (M:\)": o OCR lê a barra invertida como \, /, | ou a omite; a
         # linha "Client Z \\server\... (Z:\)" e "Servidor (C:\)" não casam.
-        if re.search(r'client\s*c\s*\(\s*'+re.escape(letra.casefold())+r'\s*[:;.]\s*[\\/|!]?\s*\)',texto):
+        if (re.search(r'client\s*c\s*\(\s*'+re.escape(letra.casefold())+r'\s*[:;.]\s*[\\/|!]?\s*\)',texto)
+                or _identidade_unidade(linha)=='clientc:'+letra.casefold()):
             achados.append(_posicao(linha))
     if len(achados)>1:raise SeletorPastaNaoConfirmado('Unidade Client C ambígua.')
     return achados[0] if achados else None
@@ -212,10 +215,16 @@ def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
         informar('global','client_c_reconhecido')
         return palavras
     from app import tela
-    from app.leitura_unidade import normalizar_unidade
+    from app.leitura_unidade import normalizar_unidade,identidade_variante_recorte,_cache
     area=_area_unidade(combo)  # interior, excluindo borda e botão da seta
     leituras=[]
     original=imagem.crop(area).convert('RGB')
+    cache=_cache.get()
+    chave=(tuple(combo),original.size,original.tobytes())
+    if cache is not None and chave in cache:
+        ponto_seguro()
+        informar('cache_recorte','pixels_identicos')
+        return [p for p in palavras if p not in dentro]+[dict(p) for p in cache[chave]]
     recorte=normalizar_unidade(original)
     selecao_tratada=recorte.tobytes()!=original.tobytes()
     def adicionar(dados,escala):
@@ -233,6 +242,8 @@ def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
              'h':dados['height'][i]/escala} for i in indices]
         linhas=_linhas(ps)
         identidade=_identidade_unidade(linhas[0]) if len(linhas)==1 else None
+        if len(linhas)==1 and not re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade or ''):
+            identidade=identidade_variante_recorte(' '.join(p['texto'] for p in linhas[0]))
         if identidade and re.fullmatch(r'(servidor|client[a-z]):[a-z]',identidade):
             leituras.append((identidade,ps))
             return {'motivo':'identidade_reconhecida','palavras':len(indices),'linhas':len(linhas)}
@@ -283,7 +294,15 @@ def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
              opinioes=len(leituras),identidades_distintas=len({i for i,_ in leituras}),
              area=list(area),dimensoes=list(recorte.size))
     if consenso():
-        return [p for p in palavras if p not in dentro]+leituras[0][1]
+        identidade,ps=leituras[0]
+        # Preserva o OCR bruto. A anotação só nasce DEPOIS de duas opiniões
+        # concordantes dentro da ROI, nunca por uma leitura global isolada.
+        if _identidade_unidade(ps)!=identidade:
+            ps=[dict(p,_identidade_campo_confirmada=identidade) for p in ps]
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_consenso_recorte',
+                  'confirmado':True,'opinioes':len(leituras)}),flush=True)
+        if cache is not None:cache[chave]=[dict(p) for p in ps]
+        return [p for p in palavras if p not in dentro]+ps
     return palavras
 
 
@@ -357,6 +376,10 @@ def _identidade_unidade(linha):
     achado=re.fullmatch(r'(servidor|client\s+[a-z])\s*\(\s*([a-z])\s*[:;.]\s*[\\/|!]?\s*\)',texto)
     if achado:
         return re.sub(r'\s+','',achado[1])+':'+achado[2]
+    confirmadas={p.get('_identidade_campo_confirmada') for p in linha}
+    if len(confirmadas)==1:
+        identidade=next(iter(confirmadas))
+        if identidade and re.fullmatch(r'client[a-z]:[a-z]',identidade):return identidade
     return re.sub(r'\s+','',texto) or None
 
 
@@ -494,6 +517,7 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
             if valido:
                 estado=(assinatura,detalhes['lista'])
                 if estado==anterior:
+                    if foco_enviado:detalhes['_foco_arvore_confirmado']=True
                     print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':True,
                           **observado}),flush=True)
                     return imagem,detalhes
@@ -900,6 +924,29 @@ def _ok_final(imagem, detalhes):
     return None
 
 
+def _iniciar_arvore(capturar,clicar,tecla,letra,detalhes):
+    """Clique no vazio e Home antes dos Down observados pelo operador."""
+    from app.foco_seletor import localizar_vazio,confirmar_vazio
+    ja_focada=detalhes.get('_foco_arvore_confirmado',False)
+    img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                           fase='unidade_antes_arvore',estavel=True)
+    if not ja_focada:
+        vazio=localizar_vazio(img,d)
+        if vazio is None:
+            raise SeletorPastaNaoConfirmado('Espaço vazio da árvore não confirmado; não foi enviado OK.')
+        img,d=_aguardar_dialogo(capturar,lambda img,d:
+            _drive_selecionado(d,letra) and confirmar_vazio(img,d,vazio),
+            fase='revalidar_vazio_arvore',estavel=True)
+        ponto_seguro(); clicar(*vazio['posicao'])
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'focar_arvore',
+              'posicao':list(vazio['posicao']),'clique_enviado':True}),flush=True)
+        _aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                          fase='apos_foco_arvore',estavel=True)
+    ponto_seguro(); tecla('home')
+    return _ler_selecao(capturar,letra,'inicio_arvore',estavel=True)
+
+
+@cache_da_navegacao()
 def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
     """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
     caminho=PureWindowsPath(caminho_remoto)
@@ -909,14 +956,14 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla):
     imagem, detalhes = _aguardar_dialogo(capturar,fase='abrir_seletor')
     imagem,detalhes=_selecionar_unidade(capturar,clicar,tecla,caminho.drive[0],imagem,detalhes)
     partes=caminho.parts[1:]
-    nos=_nos(detalhes)
-    if not nos:raise SeletorPastaNaoConfirmado('Nenhum item da árvore reconhecido; não foi enviado OK.')
-    clicar(*nos[0]['posicao'])  # foco em linha medida, antes de Home
-    _ler_selecao(capturar,caminho.drive[0],'foco_arvore')
-    tecla('home')
-    estado=_ler_selecao(capturar,caminho.drive[0],'inicio_arvore')
+    print('Destino dos livros: unidade '+caminho.drive[0].upper()+
+          ' confirmada; iniciando a navegação pelas pastas.',flush=True)
+    estado=_iniciar_arvore(capturar,clicar,tecla,caminho.drive[0],detalhes)
     for indice,nome in enumerate(partes):
+        if indice==0 and _normalizar(nome)=='users':
+            print('Destino dos livros: descendo pela árvore até Users.',flush=True)
         estado=_buscar_irmao(capturar,tecla,caminho.drive[0],estado,nome,indice,clicar=clicar)
+        print('Destino dos livros: pasta '+str(indice+1)+' de '+str(len(partes))+' confirmada.',flush=True)
         if indice<len(partes)-1:
             estado=_entrar_no(capturar,tecla,caminho.drive[0],estado[2])
     folha=estado[2]
