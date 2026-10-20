@@ -108,6 +108,36 @@ ampliado. Os contadores de opiniões aceitas iguais a zero não significam,
 por si só, que o OCR não retornou palavras. Esse diagnóstico não clica,
 não emite e não imprime texto OCR livre.
 
+Quando o operador vê Client C(M:) mas o OCR continua recusando o campo,
+é possível guardar uma referência visual **explicitamente conferida**.
+Deixe Procurar Pasta em M, lista fechada, clique no vazio da árvore para
+tirar o realce azul da unidade. Execute no CMD do projeto e volte ao
+diálogo nos cinco segundos seguintes:
+
+```bat
+python scripts\calibrar_unidade_pasta.py --ao-vivo --client-c M
+```
+
+O comando não clica nem emite; guarda somente a ROI da unidade localmente
+em data/referencia_unidade_pasta.json. A letra M vem da confirmação do
+operador. Campo azul, lista aberta ou identidade OCR canônica diferente
+impedem gravar. A referência só vale para pixels/dimensões idênticos e
+não transforma texto OCR malformado em confirmação. Não é enviada ao Git.
+Se escala/fonte mudar, recalibre; referência inválida volta ao OCR normal.
+
+Para conferir sem emitir, use `python scripts\revisar_seletor_pasta.py
+--ao-vivo --somente-unidade` (em uma linha), voltando ao diálogo em cinco
+segundos. Espere M e origem_unidade=calibracao_visual_local. Isso confirma
+apenas o campo, não a seleção da pasta ou os três PDFs.
+
+Com Servidor C literal e campo realçado, um Down troca a unidade conforme
+o percurso observado. Para o campo azul ilegível, a rotina pode clicar
+uma vez numa área branca medida e revalidada dentro da árvore. Exige
+então M sem azul em dois quadros. Reinicia pela raiz e segue os nomes do
+caminho recebido, sem fixar usuário/projeto nem quantidades de setas.
+Down rola a seleção; a barra medida continua como recuperação da raiz.
+Este percurso com referência aguarda conferência real no Windows.
+
 O Python local valida os três PDFs por conteúdo/período/CNPJ e só então
 publica na pasta da empresa. Isso evita navegar pelo Dropbox no Domínio.
 Nome final usa tipo, nome cadastrado e competência; arquivos anteriores

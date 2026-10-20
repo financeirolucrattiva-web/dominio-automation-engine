@@ -40,6 +40,8 @@ def main(argv=None):
     origem=parser.add_mutually_exclusive_group(required=True)
     origem.add_argument('--imagem',type=Path,help='PNG local do seletor.')
     origem.add_argument('--ultima-falha',action='store_true',help='Última captura local da falha dos livros.')
+    origem.add_argument('--ao-vivo',action='store_true',
+                        help='Lê a tela após 5 segundos; volte ao Procurar Pasta. Não clica nem digita.')
     parser.add_argument('--pasta',help='Confere se esse nome está visível no ramo atual, sem clicar.')
     parser.add_argument('--somente-unidade',action='store_true',
                         help='Confere somente campo/lista de unidades, sem OCR da árvore ou do OK.')
@@ -58,7 +60,14 @@ def main(argv=None):
     from PIL import Image
     from app import seletor_pasta as seletor
     try:
-        with Image.open(caminho) as arquivo:imagem=arquivo.convert('RGB')
+        if args.ao_vivo:
+            import time
+            from app import tela
+            print('Volte ao Procurar Pasta nos próximos 5 segundos. Este diagnóstico só lê a tela.',flush=True)
+            time.sleep(5)
+            imagem=tela.capturar_tela()
+        else:
+            with Image.open(caminho) as arquivo:imagem=arquivo.convert('RGB')
         observacoes=[]
         unidade=(seletor.medir_dialogo(imagem,somente_unidade=True,
                     registrar_unidade=observacoes.append) if args.detalhar_unidade
@@ -66,8 +75,11 @@ def main(argv=None):
         for observacao in observacoes:
             print('PASTA_UNIDADE_OCR '+json.dumps(observacao,ensure_ascii=False))
         if args.somente_unidade:
+            from app.foco_seletor import medir_realce_campo
             resultado={'dialogo_confirmado':True,'combo':list(unidade['combo']),
                        'lista_unidades_aberta':unidade['lista'] is not None,
+                       'realce_no_campo':medir_realce_campo(imagem,unidade['combo']) is not None,
+                       'origem_unidade':'calibracao_visual_local' if unidade.get('unidade_visual') else 'ocr',
                        'client_c_letras_no_campo':[letra for letra in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                            if seletor._drive_selecionado(unidade,letra)]}
             if args.detalhar_unidade:

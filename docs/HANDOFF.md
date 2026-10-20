@@ -1,5 +1,59 @@
 # Domínio Automation Engine — handoff
 
+## Unidade M ilegível: referência local e foco da árvore — 20/10/2026
+
+A correção de contraste abaixo não resolveu a captura do operador.
+OCR original por/4 e por/6 devolveu `lient C (M:N)`; tentativa manual
+eng/4 e eng/6 devolveu `Client C ‘My` / `Client C ‘Hy`. Mesmo após clicar
+no vazio e tirar o realce azul, a leitura ao vivo retornou UNIDADE: [].
+Não acrescentar idioma, máscara de caracteres ou aceitação aproximada
+com base nas figuras sintéticas. O operador confirmou visualmente M.
+
+Novo preparo explícito, sem emissão: deixar Procurar Pasta em Client C
+(M:), lista fechada, clicar no vazio da árvore para tirar o azul do campo;
+executar `python scripts\calibrar_unidade_pasta.py --ao-vivo --client-c M`
+e voltar ao diálogo em 5 segundos. A letra é declaração do operador.
+A medição da captura não consulta referência anterior e rejeita identidade
+OCR canônica contraditória, lista aberta, campo azul ou sem texto.
+Guarda só a ROI RGB em data/referencia_unidade_pasta.json (ignorado pelo
+Git), com tipo/letra, geometria e hashes. Não guarda a tela completa.
+
+O seletor reconhece essa referência apenas por pixels RGB idênticos,
+mesmo tamanho, sem máscara, redimensionamento ou tolerância. Referência
+ausente/inválida ou imagem diferente usa OCR normal. Origem visual fica
+explícita no diagnóstico, sem inventar palavras OCR. Unidade fechada é
+confirmada em duas capturas antes de liberar a árvore. M visual já na
+primeira medição exige nova espera; um quadro isolado não libera clique.
+
+Percurso novo observado pelo operador: Down único no campo fechado e
+realçado de Servidor C muda para M; depois clique no vazio permite Down
+na árvore. Atalho só é usado com Servidor C literal e realce medido; M
+já confirmado não recebe Down. Se M está ilegível em azul, mede uma área
+branca interior da árvore, valida-a novamente e clica uma vez. Precisa
+então confirmar M sem realce em dois quadros (OCR ou referência local).
+Esse clique pode mudar a seleção; a navegação reinicia pela raiz/Home.
+
+Busca Users e os demais segmentos por nome/nível do caminho recebido;
+14 e 28 setas relatadas não são constantes do código. O teste sintético
+usa outro perfil/projeto/destino e quantidades diferentes de pastas.
+Down pode rolar a árvore; ausência de avanço na raiz ainda permite a
+barra física medida. Não digita caminho nesse diálogo. O OK só ocorre
+na folha LIVROS com 12 dígitos da emissão, após conferir toda a cadeia.
+
+Conferência sem ações após calibrar:
+`python scripts\revisar_seletor_pasta.py --ao-vivo --somente-unidade`.
+Esperado: M e origem_unidade=calibracao_visual_local. Se imagem/escala
+mudar, precisa recalibrar explicitamente; nunca atribuir M automaticamente
+à última captura de falha. Nenhuma execução fiscal real foi feita aqui.
+Calibração e salvamento dos três PDFs ainda aguardam teste no Windows.
+
+Validação: 281 testes passaram, incluindo percurso público com campo OCR
+malformado, referência RGB, C→M por Down, foco e outro perfil/projeto/saída;
+unidade alterada após um único match, referência inválida, clique único,
+atraso, cancelamento e fallback da barra. Testes de pixels usam CV real;
+OCR real somente sobre figuras sintéticas e OCR Windows simulado.
+Sintaxe Python e diff --check limpos. Não foi operada a GUI fiscal.
+
 ## Campo Unidade selecionado: preservar antialias — 20/10/2026
 
 Operador enviou o contato do campo: original azul mostra Client C(M:\),

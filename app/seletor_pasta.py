@@ -103,7 +103,7 @@ def _rotulo_unidade_local(imagem,caixas,titulo):
     return confirmados[0]
 
 
-def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None):
+def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None,usar_referencia=True):
     """Combo e árvore medidos, restritos pelos rótulos nativos inequívocos."""
     import cv2
     import numpy as np
@@ -132,10 +132,24 @@ def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None):
     combo=_caixa_unica([c for c in caixas if unidade['x']+unidade['w']<=c[0]<=unidade['x']+unidade['w']+4*altura
                   and c[1]<unidade['y']+altura/2<c[1]+c[3] and altura<c[3]<4*altura and c[2]>10*altura])
     lista=_lista_unidades(caixas,combo)
-    palavras=(_refinar_unidade(imagem,palavras,combo) if registrar_unidade is None
-              else _refinar_unidade(imagem,palavras,combo,registrar=registrar_unidade))
+    visual=None
+    if usar_referencia:
+        from app.referencia_unidade import reconhecer
+        visual=reconhecer(imagem.crop(_area_unidade(combo)))
+        if visual is not None:
+            x,y,w,h=combo
+            linhas=_linhas([p for p in palavras if x<p['x']<x+w and y<p['y']<y+h])
+            conhecidas={_identidade_unidade(l) for l in linhas}
+            conhecidas={i for i in conhecidas if i and re.fullmatch(r'(servidor|client[a-z]):[a-z]',i)}
+            if conhecidas and conhecidas!={'clientc:'+visual['letra'].lower()}:visual=None
+    if visual is None:
+        palavras=(_refinar_unidade(imagem,palavras,combo) if registrar_unidade is None
+                  else _refinar_unidade(imagem,palavras,combo,registrar=registrar_unidade))
+    elif registrar_unidade is not None:
+        registrar_unidade({'motor':'referencia_visual_local','motivo':'pixels_identicos'})
     detalhes={'combo':combo,'lista':lista,'palavras':palavras,
               '_bordas':(caixas,altura,ok,cancelar)}
+    if visual is not None:detalhes['unidade_visual']=visual
     if somente_unidade:
         # A lista cobre a árvore: exigir a borda da árvore nesta fase impedia
         # observar justamente a abertura e a seleção pendente do combo.
@@ -158,9 +172,11 @@ def _completar_dialogo(detalhes):
     botoes = [c for c in caixas if c[1]>arvore[1]+arvore[3] and c[0]>=arvore[0]
               and c[0]+c[2]<=arvore[0]+arvore[2] and 4*altura<c[2]<14*altura
               and altura<c[3]<4*altura and c[1]<arvore[1]+arvore[3]+6*altura]
-    return {'combo':combo,'arvore':arvore,'palavras':palavras,
+    resultado={'combo':combo,'arvore':arvore,'palavras':palavras,
             'botoes_ok':botoes,
             'ok':(round(ok['x']+ok['w']/2),round(ok['y']+ok['h']/2)) if ok_valido else None}
+    if detalhes.get('unidade_visual') is not None:resultado['unidade_visual']=detalhes['unidade_visual']
+    return resultado
 
 
 def _drive(palavras, letra):
@@ -326,6 +342,9 @@ def _aguardar_dialogo(capturar, confirmar=None, tentativas=6, fase='medir_dialog
 
 
 def _drive_selecionado(detalhes, letra):
+    visual=detalhes.get('unidade_visual')
+    if visual is not None:
+        return visual.get('tipo')=='client_c' and visual.get('letra')==letra.upper()
     x,y,w,h = detalhes['combo']
     palavras = [p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
     return _drive(palavras, letra) is not None
@@ -342,6 +361,9 @@ def _identidade_unidade(linha):
 
 
 def _assinatura_unidade(imagem, detalhes):
+    visual=detalhes.get('unidade_visual')
+    if visual is not None:
+        return (detalhes['combo'],'clientc:'+visual['letra'].lower())
     x,y,w,h=detalhes['combo']
     palavras=[p for p in detalhes['palavras'] if x<p['x']<x+w and y<p['y']<y+h]
     linhas=_linhas(palavras)
@@ -393,12 +415,14 @@ def _primeira_opcao_unidade(imagem,detalhes):
 
 
 def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=False,
-                            letra_aplicada=None):
+                            letra_aplicada=None,clicar_foco=None):
     """Cada evento remoto precisa aparecer antes de enviar o próximo."""
     anterior=None
     leitor=_LeitorDialogo(somente_unidade=True)
     limite=time.monotonic()+10
     confirmacao_extra=False
+    foco_pendente=None
+    foco_enviado=False
     for tentativa in range(35):
         ponto_seguro()
         imagem=capturar()
@@ -409,6 +433,40 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
         try:
             detalhes=leitor.ler(imagem)
             lista_aberta=detalhes['lista'] is not None
+            from app.foco_seletor import medir_realce_campo,localizar_vazio,confirmar_vazio
+            realce=medir_realce_campo(imagem,detalhes['combo'])
+            identidade=_assinatura_unidade(imagem,detalhes)
+            literal=(identidade is not None and re.fullmatch(
+                r'(servidor|client[a-z]):[a-z]',identidade[1]) is not None)
+            precisa_foco=(clicar_foco is not None and letra_aplicada is not None
+                          and not foco_enviado and not lista_aberta and realce is not None
+                          and not literal)
+            if precisa_foco:
+                if any(_normalizar(p['texto']).strip(':') in ('aviso','atencao','erro')
+                       for p in detalhes['palavras']):
+                    raise SeletorPastaNaoConfirmado('Aviso durante a confirmação da unidade.')
+                arvore=_completar_dialogo(detalhes)
+                if foco_pendente is not None and confirmar_vazio(imagem,arvore,foco_pendente):
+                    ponto_seguro()
+                    clicar_foco(*foco_pendente['posicao'])
+                    print('PASTA_NAVEGACAO '+json.dumps({'fase':'focar_arvore',
+                          'posicao':list(foco_pendente['posicao']),'clique_enviado':True}),flush=True)
+                    foco_enviado=True; foco_pendente=None; anterior=None
+                    # É outra etapa visual após UMA ação; não repete o clique.
+                    limite=time.monotonic()+10; confirmacao_extra=False
+                    continue
+                foco_pendente=localizar_vazio(imagem,arvore)
+                anterior=None
+                observado={'dialogo_lido':True,'lista_aberta':False,'capturas':tentativa+1,
+                           'foco_arvore_pendente':foco_pendente is not None}
+                if time.monotonic()>=limite:
+                    if foco_pendente is not None and not confirmacao_extra:
+                        confirmacao_extra=True
+                        continue
+                    break
+                time.sleep(.3)
+                continue
+            foco_pendente=None
             destino_lido=(letra_aplicada is not None
                           and _drive_selecionado(detalhes,letra_aplicada))
             if destino_lido:
@@ -426,8 +484,14 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
                        'lista':list(detalhes['lista']) if lista_aberta else None,
                        'capturas':tentativa+1,'confirmacao_extra':confirmacao_extra}
             if letra_aplicada is not None:observado['unidade_destino_lida']=destino_lido
+            if detalhes.get('unidade_visual') is not None:
+                observado['origem_unidade']='calibracao_visual_local'
             if primeira:observado['primeira_opcao_confirmada']=topo_confirmado
-            if destino_lido or (lista_aberta==aberta and mudou and topo_confirmado):
+            if foco_enviado:observado['campo_sem_realce']=realce is None
+            valido=destino_lido or (lista_aberta==aberta and mudou and topo_confirmado)
+            if not aberta and lista_aberta:valido=False
+            if foco_enviado:valido=destino_lido and not lista_aberta and realce is None
+            if valido:
                 estado=(assinatura,detalhes['lista'])
                 if estado==anterior:
                     print('PASTA_NAVEGACAO '+json.dumps({'fase':fase,'confirmado':True,
@@ -456,10 +520,11 @@ def _aguardar_estado_unidade(capturar,*,aberta,fase,diferente=None,primeira=Fals
     raise SeletorPastaNaoConfirmado(mensagens[fase]+'; não foi enviado OK.')
 
 
-def _aguardar_unidade(capturar, diferente=None):
+def _aguardar_unidade(capturar, diferente=None,*,letra=None,clicar_foco=None):
     """Confere fechamento e legenda; ruído na árvore não muda a unidade."""
     imagem,detalhes=_aguardar_estado_unidade(capturar,aberta=False,fase='fechar_unidade',
-                                            diferente=diferente)
+                                            diferente=diferente,letra_aplicada=letra,
+                                            clicar_foco=clicar_foco)
     return imagem,_completar_dialogo(detalhes)
 
 
@@ -470,7 +535,41 @@ def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
     Client C e a letra configurada são conferidos no campo fechado antes
     de usar a árvore. Não envia teclas para compensar captura atrasada.
     """
-    if _drive_selecionado(detalhes,letra):return imagem,detalhes
+    if _drive_selecionado(detalhes,letra):
+        if detalhes.get('unidade_visual') is not None:
+            # A primeira medição do diálogo não é temporalmente estável.
+            # A referência local precisa reaparecer em duas capturas novas
+            # antes do primeiro clique na árvore, sem Down ou Tab extra.
+            imagem,detalhes=_aguardar_unidade(capturar,letra=letra)
+            if not _drive_selecionado(detalhes,letra):
+                raise SeletorPastaNaoConfirmado('Referência da unidade não estabilizou; não foi enviado OK.')
+        return imagem,detalhes
+    from app.foco_seletor import medir_realce_campo
+    inicial=_assinatura_unidade(imagem,detalhes)
+    realce=medir_realce_campo(imagem,detalhes['combo'])
+    if realce is not None and (inicial is None or re.fullmatch(
+            r'(servidor|client[a-z]):[a-z]',inicial[1]) is None):
+        imagem,lista=_aguardar_estado_unidade(capturar,aberta=False,fase='fechar_unidade',
+            letra_aplicada=letra,clicar_foco=clicar)
+        detalhes=_completar_dialogo(lista)
+        if _drive_selecionado(detalhes,letra):return imagem,detalhes
+        inicial=_assinatura_unidade(imagem,detalhes)
+        realce=medir_realce_campo(imagem,detalhes['combo'])
+    if realce is not None and inicial is not None and inicial[1]=='servidor:c':
+        # Atalho observado: Down no campo fechado troca a unidade. Só um
+        # evento; nenhum outro Down é enviado para compensar atraso.
+        ponto_seguro()
+        print('PASTA_NAVEGACAO {"fase":"unidade_down_direto","realce_no_campo":true}',flush=True)
+        tecla('down')
+        imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='opcao_unidade',
+            diferente=inicial,letra_aplicada=letra,clicar_foco=clicar)
+        if lista['lista'] is not None:
+            ponto_seguro(); tecla('tab')
+            imagem,detalhes=_aguardar_unidade(capturar,inicial,letra=letra,clicar_foco=clicar)
+        else:detalhes=_completar_dialogo(lista)
+        if not _drive_selecionado(detalhes,letra):
+            raise SeletorPastaNaoConfirmado('Down não confirmou a unidade configurada; não foi enviado OK.')
+        return imagem,detalhes
     visitadas=set()
     for passo in range(40):
         ponto_seguro()
@@ -488,7 +587,8 @@ def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
         tecla('home' if passo==0 else 'down')
         imagem,lista=_aguardar_estado_unidade(capturar,aberta=True,fase='opcao_unidade',
                                              diferente=None if passo==0 else anterior,
-                                             primeira=passo==0,letra_aplicada=letra)
+                                             primeira=passo==0,letra_aplicada=letra,
+                                             clicar_foco=clicar)
         if lista['lista'] is None:
             if not _drive_selecionado(lista,letra):
                 raise SeletorPastaNaoConfirmado('Unidade aplicada não é o destino configurado; não foi enviado OK.')
@@ -502,7 +602,8 @@ def _selecionar_unidade(capturar,clicar,tecla,letra,imagem,detalhes):
         # Home no topo pode repintar o realce sem trocar a opção. O hash
         # detecta pintura, não prova mudança lógica da unidade neste caso.
         mudou=passo>0 or home_muda_linha
-        imagem,detalhes=_aguardar_unidade(capturar,unidade_antes if mudou else None)
+        imagem,detalhes=_aguardar_unidade(capturar,unidade_antes if mudou else None,
+                                         letra=letra,clicar_foco=clicar)
         confirmado=_drive_selecionado(detalhes,letra)
         print('PASTA_NAVEGACAO '+json.dumps({'fase':'unidade_client_c',
               'passo':passo,'confirmado':confirmado}),flush=True)
@@ -737,9 +838,6 @@ def _buscar_irmao(capturar, tecla, letra, estado, nome, nivel, clicar=None):
             if selecionado is not None:
                 img,d,no=selecionado
                 continue
-            if nivel==0 and _normalizar(nome)=='users':
-                print('PASTA_NAVEGACAO {"fase":"buscar_users_barra","origem":"raiz","confirmado":true}',flush=True)
-                return _recuperar_raiz_sem_avanco(capturar,clicar,letra,(img,d,no),nome)
         try:
             img,d,no=_avancar_irmao(capturar,tecla,letra,no)
         except SeletorPastaNaoConfirmado:
