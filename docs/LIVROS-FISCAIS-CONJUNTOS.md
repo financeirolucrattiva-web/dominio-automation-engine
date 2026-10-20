@@ -50,6 +50,10 @@ Se a escolha já aplicou Client C com a letra correta e fechou a lista,
 duas leituras do campo fechado liberam a árvore sem enviar Tab extra.
 Campo omitido pelo Tesseract pode receber opinião do OCR nativo local,
 com concordância e sem substituir identidades contraditórias.
+O preparo do campo selecionado preserva antialias em cinza, em vez de
+apagar traços finos por saturação. Se ainda não confirmar e houver realce,
+consulta também o original azul em duas escalas. Não reconstrói pontuação
+nem muda a letra esperada; cores incompatíveis, como caret, são mantidas.
 
 Ao procurar Users na raiz, se o nome não aparecer na leitura global, tenta
 o recorte local com opiniões concordantes, sem enviar Down primeiro.

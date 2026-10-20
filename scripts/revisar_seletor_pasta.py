@@ -12,14 +12,14 @@ def salvar_recorte_unidade(imagem,combo):
     """Contato local só do combo; não inclui árvore, relatório ou empresa."""
     import uuid
     from PIL import Image, ImageDraw
-    from app.leitura_resumo import normalizar_selecao
+    from app.leitura_unidade import normalizar_unidade
     from app import seletor_pasta as seletor
     x,y,w,h=combo
     if min(x,y)<0 or w<=h+4 or h<=4 or x+w>imagem.width or y+h>imagem.height:
         raise ValueError('Campo Unidade fora dos limites da captura.')
     area=seletor._area_unidade(combo)
     campo=imagem.crop((x,y,x+w,y+h)).resize((w*4,h*4),Image.Resampling.NEAREST)
-    normal=normalizar_selecao(imagem.crop(area))
+    normal=normalizar_unidade(imagem.crop(area))
     normal=normal.resize((normal.width*4,normal.height*4),Image.Resampling.NEAREST)
     folha=Image.new('RGB',(campo.width+16,campo.height+normal.height+68),'white')
     desenho=ImageDraw.Draw(folha)

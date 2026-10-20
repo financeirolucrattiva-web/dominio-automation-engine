@@ -4987,6 +4987,43 @@ Ainda não validado contra o Domínio real. As etapas de marcar livros,
 preencher datas, clicar OK e exportar/conferir PDFs não foram alteradas.
 Suíte completa: 775 testes passaram. Sintaxe Python e diff --check limpos.
 
+### 0.138 Antialias preservado somente no campo Unidade (20/10/2026)
+
+**Evidência real:** contato enviado pelo operador mostra Client C(M:\)
+selecionado em azul no original, com glifos deformados na normalizada e
+traço laranja junto ao fechamento. Log da mesma falha: quatro variantes
+Tesseract leem três palavras numa linha, mas rejeitam a identidade;
+Windows não lê palavras nas duas escalas. Lista fechada, combo medido
+[559,321,380,20], ROI 358×16. A árvore/barra não foi liberada.
+
+**Defeito reproduzido:** sobre azul(0,120,215), antialias com coberturas
+25%=(64,154,225) e 50%=(128,188,235) vira branco na normalização antiga
+por não satisfazer S<90. Isso apaga traços finos sem núcleo opaco.
+A imagem embutida pode ser inspecionada visualmente; seu bitmap não foi
+disponibilizado como arquivo local para OCR neste ambiente. Não se afirma
+que a reprodução sintética mede todos os caracteres da captura real.
+
+**Correção local:** app/leitura_unidade.py mede a cor dominante do realce
+e converte sua mistura com branco em intensidade contínua, preservando
+antialias. Pixels incompatíveis com a mistura continuam originais; não
+apaga caret colorido nem recompõe parênteses. A ROI, as coordenadas e o
+preparo geral de Resumo/datas permanecem iguais. O contato do diagnóstico
+mostra o novo preparo efetivamente usado pelo campo Unidade.
+
+Se falhar o consenso após as quatro variantes preparadas e houve realce
+tratado, relê o original azul nas escalas 4/6, antes da opinião Windows.
+Essa alternativa só existe na falha com realce. Exceções são isoladas,
+cancelamento propaga e opiniões contraditórias não são substituídas.
+Tipo/letra/sintaxe exatos, caixas dentro da ROI e duas opiniões continuam
+obrigatórios; o fluxo de cliques e a confirmação temporal não mudam.
+
+**Validação:** 219 testes passaram, incluindo 13 novos de contraste,
+fallback original, preservação de caret, tipo/letra errados, contradições,
+leitura única e cancelamento. Um teste com Tesseract real sobre texto
+sintético em ROI 358×16, antialias sem núcleo opaco, falha com o preparo
+antigo e confirma Client C(M:) com o novo sem Windows. Sintaxe Python e
+diff --check limpos. Nenhuma GUI fiscal; falta conferência local real.
+
 ### 0.137 Diagnóstico da identidade recusada no campo Unidade (20/10/2026)
 
 **Evidência real:** `--ultima-falha --somente-unidade` reconhece diálogo,

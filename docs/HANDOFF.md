@@ -1,5 +1,35 @@
 # Domínio Automation Engine — handoff
 
+## Campo Unidade selecionado: preservar antialias — 20/10/2026
+
+Operador enviou o contato do campo: original azul mostra Client C(M:\),
+enquanto a cópia normalizada deforma os traços. Há também um traço laranja
+junto ao fechamento. Log detalhado tem quatro leituras Tesseract com três
+palavras/uma linha, todas rejeitadas por identidade; Windows retorna zero
+palavras nas duas escalas. A lista está fechada. Isso situa a falha no
+reconhecimento do campo aplicado, antes de usar a árvore/barra.
+
+Reproduzido: o limiar HSV da normalização geral apaga cobertura branca
+de 25–50% sobre o azul, eliminando antialias e traços finos. Nova função
+app/leitura_unidade.normalizar_unidade trata só a ROI do campo Unidade:
+mede o fundo azul e projeta sua mistura com branco em tons de cinza.
+Mantém geometria e cores incompatíveis (inclusive caret) sem apagar ou
+reconstruir pontuação. Não modifica a normalização geral do Resumo/datas.
+
+Se as quatro leituras preparadas não formarem consenso e houver realce
+tratado, tenta também o original azul em duas escalas, antes do Windows.
+Não descarta opiniões divergentes. Mantém tipo Client C, letra, sintaxe,
+caixas válidas e duas opiniões concordantes, além da confirmação temporal
+da unidade aplicada. Não altera cliques, navegação por pastas ou OK.
+Diagnóstico salva o novo preparo ao lado do original do mesmo campo.
+
+Validação: 219 testes passaram. Incluem antialias 25/50%, preservação de
+cores incompatíveis, opinião original, tipo/letra errados, contradições
+e cancelamento. Teste Tesseract real em figura sintética 358×16 confirma
+identidade antes apagada, sem OCR Windows. Sintaxe e diff --check limpos.
+O anexo visual foi conferido, mas seu bitmap não está exposto como arquivo
+local neste ambiente; ainda precisa da conferência na captura do operador.
+
 ## Unidade ainda sem identidade: diagnóstico por variante — 20/10/2026
 
 O diagnóstico real em 61c7bb1 reconheceu o diálogo, combo

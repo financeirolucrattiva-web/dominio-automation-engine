@@ -196,10 +196,12 @@ def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
         informar('global','client_c_reconhecido')
         return palavras
     from app import tela
-    from app.leitura_resumo import normalizar_selecao
+    from app.leitura_unidade import normalizar_unidade
     area=_area_unidade(combo)  # interior, excluindo borda e botão da seta
     leituras=[]
-    recorte=normalizar_selecao(imagem.crop(area))
+    original=imagem.crop(area).convert('RGB')
+    recorte=normalizar_unidade(original)
+    selecao_tratada=recorte.tobytes()!=original.tobytes()
     def adicionar(dados,escala):
         if dados is None:return {'motivo':'sem_resultado_do_leitor'}
         if not dados:return {'motivo':'dados_invalidos'}
@@ -231,6 +233,18 @@ def _refinar_unidade(imagem,palavras,combo,*,registrar=None):
         except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError) as erro:
             resultado={'motivo':'erro_leitura','tipo_erro':type(erro).__name__}
         informar('tesseract',escala=escala,preparo=preparo,**resultado)
+    if not consenso() and selecao_tratada:
+        # Se o preparo não confirmar a identidade, consulta também os
+        # pixels originais do realce, sem substituir opiniões divergentes.
+        for escala in (4,6):
+            ponto_seguro()
+            try:
+                dados=tela.ler_dados_ocr_linha_rotulo(original,escala=escala,preparo='cinza')
+                resultado=adicionar(dados,escala)
+            except ExecucaoInterrompida:raise
+            except (RuntimeError,OSError,ValueError,KeyError,TypeError,IndexError) as erro:
+                resultado={'motivo':'erro_leitura','tipo_erro':type(erro).__name__}
+            informar('tesseract',escala=escala,preparo='original_azul',**resultado)
     if not consenso():
         # O OCR global pode perder o campo depois que o GO-Global fecha o
         # popup. Segunda opinião local, na mesma imagem e área medida.
