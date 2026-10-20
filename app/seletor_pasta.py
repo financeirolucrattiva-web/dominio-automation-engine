@@ -956,6 +956,113 @@ def _iniciar_arvore(capturar,clicar,tecla,letra,detalhes):
     return _ler_selecao(capturar,letra,'inicio_arvore',estavel=True)
 
 
+MODO_DIGITACAO = True  # False: percurso antigo por setas, lendo o nome exato do nó azul
+
+
+def _tecla_do_caractere(c):
+    if c == ' ':return 'space'
+    if re.fullmatch(r'[A-Za-z0-9._-]',c):return c.lower() if c.isalpha() else c
+    return None
+
+
+def _tipavel(nome):
+    return bool(nome) and all(_tecla_do_caractere(c) is not None for c in nome)
+
+
+def _nome_selecionado_aproximado(imagem, detalhes):
+    """Leituras aproximadas do nó azul + geometria. Texto branco sobre azul: isola os
+    pixels claros (texto preto sobre branco) e lê em duas escalas. Ruído nas bordas
+    ("IPeffLogsI") é esperado: o chamador compara por semelhança, nunca por igualdade."""
+    import cv2
+    import numpy as np
+    import pytesseract
+    from PIL import Image, ImageOps
+    x,y,w,h=detalhes['arvore']
+    hsv=cv2.cvtColor(np.array(imagem.crop((x,y,x+w,y+h)).convert('RGB')),cv2.COLOR_RGB2HSV)
+    azul=((hsv[:,:,0]>=90)&(hsv[:,:,0]<=135)&(hsv[:,:,1]>100)&(hsv[:,:,2]>70)).astype('uint8')*255
+    contornos,_=cv2.findContours(azul,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    caixas=[cv2.boundingRect(c) for c in contornos]
+    caixas=[b for b in caixas if 8<=b[3]<=24 and b[2]>=b[3]]
+    if len(caixas)!=1:return None
+    bx,by,bw,bh=caixas[0]
+    recorte=np.array(imagem.crop((x+bx,y+by,x+bx+bw,y+by+bh)).convert('RGB')).astype(int)
+    claro=(recorte[:,:,0]>140)&(recorte[:,:,1]>140)&(recorte[:,:,2]>140)
+    base=Image.fromarray(np.where(claro,0,255).astype('uint8'))
+    leituras=[]
+    for escala in (4,6):
+        ponto_seguro()
+        grande=ImageOps.expand(base.resize((base.width*escala,base.height*escala),Image.LANCZOS),border=20,fill=255)
+        try:
+            texto=pytesseract.image_to_string(grande,lang='por',config='--psm 7',timeout=8)
+        except Exception:
+            continue
+        limpo=re.sub(r'[^a-z0-9]','',_normalizar(texto))
+        if limpo:leituras.append(limpo)
+    return {'leituras':leituras,'x':x+bx,'y':y+by,'w':bw,'h':bh}
+
+
+def _semelhanca(leituras, esperado):
+    import difflib
+    alvo=re.sub(r'[^a-z0-9]','',_normalizar(esperado))
+    return max((difflib.SequenceMatcher(None,l,alvo).ratio() for l in leituras),default=0.0)
+
+
+def _confere_selecao(sel, esperado, minimo=0.66):
+    return sel is not None and _semelhanca(sel['leituras'],esperado)>=minimo
+
+
+def _focar_arvore_e_home(capturar,clicar,tecla,letra,detalhes):
+    """Clique no vazio da árvore e Home, sem exigir a leitura exata do nó selecionado."""
+    from app.foco_seletor import localizar_vazio,confirmar_vazio
+    ja_focada=detalhes.get('_foco_arvore_confirmado',False)
+    img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                           fase='unidade_antes_arvore',estavel=True)
+    if not ja_focada:
+        vazio=localizar_vazio(img,d)
+        if vazio is None:
+            raise SeletorPastaNaoConfirmado('Espaço vazio da árvore não confirmado; não foi enviado OK.')
+        img,d=_aguardar_dialogo(capturar,lambda img,d:
+            _drive_selecionado(d,letra) and confirmar_vazio(img,d,vazio),
+            fase='revalidar_vazio_arvore',estavel=True)
+        ponto_seguro(); clicar(*vazio['posicao'])
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'focar_arvore',
+              'posicao':list(vazio['posicao']),'clique_enviado':True}),flush=True)
+        _aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                          fase='apos_foco_arvore',estavel=True)
+    ponto_seguro(); tecla('home')
+    time.sleep(.4)
+
+
+def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6)):
+    """Busca por digitação do TreeView: digita o nome, confere o nó azul por semelhança e
+    indentação, expande com Right. Devolve (imagem, detalhes) com a folha selecionada."""
+    x_anterior=None
+    for indice,nome in enumerate(partes):
+        ponto_seguro()
+        for c in nome:tecla(_tecla_do_caractere(c))
+        time.sleep(esperas[0])
+        ultima=None
+        for tentativa in range(6):
+            img,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
+                                    fase='digitar_pasta',estavel=True)
+            sel=_nome_selecionado_aproximado(img,d)
+            ultima=sel
+            if _confere_selecao(sel,nome) and (x_anterior is None or sel['x']>x_anterior+2):break
+            time.sleep(esperas[1])
+        else:
+            lidas=ultima['leituras'] if ultima else None
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'digitar_pasta','nivel':indice,'confirmado':False,
+                  'leituras':lidas,'x':ultima['x'] if ultima else None}),flush=True)
+            raise SeletorPastaNaoConfirmado('Pasta digitada não confirmada na árvore; não foi enviado OK.')
+        x_anterior=sel['x']
+        print('PASTA_NAVEGACAO '+json.dumps({'fase':'segmento','nivel':indice,'origem':'digitacao',
+              'confirmado':True,'semelhanca':round(_semelhanca(sel['leituras'],nome),2)}),flush=True)
+        if indice<len(partes)-1:
+            ponto_seguro(); tecla('right')
+            time.sleep(esperas[0])
+    return img,d,x_anterior
+
+
 @cache_da_navegacao()
 def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
     """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
@@ -968,6 +1075,28 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
     partes=caminho.parts[1:]
     print('Destino dos livros: unidade '+caminho.drive[0].upper()+
           ' confirmada; iniciando a navegação pelas pastas.',flush=True)
+    if MODO_DIGITACAO and all(_tipavel(n) for n in partes):
+        # Caminho principal: busca por digitação do TreeView. O nó azul não é legível com
+        # exatidão por OCR; cada nível é conferido por semelhança e indentação crescente.
+        _focar_arvore_e_home(capturar,clicar,tecla,caminho.drive[0],detalhes)
+        print('Destino dos livros: descendo pela árvore por digitação.',flush=True)
+        _descer_por_digitacao(capturar,tecla,caminho.drive[0],list(partes))
+        def confirmar_final_digitado(img,d):
+            if not _drive_selecionado(d,caminho.drive[0]):return False
+            sel=_nome_selecionado_aproximado(img,d)
+            if not _confere_selecao(sel,caminho.name,minimo=0.88):return False
+            digitos=re.sub(r'\D','',caminho.name)
+            if not any(sum(a==b for a,b in zip(re.sub(r'\D','',l),digitos))>=len(digitos)-1
+                       and len(re.sub(r'\D','',l))==len(digitos) for l in sel['leituras']):return False
+            d['ok']=_ok_final(img,d)
+            return d['ok'] is not None
+        imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok')
+        if not clicar_ok:
+            print('Destino dos livros: ensaio concluído, pasta final selecionada; OK NÃO clicado.',flush=True)
+            return True
+        ponto_seguro()
+        clicar(*detalhes['ok'])
+        return True
     estado=_iniciar_arvore(capturar,clicar,tecla,caminho.drive[0],detalhes)
     for indice,nome in enumerate(partes):
         if indice==0 and _normalizar(nome)=='users':

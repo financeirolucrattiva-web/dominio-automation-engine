@@ -5056,6 +5056,30 @@ vazia é removida. Só geração/navegação; nenhuma transmissão.
 parâmetro do ensaio). Não validado ao vivo: a descida pela árvore (Users, usuário, projeto, saida,
 LIVROS...) com esta versão.
 
+### 0.143 Procurar Pasta: descida por digitação em vez de ler o nome exato do nó azul (20/10/2026)
+
+**Evidência (log e captura de 20/10 15:31, versão da seção anterior):** a unidade passou a
+confirmar (`opcao_unidade confirmado=true`, árvore focada), mas a descida parava em
+`proximo_no confirmado=false`, `selecao_lida=false`. A captura mostra a navegação por teclado
+funcionando (seleção em "PerfLogs"); o que falha é ler o NOME do nó azul com exatidão: texto
+branco sobre azul sai como `IPeffLogsI`/`IPeifLogsl` (borda tracejada e glifos colados),
+e o percurso por setas exige igualdade exata a cada Down (e ~20 linhas até Users).
+
+**Mudança:** caminho principal passa a ser a busca incremental do TreeView: clica no vazio e
+Home, digita `Users`, confere, Right (expande), digita `darto`, ... até a pasta exclusiva
+`LIVROS<12 dígitos>`. O nó azul é lido isolando os pixels claros (texto preto sobre branco,
+duas escalas) e conferido por SEMELHANÇA (>= 0,66; outro nome real chega a 0,50) e por
+indentação crescente a cada nível; a folha exige >= 0,88 e no máximo 1 dígito diferente
+dos 12 (as pastas LIVROS antigas diferem em quase todos). Falha em qualquer nível recusa
+sem OK. Captura real: `perflogs` lido com semelhança 1,0. O percurso antigo por setas fica
+disponível (`MODO_DIGITACAO = False`) e é usado se algum nome tiver caractere não digitável.
+`tests/conftest.py` fixa o modo antigo nos testes antigos do seletor.
+
+**Validação:** testes (semelhança, teclas, leitura do nó azul sintético, descida simulada com
+indentação/nome errado/leitura transitória) e a captura real. Não validado ao vivo: o
+efeito real da digitação no TreeView do GO-Global e o Right expandir/entrar. Ensaio:
+"Testar Seletor de Pasta" com o diálogo aberto.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e
