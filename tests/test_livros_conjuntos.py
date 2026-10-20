@@ -314,7 +314,7 @@ class TestConjunto(unittest.TestCase):
             stack.enter_context(patch.object(livros.tela,'ler_empresa_selecionada',side_effect=[('Empresa Fictícia','52'),None]))
             interacao.identificar_janela_dominio_atual.return_value={'hwnd':12}
             stack.enter_context(patch('app.seletor_pasta.selecionar_pasta',return_value=True))
-            def exportar(staging,*args):
+            def exportar(staging,*args,**kwargs):
                 for i,texto in enumerate(TEXTOS.values()):criar_pdf(staging/f'{i}.pdf',texto)
                 return True
             stack.enter_context(patch.object(livros,'_aguardar_arquivos',side_effect=exportar))
@@ -348,7 +348,7 @@ class TestConjunto(unittest.TestCase):
                 stack.enter_context(patch.object(livros.tela,nome,return_value=valor))
             interacao.identificar_janela_dominio_atual.return_value={'hwnd':12}
             stack.enter_context(patch('app.seletor_pasta.selecionar_pasta',return_value=True))
-            def exportar(staging,*args):
+            def exportar(staging,*args,**kwargs):
                 for i,texto in enumerate(TEXTOS.values()):criar_pdf(staging/f'{i}.pdf',texto)
                 return True
             stack.enter_context(patch.object(livros,'_aguardar_arquivos',side_effect=exportar))
@@ -360,6 +360,40 @@ class TestConjunto(unittest.TestCase):
             interacao.pressionar_enter.assert_not_called()
             self.assertEqual(tuple(rotina.confirmadas),rotina.ETAPAS)
             dominio.voltar_ao_inicio.assert_called_once_with({'hwnd':12})
+
+
+class TestDestinoSaida(unittest.TestCase):
+    def test_pdfs_do_dominio_antigos_vao_para_anteriores_e_os_demais_ficam(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            saida=Path(pasta)
+            for nome in ('000070 LIVRO DE ENTRADA.pdf','000070 LIVRO DE SAÍDA.pdf','ICMS NORMAL (M).pdf',
+                         'acumulador_empresa_2026-08.pdf','registro_icms_empresa_2026-08.pdf'):
+                (saida/nome).write_bytes(b'%PDF-x')
+            previos=livros._preparar_destino(saida)
+            self.assertEqual(sorted(p.name for p in (saida/'anteriores').glob('*.pdf')),
+                             ['000070 LIVRO DE ENTRADA.pdf','000070 LIVRO DE SAÍDA.pdf','ICMS NORMAL (M).pdf'])
+            self.assertEqual(previos,frozenset({'acumulador_empresa_2026-08.pdf','registro_icms_empresa_2026-08.pdf'}))
+            self.assertTrue((saida/'acumulador_empresa_2026-08.pdf').exists())
+
+    def test_nome_ja_em_anteriores_nao_e_sobrescrito(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            saida=Path(pasta);(saida/'anteriores').mkdir()
+            (saida/'anteriores'/'ICMS NORMAL (M).pdf').write_bytes(b'velho')
+            (saida/'ICMS NORMAL (M).pdf').write_bytes(b'novo')
+            livros._preparar_destino(saida)
+            self.assertEqual((saida/'anteriores'/'ICMS NORMAL (M).pdf').read_bytes(),b'velho')
+            self.assertEqual((saida/'anteriores'/'ICMS NORMAL (M)_2.pdf').read_bytes(),b'novo')
+
+    def test_espera_e_conferencia_ignoram_pdfs_previos(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            saida=Path(pasta)
+            (saida/'registro_icms_antigo.pdf').write_bytes(b'%PDF-x')
+            for i,texto in enumerate(TEXTOS.values()):criar_pdf(saida/f'novo{i}.pdf',texto)
+            dominio=Mock();dominio.TITULOS_ERRO=()
+            with patch.object(livros.tela,'capturar_tela',return_value='frame'),patch.object(livros.time,'sleep'):
+                self.assertTrue(livros._aguardar_arquivos(saida,livros.tela.capturar_tela,dominio,'',
+                                                          ignorar=frozenset({'registro_icms_antigo.pdf'})))
+                self.assertFalse(livros._aguardar_arquivos(saida,livros.tela.capturar_tela,dominio,''))
 
 
 if __name__=='__main__':unittest.main()

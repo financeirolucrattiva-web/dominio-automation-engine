@@ -1036,33 +1036,36 @@ def _focar_arvore_e_home(capturar,clicar,tecla,letra,detalhes):
 ICONE_DESLOCAMENTO_X = 12  # medido na captura real: ícone da pasta ~12 px à esquerda da caixa azul
 
 
-def _arvore_mudou_abaixo(antes, depois, sel, detalhes):
-    """Houve mudança de pixels abaixo da linha selecionada? (filhos aparecendo/sumindo)"""
+def _arvore_mudou(antes, depois, detalhes):
+    """A árvore mudou de pixels (filhos apareceram ou a lista rolou)? A seleção azul não conta
+    como mudança porque não muda ao abrir o ramo; a lista rola quando os filhos aparecem."""
     from PIL import ImageChops
     x,y,w,h=detalhes['arvore']
-    topo=int(sel['y']+sel['h']+2)
-    if topo>=y+h-2:return False
-    area=(x,topo,x+w,y+h)
+    area=(x,y,x+w,y+h)
     return ImageChops.difference(antes.crop(area).convert('RGB'),depois.crop(area).convert('RGB')).getbbox() is not None
 
 
 def _expandir_no(capturar,clicar,tecla,letra,sel,detalhes,antes,esperas):
-    """Abre o ramo do nó selecionado. Neste diálogo a tecla Right não o abre: clica no ÍCONE
-    da pasta com DUPLO clique (pedido do operador: só o duplo clique abre) e só então tenta Right. Confere por mudança de pixels
-    abaixo da linha; sem mudança nas duas tentativas, recusa."""
-    tentativas=[]
+    """Abre o ramo do nó selecionado com DUPLO clique no ícone da pasta (só ele abre; Right
+    não). Confere por mudança de pixels da árvore, relendo algumas vezes porque a tela remota
+    repinta/rola com atraso. Depois do duplo clique NÃO envia Right (moveria a seleção para o
+    primeiro filho). Sem mudança, recusa. Sem `clicar`, usa Right (testes/legado)."""
+    ponto_seguro()
     if clicar is not None:
-        tentativas.append(('icone_duplo',lambda:clicar(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))))
-    tentativas.append(('right',lambda:tecla('right')))
-    for nome,acao in tentativas:
-        ponto_seguro(); acao()
-        time.sleep(esperas[0])
+        clicar(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))
+        metodo='icone_duplo'
+    else:
+        tecla('right'); metodo='right'
+    for tentativa in range(6):
+        time.sleep(esperas[0] if tentativa==0 else esperas[1])
         depois,d=_aguardar_dialogo(capturar,lambda img,d:_drive_selecionado(d,letra),
                                    fase='expandir_ramo',estavel=True)
-        mudou=_arvore_mudou_abaixo(antes,depois,sel,d)
-        print('PASTA_NAVEGACAO '+json.dumps({'fase':'expandir_ramo','metodo':nome,'ramo_mudou':mudou}),flush=True)
+        mudou=_arvore_mudou(antes,depois,d)
+        if mudou or tentativa==5:
+            print('PASTA_NAVEGACAO '+json.dumps({'fase':'expandir_ramo','metodo':metodo,'ramo_mudou':mudou,
+                  'releituras':tentativa}),flush=True)
         if mudou:return depois,d
-    raise SeletorPastaNaoConfirmado('O ramo não abriu (ícone e Right sem efeito); não foi enviado OK.')
+    raise SeletorPastaNaoConfirmado('O ramo não abriu com o duplo clique; não foi enviado OK.')
 
 
 def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6),clicar=None):
@@ -1095,11 +1098,13 @@ def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6),clicar=N
 
 
 @cache_da_navegacao()
-def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, clicar_duplo=None):
+def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, clicar_duplo=None,
+                     permitir_pasta_comum=False):
     """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
     caminho=PureWindowsPath(caminho_remoto)
     if (not caminho.is_absolute() or not re.fullmatch(r'[A-Za-z]:',caminho.drive)
-            or '..' in caminho.parts or not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name)):
+            or '..' in caminho.parts
+            or (not permitir_pasta_comum and not re.fullmatch(r'LIVROS[0-9]{12}',caminho.name))):
         raise SeletorPastaNaoConfirmado('Destino precisa ser uma pasta exclusiva de livros.')
     imagem, detalhes = _aguardar_dialogo(capturar,fase='abrir_seletor')
     imagem,detalhes=_selecionar_unidade(capturar,clicar,tecla,caminho.drive[0],imagem,detalhes)
@@ -1115,9 +1120,10 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, cl
         def confirmar_final_digitado(img,d):
             if not _drive_selecionado(d,caminho.drive[0]):return False
             sel=_nome_selecionado_aproximado(img,d)
-            if not _confere_selecao(sel,caminho.name,minimo=0.88):return False
+            exclusiva=bool(re.fullmatch(r'LIVROS[0-9]{12}',caminho.name))
+            if not _confere_selecao(sel,caminho.name,minimo=0.88 if exclusiva else 0.8):return False
             digitos=re.sub(r'\D','',caminho.name)
-            if not any(sum(a==b for a,b in zip(re.sub(r'\D','',l),digitos))>=len(digitos)-1
+            if exclusiva and not any(sum(a==b for a,b in zip(re.sub(r'\D','',l),digitos))>=len(digitos)-1
                        and len(re.sub(r'\D','',l))==len(digitos) for l in sel['leituras']):return False
             d['ok']=_ok_final(img,d)
             return d['ok'] is not None

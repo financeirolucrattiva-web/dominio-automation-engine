@@ -5097,6 +5097,32 @@ ANTES de digitar o próximo nome (não deixa a busca saltar para outra pasta). U
 **Validação:** testes (clique no ícone nas coordenadas esperadas, fallback para Right, recusa
 sem efeito, detecção de filhos abaixo da linha); não validado ao vivo.
 
+### 0.145 Procurar Pasta: duplo clique em todos os níveis até `saida` e exportação direta nela (20/10/2026)
+
+**Evidência (rodada de 16:36 e relato do operador):** o duplo clique no ícone abriu `Users`
+(a captura mostra `darto` e `Public` como filhos), mas a conferência `_arvore_mudou_abaixo` olhou
+só abaixo da linha e cedo demais (`ramo_mudou=false`). O plano B então enviou Right, que moveu a
+seleção para `darto` e a rotina falhou depois de 143 s. Operador: todos os passos têm duplo clique
+até chegar em `saida`; aí clicar em OK.
+
+**Correção:**
+- `_expandir_no` dá um único duplo clique no ícone e relê a árvore até 6 vezes (0,6 s entre
+  leituras) comparando a árvore inteira (`_arvore_mudou`: filhos novos ou lista rolando contam).
+  Não envia mais Right depois do duplo clique e não repete o clique (fecharia o ramo). Sem
+  mudança nas 6 leituras, recusa antes de digitar o próximo nome. Sem `clicar` (testes/legado)
+  continua usando Right.
+- `selecionar_pasta(..., permitir_pasta_comum=True)` aceita destino que não é `LIVROS<12 dígitos>`:
+  a folha exige semelhança >= 0,80 e não confere dígitos. Padrão continua exigindo a pasta exclusiva.
+- Livros Fiscais passa a exportar direto em `saida` (sem pasta temporária). Antes de abrir o
+  seletor, PDFs antigos gerados pelo Domínio (`LIVRO DE ENTRADA`, `LIVRO DE SAÍDA`, `ICMS NORMAL`)
+  vão para `saida/anteriores/` (nada é apagado; nome repetido ganha `_2`) para o Domínio não
+  perguntar sobre sobrescrever. A espera dos 3 PDFs e a conferência por conteúdo ignoram os PDFs
+  que já existiam antes da exportação.
+
+**Validação:** testes (um duplo clique por nível, releitura com atraso, recusa sem Right,
+detecção de rolagem, `anteriores/`, ignorar PDFs prévios); suíte completa com as mesmas 14 falhas
+de ambiente da base. Não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

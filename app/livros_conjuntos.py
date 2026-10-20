@@ -6,7 +6,8 @@ O worker publica somente os PDFs conferidos no destino da empresa.
 import datetime as dt
 from pathlib import Path
 import time
-import uuid
+import re
+import shutil
 import json
 
 from app import arquivos, estados, formulario_livros, tela
@@ -178,13 +179,15 @@ def _preencher(inicial, final, interacao, referencia=None):
     return _conferir_antes_ok(inicial, final, referencia=referencia, leitura_previa=leitura)
 
 
-def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
+def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignorar=frozenset()):
     """Classifica pelo conteúdo, nunca pelo nome, ordem ou primeiro preview."""
     from pypdf import PdfReader
     from pypdf.errors import PyPdfError
     candidatos = {}
     for caminho in sorted(pasta.glob('*.pdf')):
         ponto_seguro()
+        if caminho.name in ignorar:
+            continue
         try:
             if caminho.is_symlink() or not caminho.is_file():
                 continue
@@ -213,7 +216,7 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
         except (OSError, ValueError):
             continue
         except Exception:
-            # PDF ilegível fica no staging local e nunca vira artefato válido.
+            # PDF ilegível fica na pasta de saída e nunca vira artefato válido.
             continue
     artefatos = [] if artefatos is None else artefatos
     for tipo in TIPOS:
@@ -229,7 +232,30 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None):
     return artefatos
 
 
-def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None):
+_NOME_DO_DOMINIO = re.compile(r'livro de (entrada|sa[ií]da)|icms normal|registro de (entradas|sa[ií]das|apura)',
+                          re.IGNORECASE)
+
+
+def _preparar_destino(pasta):
+    """Exporta direto na pasta de saída. PDFs que o Domínio gerou antes (nomes com espaço,
+    como `000070 LIVRO DE ENTRADA`) iriam gerar pergunta de sobrescrever: vão para
+    `anteriores/` sem apagar nada. Devolve os nomes de todos os PDFs presentes antes, que a
+    espera e a conferência ignoram (só PDF novo conta)."""
+    anteriores = pasta / 'anteriores'
+    for caminho in sorted(pasta.glob('*.pdf')):
+        if not caminho.is_file() or caminho.is_symlink() or not _NOME_DO_DOMINIO.search(caminho.stem):
+            continue
+        anteriores.mkdir(exist_ok=True)
+        destino = anteriores / caminho.name
+        numero = 1
+        while destino.exists():
+            numero += 1
+            destino = anteriores / f'{caminho.stem}_{numero}{caminho.suffix}'
+        shutil.move(str(caminho), str(destino))
+    return frozenset(p.name for p in pasta.glob('*.pdf'))
+
+
+def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None, ignorar=frozenset()):
     anterior = None
     estaveis = 0
     fechados = set()
@@ -257,7 +283,8 @@ def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None):
                 return False
         try:
             atuais = tuple((p.name,p.stat().st_size,p.stat().st_mtime_ns)
-                           for p in sorted(pasta.glob('*.pdf')) if p.is_file() and not p.is_symlink())
+                           for p in sorted(pasta.glob('*.pdf'))
+                           if p.name not in ignorar and p.is_file() and not p.is_symlink())
         except OSError:
             atuais = ()
         estaveis = estaveis+1 if atuais and atuais == anterior else 0
@@ -318,8 +345,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         return False
     pasta = Path(pasta_destino).resolve()
     pasta.mkdir(parents=True, exist_ok=True)
-    staging = pasta / ('LIVROS'+str(uuid.uuid4().int % 10**12).zfill(12))
-    staging.mkdir()  # Não reutiliza nem apaga pasta de uma execução anterior.
+    previos = _preparar_destino(pasta)
     acompanhamento.confirmar('datas_validas')
     acompanhamento.iniciar('identificar_empresa')
     imagem = tela.capturar_tela()
@@ -414,13 +440,14 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     if imagem is None:return False
     from app.seletor_pasta import selecionar_pasta
     leitores_antes=dominio._linha_base_leitores_pdf()
-    selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(staging),tela.capturar_tela,
-                     interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo)
-    completa=_aguardar_arquivos(staging,tela.capturar_tela,dominio,prefixo,leitores_antes)
+    selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(pasta),tela.capturar_tela,
+                     interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo,
+                     permitir_pasta_comum=True)
+    completa=_aguardar_arquivos(pasta,tela.capturar_tela,dominio,prefixo,leitores_antes,ignorar=previos)
     if completa:
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
-    _conferir_conjunto(staging,inicial,final,cnpj,empresa[0],artefatos=artefatos)
+    _conferir_conjunto(pasta,inicial,final,cnpj,empresa[0],artefatos=artefatos,ignorar=previos)
     dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio)  # garante que nenhum Acrobat ficou na frente
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')

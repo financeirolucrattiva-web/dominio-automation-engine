@@ -64,7 +64,7 @@ class TestDescida(unittest.TestCase):
         teclas = []
         sequencia = iter(selecoes)
         mudou = ramo_mudou if callable(ramo_mudou) else (lambda *a: ramo_mudou)
-        with patch.object(seletor, '_aguardar_dialogo', return_value=('img', {'arvore': (0, 0, 1, 1)})),                 patch.object(seletor, '_drive_selecionado', return_value=True),                 patch.object(seletor, '_nome_selecionado_aproximado', side_effect=lambda *a: next(sequencia)),                 patch.object(seletor, '_arvore_mudou_abaixo', side_effect=mudou),                 patch.object(seletor.time, 'sleep'),                 patch.object(seletor, 'ponto_seguro'):
+        with patch.object(seletor, '_aguardar_dialogo', return_value=('img', {'arvore': (0, 0, 1, 1)})),                 patch.object(seletor, '_drive_selecionado', return_value=True),                 patch.object(seletor, '_nome_selecionado_aproximado', side_effect=lambda *a: next(sequencia)),                 patch.object(seletor, '_arvore_mudou', side_effect=mudou),                 patch.object(seletor.time, 'sleep'),                 patch.object(seletor, 'ponto_seguro'):
             resultado = seletor._descer_por_digitacao(Mock(), teclas.append, 'M', list(partes), clicar=clicar)
         return teclas, resultado
 
@@ -80,13 +80,21 @@ class TestDescida(unittest.TestCase):
         self.assertEqual(cliques, [(8, 107), (28, 107)])
         self.assertEqual(x, 60)
 
-    def test_sem_efeito_do_icone_tenta_right_e_sem_efeito_nenhum_recusa(self):
+    def test_sem_efeito_do_duplo_clique_recusa_sem_right_e_sem_digitar_o_proximo_nome(self):
         cliques = []
-        resultados = iter([False, True, False, False])  # nível 0: ícone sem efeito, Right abre; nível 1: nada abre
-        selecoes = [self.sel('users', 20), self.sel('darto', 40), self.sel('saida', 60)]
+        teclas_vistas = []
+        selecoes = [self.sel('users', 20), self.sel('darto', 40)]
         with self.assertRaises(seletor.SeletorPastaNaoConfirmado):
-            self.descer(selecoes, clicar=lambda *p: cliques.append(p), ramo_mudou=lambda *a: next(resultados))
-        self.assertEqual(len(cliques), 2)  # um por nível; o segundo também sem efeito -> recusa antes de digitar saida
+            teclas, _ = self.descer(selecoes, clicar=lambda *p: cliques.append(p), ramo_mudou=False)
+        self.assertEqual(len(cliques), 1)  # um duplo clique por nível; nunca repete (fecharia o ramo)
+
+    def test_confere_varias_vezes_porque_a_tela_remota_repinta_com_atraso(self):
+        cliques = []
+        resultados = iter([False, False, True])  # filhos aparecem só na 3ª releitura
+        selecoes = [self.sel('users', 20), self.sel('darto', 40)]
+        teclas, _ = self.descer(selecoes, partes=('Users', 'darto'), clicar=lambda *p: cliques.append(p),
+                                ramo_mudou=lambda *a: next(resultados))
+        self.assertEqual(len(cliques), 1)
 
     def test_sem_clicar_usa_apenas_right(self):
         selecoes = [self.sel('users', 20)]
@@ -124,17 +132,19 @@ class TestDuploClique(unittest.TestCase):
 
 
 class TestArvoreMudou(unittest.TestCase):
-    def test_detecta_filhos_abaixo_da_linha_selecionada_mas_ignora_o_que_esta_acima(self):
+    def test_detecta_qualquer_mudanca_na_arvore_inclusive_rolagem_e_ignora_fora_dela(self):
         antes = Image.new('RGB', (200, 200), 'white')
+        detalhes = {'arvore': (10, 10, 180, 180)}
         depois = antes.copy()
         ImageDraw.Draw(depois).rectangle((60, 130, 120, 140), fill='black')  # filho apareceu abaixo
-        sel = {'y': 100, 'h': 14}
-        detalhes = {'arvore': (10, 10, 180, 180)}
-        self.assertTrue(seletor._arvore_mudou_abaixo(antes, depois, sel, detalhes))
-        acima = antes.copy()
-        ImageDraw.Draw(acima).rectangle((60, 30, 120, 40), fill='black')  # mudança acima da linha: não conta
-        self.assertFalse(seletor._arvore_mudou_abaixo(antes, acima, sel, detalhes))
-        self.assertFalse(seletor._arvore_mudou_abaixo(antes, antes.copy(), sel, detalhes))
+        self.assertTrue(seletor._arvore_mudou(antes, depois, detalhes))
+        rolou = antes.copy()
+        ImageDraw.Draw(rolou).rectangle((60, 30, 120, 40), fill='black')  # lista rolou: linhas acima mudam
+        self.assertTrue(seletor._arvore_mudou(antes, rolou, detalhes))
+        fora = antes.copy()
+        ImageDraw.Draw(fora).rectangle((0, 0, 5, 5), fill='black')  # fora da árvore: não conta
+        self.assertFalse(seletor._arvore_mudou(antes, fora, detalhes))
+        self.assertFalse(seletor._arvore_mudou(antes, antes.copy(), detalhes))
 
 
 if __name__ == '__main__':
