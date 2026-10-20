@@ -34,7 +34,8 @@ def main(argv=None):
     try:
         seletor_pasta.selecionar_pasta(
             caminho_visto_pela_sessao_remota(destino), tela.capturar_tela,
-            interacao.clicar, interacao.pressionar_tecla, clicar_ok=args.confirmar_ok)
+            interacao.clicar, interacao.pressionar_tecla, clicar_ok=args.confirmar_ok,
+            clicar_duplo=interacao.clicar_duplo)
         print(f"RESULTADO: navegação concluída em {time.monotonic()-inicio:.0f}s.", flush=True)
         return 0
     except seletor_pasta.SeletorPastaNaoConfirmado as erro:

@@ -112,6 +112,17 @@ class TestDescida(unittest.TestCase):
         self.assertEqual(teclas, list('users'))  # digitou uma vez; só releu
 
 
+class TestDuploClique(unittest.TestCase):
+    def test_a_descida_usa_o_duplo_clique_quando_informado_e_o_clique_simples_so_como_plano_b(self):
+        import inspect
+        parametros = inspect.signature(seletor.selecionar_pasta).parameters
+        self.assertIn('clicar_duplo', parametros)
+        self.assertIsNone(parametros['clicar_duplo'].default)
+        # Trecho do código: a descida recebe `clicar_duplo or clicar`.
+        codigo = inspect.getsource(seletor.selecionar_pasta)
+        self.assertIn('clicar=clicar_duplo or clicar', codigo)
+
+
 class TestArvoreMudou(unittest.TestCase):
     def test_detecta_filhos_abaixo_da_linha_selecionada_mas_ignora_o_que_esta_acima(self):
         antes = Image.new('RGB', (200, 200), 'white')

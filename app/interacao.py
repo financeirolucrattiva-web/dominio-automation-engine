@@ -545,6 +545,14 @@ def pressionar_esc_no_dominio(janela=None, vezes=2, intervalo=0.5, confirmar_con
         return False
 
 
+def clicar_duplo(x, y):
+    """Duplo clique: move até o ponto, pausa e dá dois cliques rápidos (abre pasta em árvore)."""
+    ponto_seguro()
+    pyautogui.moveTo(x, y, duration=0.3)
+    time.sleep(0.3)
+    pyautogui.doubleClick(interval=0.1)
+
+
 def clicar(x, y):
     """Clique 'devagar': move até o ponto, pausa, pressiona, pausa, solta."""
     ponto_seguro()

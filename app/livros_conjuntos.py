@@ -415,7 +415,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     from app.seletor_pasta import selecionar_pasta
     leitores_antes=dominio._linha_base_leitores_pdf()
     selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(staging),tela.capturar_tela,
-                     interacao.clicar,interacao.pressionar_tecla)
+                     interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo)
     completa=_aguardar_arquivos(staging,tela.capturar_tela,dominio,prefixo,leitores_antes)
     if completa:
         acompanhamento.confirmar('arquivo_novo_estavel')

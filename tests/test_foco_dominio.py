@@ -343,6 +343,17 @@ class TestFocoDominio(unittest.TestCase):
             self.assertEqual(self.modulo.fechar_leitores_pdf_novos(base, espera=3, intervalo=0), 0)
         self.assertEqual(self.fechadas, [])
 
+    def test_clicar_duplo_move_e_da_duplo_clique_respeitando_a_trava_de_foco(self):
+        mover, duplo = Mock(), Mock()
+        self.modulo.pyautogui.moveTo = mover
+        self.modulo.pyautogui.doubleClick = duplo
+        with patch.object(self.modulo, "ponto_seguro") as trava:
+            self.modulo.clicar_duplo(533, 466)
+        trava.assert_called_once()
+        mover.assert_called_once()
+        self.assertEqual(mover.call_args.args[:2], (533, 466))
+        duplo.assert_called_once_with(interval=0.1)
+
     def _com_dialogo_remoto(self):
         # "Salvar em PDF": outra janela do MESMO cliente (pid e classe iguais), outro HWND.
         self.janelas[77] = {"titulo": "Salvar em PDF", "classe": "DisplayClientWindowClass", "pid": 100}

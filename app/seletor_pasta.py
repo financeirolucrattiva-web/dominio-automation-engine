@@ -1048,11 +1048,11 @@ def _arvore_mudou_abaixo(antes, depois, sel, detalhes):
 
 def _expandir_no(capturar,clicar,tecla,letra,sel,detalhes,antes,esperas):
     """Abre o ramo do nó selecionado. Neste diálogo a tecla Right não o abre: clica no ÍCONE
-    da pasta (pedido do operador) e só então tenta Right. Confere por mudança de pixels
+    da pasta com DUPLO clique (pedido do operador: só o duplo clique abre) e só então tenta Right. Confere por mudança de pixels
     abaixo da linha; sem mudança nas duas tentativas, recusa."""
     tentativas=[]
     if clicar is not None:
-        tentativas.append(('icone',lambda:clicar(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))))
+        tentativas.append(('icone_duplo',lambda:clicar(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))))
     tentativas.append(('right',lambda:tecla('right')))
     for nome,acao in tentativas:
         ponto_seguro(); acao()
@@ -1095,7 +1095,7 @@ def _descer_por_digitacao(capturar,tecla,letra,partes,esperas=(0.8,0.6),clicar=N
 
 
 @cache_da_navegacao()
-def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
+def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, clicar_duplo=None):
     """Setas percorrem a árvore desde a raiz; só a folha comprovada recebe OK."""
     caminho=PureWindowsPath(caminho_remoto)
     if (not caminho.is_absolute() or not re.fullmatch(r'[A-Za-z]:',caminho.drive)
@@ -1111,7 +1111,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True):
         # exatidão por OCR; cada nível é conferido por semelhança e indentação crescente.
         _focar_arvore_e_home(capturar,clicar,tecla,caminho.drive[0],detalhes)
         print('Destino dos livros: descendo pela árvore por digitação.',flush=True)
-        _descer_por_digitacao(capturar,tecla,caminho.drive[0],list(partes),clicar=clicar)
+        _descer_por_digitacao(capturar,tecla,caminho.drive[0],list(partes),clicar=clicar_duplo or clicar)
         def confirmar_final_digitado(img,d):
             if not _drive_selecionado(d,caminho.drive[0]):return False
             sel=_nome_selecionado_aproximado(img,d)
