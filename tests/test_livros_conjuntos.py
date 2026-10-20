@@ -396,4 +396,18 @@ class TestDestinoSaida(unittest.TestCase):
                 self.assertFalse(livros._aguardar_arquivos(saida,livros.tela.capturar_tela,dominio,''))
 
 
+class TestIcmsPeriodoAntesDoCnpj(unittest.TestCase):
+    def test_livro_icms_real_tem_periodo_na_linha_do_titulo_e_cnpj_depois(self):
+        # Cabeçalho observado no Acrobat (20/10): título + período, depois empresa, inscrição e CNPJ.
+        texto=('R E G I S T R O   D E   A P U R A C A O   D O   I C M S   PERIODO:01/08/2026 a 31/08/2026 '
+               'EMPRESA : EMPRESA FICTICIA LTDA INSC.EST.: 141502851 CNPJ : 12.345.678/0001-95 '
+               'FOLHA : 001 LIVRO : 000 E N T R A D A S CODIFICACAO CONTABIL FISCAL NATUREZA')
+        self.assertEqual(arquivos.validar_livro(texto,'registro_icms',INICIO,FIM,CNPJ),CNPJ)
+        with self.assertRaises(ValueError):
+            arquivos.validar_livro(texto,'registro_icms',INICIO,FIM,'00000000000000')
+        with self.assertRaises(ValueError):  # CNPJ só nas tabelas continua não valendo
+            arquivos.validar_livro(texto.replace('CNPJ : 12.345.678/0001-95','')+' 12.345.678/0001-95',
+                                   'registro_icms',INICIO,FIM,CNPJ)
+
+
 if __name__=='__main__':unittest.main()

@@ -5147,6 +5147,33 @@ fechar todas as guias ou a guia atual?", o que segurou o fechamento (o `WM_CLOSE
 comum só com permissão); suíte completa com as mesmas 14 falhas de ambiente da base. Não validado
 ao vivo.
 
+### 0.147 Conferência do livro de ICMS, log por PDF e subida com Esc até a tela azul (20/10/2026)
+
+**Evidência (rodada de 17:15–17:19 e captura do Acrobat):** a navegação do Procurar Pasta passou
+nos 4 níveis com duplo clique e os 3 PDFs foram gerados em `saida` (`exportar_pdf` confirmado),
+mas `conferir_pdf` falhou (`retorno_falha`) e nenhum PDF foi aceito. O cabeçalho do livro de ICMS
+(captura) traz o período na linha do título e a empresa/CNPJ DEPOIS; `validar_livro` cortava o
+cabeçalho no fim do período e então não achava o CNPJ. Também: depois de fechar o Adobe a rotina
+não chegou à tela azul (o limite era 5 Esc), e o Resumo seguinte abortou por `dominio_fora_de_foco`
+antes de trocar as datas (causa do foco não registrada; ver pendência).
+
+**Correção:**
+- `validar_livro`: o CNPJ é procurado em todo o cabeçalho, até o início das tabelas
+  (`CODIFICACAO`/`VALORES FISCAIS`...), e não só até o fim do período; o período continua exigido
+  no cabeçalho, e CNPJ só nas tabelas continua recusado.
+- `_conferir_conjunto` imprime `LIVROS_CONFERENCIA` por PDF (nome, páginas, tipos reconhecidos e
+  o motivo fixo de cada recusa, ou o tipo da exceção se o PDF não abre), para a próxima falha
+  mostrar a causa sem novo print.
+- `voltar_ao_inicio`: até 12 Esc (um por vez, conferindo a tela principal a cada passo) antes do
+  fechar aba; se o foco do Domínio se perder no meio da subida, tenta Alt+Tab e reconfere.
+
+**Pendência:** o Resumo que não trocou as datas parou em `FocoPerdidoDuranteExecucao`
+(`dominio_fora_de_foco`) antes do clique no campo; a linha `FOCO_PERDIDO` do console diz qual janela
+estava na frente. Hipótese: Adobe/diálogo restante da rodada de Livros que falhou.
+
+**Validação:** testes (ICMS com período antes do CNPJ, 12 Esc, contagens ajustadas); suíte com as
+mesmas 14 falhas de ambiente da base. Não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

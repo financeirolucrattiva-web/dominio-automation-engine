@@ -200,23 +200,27 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignora
                 if not leitor.pages:
                     continue
                 texto = leitor.pages[0].extract_text() or ''
+                paginas = len(leitor.pages)
                 for pagina in leitor.pages[1:]:
                     pagina.extract_text()
             if assinatura != (caminho.stat().st_size, caminho.stat().st_mtime_ns):
                 continue
             tipos = []
+            motivos = {}
             for tipo in TIPOS:
                 try:
                     arquivos.validar_livro(texto, tipo, inicial, final, cnpj)
                     tipos.append(tipo)
-                except ValueError:
-                    pass
+                except ValueError as erro:
+                    motivos[tipo] = str(erro)  # mensagens fixas do validador, sem dados do PDF
+            print('LIVROS_CONFERENCIA '+json.dumps({'arquivo': caminho.name, 'paginas': paginas,
+                  'tipos': tipos, 'motivos': motivos if len(tipos) != 1 else {}}, ensure_ascii=False), flush=True)
             if len(tipos) == 1:
                 candidatos.setdefault(tipos[0], []).append(caminho)
-        except (OSError, ValueError):
-            continue
-        except Exception:
+        except Exception as erro:
             # PDF ilegível fica na pasta de saída e nunca vira artefato válido.
+            print('LIVROS_CONFERENCIA '+json.dumps({'arquivo': caminho.name, 'ilegivel': type(erro).__name__}),
+                  flush=True)
             continue
     artefatos = [] if artefatos is None else artefatos
     for tipo in TIPOS:

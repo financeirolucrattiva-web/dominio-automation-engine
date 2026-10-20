@@ -138,7 +138,8 @@ def validar_livro(texto, tipo, inicio, fim, cnpj_esperado=None):
     periodo = re.search(re.escape(_compactar(inicio)) + r"(?:A|ATE|[-–])" + re.escape(_compactar(fim)), cabecalho)
     if periodo is None:
         raise ValueError("O cabeçalho do PDF não confirma o período solicitado.")
-    cabecalho = cabecalho[:periodo.end()]
+    # O CNPJ pode vir ANTES ou DEPOIS do período no cabeçalho (o livro de ICMS traz o período na
+    # linha do título e a empresa/CNPJ abaixo); a busca vai até o início das tabelas, não até o período.
     # Prioriza o rótulo CNPJ; sem ele, exige um único CNPJ formatado.
     rotulados = re.findall(r"CNPJ[:.]?(\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2})", cabecalho)
     encontrados = rotulados or re.findall(r"(?<!\d)\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}", cabecalho)

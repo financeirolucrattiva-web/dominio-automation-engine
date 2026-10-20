@@ -1443,7 +1443,7 @@ def fechar_aba_ativa(janela):
         return False
 
 
-def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
+def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
     """Fecha o que estiver aberto até reconhecer a tela principal calibrada.
 
     Só age se a tela principal NÃO estiver reconhecida (nunca envia tecla
@@ -1469,7 +1469,11 @@ def voltar_ao_inicio(janela=None, max_esc=5, max_fechar=3):
         for passo in range(max_esc + max_fechar + 1):
             ponto_seguro_sem_foco()
             if not interacao.janela_dominio_em_foco(janela):
-                return False
+                # Depois de fechar o Adobe o foco pode não voltar sozinho: no meio da subida
+                # (nunca no primeiro passo, onde a recuperação já foi tentada) Alt+Tab e reconfere.
+                alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
+                if passo == 0 or alt_tab is None or not alt_tab(janela) or not interacao.janela_dominio_em_foco(janela):
+                    return False
             if _verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
                 return True
             if passo < max_esc:

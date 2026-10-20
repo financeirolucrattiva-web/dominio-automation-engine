@@ -61,6 +61,11 @@ class TestVoltarAoInicio(unittest.TestCase):
         self.assertEqual(ordem, ["recuperar", "esc"])
         self.interacao.voltar_ao_dominio_com_alt_tab.assert_called_once_with(JANELA)
 
+    def test_sobe_com_esc_ate_oito_telas_depois_de_fechar_o_adobe(self):
+        self.verificar.side_effect = [NAO] * 8 + [OK]
+        self.assertTrue(dominio.voltar_ao_inicio(JANELA))
+        self.assertEqual(self.interacao.pressionar_esc_no_dominio.call_count, 8)
+
     def test_recuperacao_de_foco_falha_nao_envia_esc_nem_fecha_aba(self):
         self.interacao.janela_dominio_em_foco.return_value = False
         self.interacao.janela_dominio_ou_remota_em_foco.return_value = True
@@ -135,22 +140,22 @@ class TestVoltarAoInicio(unittest.TestCase):
         self.interacao.pressionar_esc_no_dominio.assert_not_called()
 
     def test_escala_para_botao_fechar_depois_dos_esc(self):
-        self.verificar.side_effect = [NAO] * 6 + [OK]
+        self.verificar.side_effect = [NAO] * 13 + [OK]
         self.tela.achar_texto.return_value = (50, 60)
         self.assertTrue(dominio.voltar_ao_inicio())
-        self.assertEqual(self.interacao.pressionar_esc_no_dominio.call_count, 5)
+        self.assertEqual(self.interacao.pressionar_esc_no_dominio.call_count, 12)
         self.interacao.clicar.assert_called_once_with(50, 60)
         self.interacao.pressionar_atalho.assert_not_called()
 
     def test_sem_botao_fechar_usa_ctrl_f4_e_nunca_alt_f4(self):
-        self.verificar.side_effect = [NAO] * 6 + [OK]
+        self.verificar.side_effect = [NAO] * 13 + [OK]
         self.assertTrue(dominio.voltar_ao_inicio())
         self.interacao.pressionar_atalho.assert_called_once_with("ctrl", "f4")
 
     def test_nunca_alt_f4_mesmo_esgotando_tentativas(self):
         self.verificar.return_value = NAO
         self.assertFalse(dominio.voltar_ao_inicio())
-        self.assertEqual(self.interacao.pressionar_esc_no_dominio.call_count, 5)
+        self.assertEqual(self.interacao.pressionar_esc_no_dominio.call_count, 12)
         self.assertEqual(self.interacao.pressionar_atalho.call_count, 3)
         for chamada in self.interacao.pressionar_atalho.call_args_list:
             self.assertNotIn("alt", chamada.args)
