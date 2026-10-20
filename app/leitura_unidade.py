@@ -1,4 +1,29 @@
 """Contraste local do campo Unidade, sem reconstruir texto ou pontuação."""
+from contextlib import contextmanager
+from contextvars import ContextVar
+import re
+
+_cache=ContextVar('cache_recorte_unidade',default=None)
+
+
+@contextmanager
+def cache_da_navegacao():
+    """Só reutiliza o mesmo recorte durante uma navegação; nunca entre tarefas."""
+    token=_cache.set({})
+    try:yield
+    finally:_cache.reset(token)
+
+
+def identidade_variante_recorte(texto):
+    """Variação observada: lient C (M:N). Só vale após consenso na ROI.
+
+    O C inicial pode ser omitido e a barra pode virar N. Tipo e letra da
+    unidade precisam continuar explícitos; My/Hy e texto parcial recusam.
+    Não usa distância de edição nem substitui a letra esperada.
+    """
+    m=re.fullmatch(r'(?:client|lient)\s+([a-z])\s*\(\s*([a-z])\s*:\s*(?:n|[\\/|!]?)\s*\)',
+                   texto.casefold().strip())
+    return 'client'+m[1]+':'+m[2] if m else None
 
 
 def normalizar_unidade(imagem):

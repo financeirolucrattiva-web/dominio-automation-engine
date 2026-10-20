@@ -154,14 +154,15 @@ class ArvoreSintetica:
                 self.combo_aberto = False
                 self.foco_arvore = False
         elif 30 < x < 480 and 110 < y < 290:
+            # Clique no vazio dá foco ao TreeView mesmo sem acertar linha.
+            self.foco_arvore = True
+            self.foco_combo = False
+            self.inicio_arvore_drives.append(self.drive)
             visiveis = self.linhas()[self.topo:self.topo+4]
             candidatos = [(no, linha) for linha, (no, _, _) in enumerate(visiveis)
                           if 135 + linha*25 <= y < 160 + linha*25]
             if candidatos:
                 self.selecao = candidatos[0][0]
-                self.foco_arvore = True
-                self.foco_combo = False
-                self.inicio_arvore_drives.append(self.drive)
                 self._mostrar_selecao()
 
     def _aplicar_unidade(self):

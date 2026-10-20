@@ -1,5 +1,49 @@
 # Domínio Automation Engine — handoff
 
+## Descida até Users na própria rotina, sem calibração para o OCR observado — 20/10/2026
+
+Operador reiterou que a rotina não descia até Users. Em 5ec8733, a busca
+por nomes já existia, mas só começava depois de confirmar a unidade. O
+OCR real enviado anteriormente (`lient C (M:N)`, nas escalas 4/6) não era
+aceito; a calibração continuava recusada e o comando separado não navega.
+Portanto os PRs de diagnóstico não demonstravam avanço real do percurso.
+
+Correção agora na execução: a leitura local da ROI admite a variação
+Client/lient e N como barra após dois-pontos, mantendo tipo e letra
+expressos. Exige duas opiniões concordantes, linha única e caixas dentro
+do campo. Texto bruto permanece intacto; a identidade semântica recebe
+anotação só após consenso. Uma leitura global malformada sozinha não
+libera M. My/Hy, letra/tipo divergentes e opiniões contraditórias recusam.
+Isso substitui a exigência de calibração manual para ESSA saída OCR real;
+não é aceitação por distância de edição ou pela letra de destino pedida.
+
+Após confirmar a unidade, mede/revalida espaço branco dentro da árvore,
+clica uma vez, Home reinicia a raiz, e Down percorre até Users. Não depende
+mais de acertar a primeira linha por OCR para dar foco. Reaproveita foco
+já confirmado pela recuperação de unidade, evitando repetir o clique.
+Segue perfil/projeto/saída/folha exclusiva pelos nomes do caminho recebido;
+não usa constantes 14/28. Terminal informa início da descida e cada nível
+confirmado. Não significa sucesso de PDF antes da conferência dos arquivos.
+
+Para evitar quatro/seis OCRs do mesmo campo a cada Down, usa cache só
+durante uma chamada de selecionar_pasta, por RGB exato + dimensões +
+coordenadas da ROI. Um pixel diferente obriga nova leitura; contradição
+literal atual tem prioridade; o cache é descartado no fim/falha da tarefa.
+Não guarda referência automática entre execuções nem pede captura manual.
+
+Próximo teste no Windows: atualizar main, REINICIAR o processo do servidor
+para carregar o código e executar Livros Fiscais individual em agosto/2026
+fechado. Não é necessário rodar calibrar_unidade_pasta para a variante
+tratada acima. Ainda falta observar o percurso e os três PDFs reais.
+
+Validação: 299 testes passaram. Incluem reprodução textual do OCR real,
+percurso público sem arquivo de referência, C→M, clique no vazio, Users
+fora da área visível, outro perfil/projeto/saída, tipo/letra diferentes,
+opinião única, contradições e cache invalidado por pixel/contexto.
+Regressão de Livros/PDFs, seletor, barra e cancelamento passou. OCR real
+somente em imagens sintéticas; respostas Windows simuladas. Sintaxe e
+diff --check limpos. Nenhuma emissão no Domínio real foi executada aqui.
+
 ## Calibração recusada com ValueError sem motivo — 20/10/2026
 
 Operador executou a calibração em 2423c35. O campo teve zero opiniões
