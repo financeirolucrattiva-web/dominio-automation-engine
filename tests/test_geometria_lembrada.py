@@ -59,6 +59,35 @@ class TestGeometriaLembrada(unittest.TestCase):
         self.assertTrue(ocr.called)
         self.assertEqual(lr._GEOMETRIA_LEMBRADA, {})
 
+    def test_medicao_completa_com_duas_leituras_concordantes_grava_a_memoria(self):
+        # Regressao (21/10): _ler_campos_medindo usava `otimizacoes` sem importar -> NameError no Resumo e no Livros.
+        imagem = tela()
+        medidas = {'inicial': {'retangulo': (609, 423, 83, 19), 'area_texto': (610, 424, 673, 441), 'posicao': (641, 432)},
+                   'final': {'retangulo': (609, 445, 83, 19), 'area_texto': (610, 446, 673, 463), 'posicao': (641, 454)}}
+        valores = {'inicial': {'valor': '01/08/2026', 'posicao': (641, 432)}}
+        vazio = {'text': [], 'left': [], 'top': [], 'width': [], 'height': []}
+        with patch('app.tela._ler_dados_ocr', return_value=vazio), \
+                patch('app.tela.ler_dados_ocr_windows', return_value=vazio), \
+                patch('app.tela.ler_dados_ocr_formulario', return_value=vazio), \
+                patch.object(lr, 'resolver_rotulos_resumo', return_value=object()), \
+                patch.object(lr, 'medir_campos', return_value=medidas), \
+                patch.object(lr, 'campos_periodo', side_effect=ValueError('sem leitura global')), \
+                patch.object(lr, '_ler_valores', return_value=valores):
+            self.assertEqual(lr.ler_campos(imagem), valores)
+        self.assertIn((False, imagem.size), lr._GEOMETRIA_LEMBRADA)
+        # com a otimizacao desligada a mesma medicao completa funciona e NAO grava
+        lr.esquecer_geometria()
+        with patch.object(otimizacoes, '_forcado', False), \
+                patch('app.tela._ler_dados_ocr', return_value=vazio), \
+                patch('app.tela.ler_dados_ocr_windows', return_value=vazio), \
+                patch('app.tela.ler_dados_ocr_formulario', return_value=vazio), \
+                patch.object(lr, 'resolver_rotulos_resumo', return_value=object()), \
+                patch.object(lr, 'medir_campos', return_value=medidas), \
+                patch.object(lr, 'campos_periodo', side_effect=ValueError('sem leitura global')), \
+                patch.object(lr, '_ler_valores', return_value=valores):
+            self.assertEqual(lr.ler_campos(imagem), valores)
+        self.assertEqual(lr._GEOMETRIA_LEMBRADA, {})
+
     def test_resumo_e_livros_nao_compartilham_geometria(self):
         imagem = tela()
         self.lembrar(imagem, livros=False)

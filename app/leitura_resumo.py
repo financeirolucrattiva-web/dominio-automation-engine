@@ -367,7 +367,7 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
 
 
 def _ler_campos_medindo(imagem,registrar,livros,salvar_recorte,chave):
-    from app import tela
+    from app import otimizacoes, tela
     contextos=[]; completos=[]
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4),
                          ('binaria_bloco',4),('binaria_esparsa',4)):
