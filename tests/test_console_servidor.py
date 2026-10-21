@@ -40,6 +40,19 @@ class TestConsoleServidor(unittest.TestCase):
         self.assertIn('RESUMO_RECORTE {"confirmado": false}',self.log())
         self.assertIn('[estado] preencher_periodo: falha',self.log())
 
+    def test_tempos_perfil_e_otimizacoes_ficam_no_diagnostico_local_e_no_console(self):
+        console=self.console()
+        linhas=['[tempo] resumo_acumulador: total 120s | abrir_resumo 10s',
+                '[perfil] gerar_previa: ocr 12x 31s-cpu (tesseract 8x/25s, windows 4x/6s)',
+                'OTIMIZACOES {"ocr_paralelo": true}',
+                'OTIMIZACAO_DESLIGADA {"nome": "ocr_paralelo", "motivo": "RuntimeError"}',
+                'LIVROS_CONFERENCIA {"arquivo": "a.pdf", "paginas": 1, "tipos": ["registro_icms"], "motivos": {}}',
+                'FOCO_PERDIDO janela em foco: classe Chrome_WidgetWin_1']
+        console.write('\n'.join(linhas)+'\n')
+        for linha in linhas:
+            self.assertIn(linha,self.saida.getvalue())
+            self.assertIn(linha,self.log())
+
     def test_opcao_detalhada_mostra_tambem_diagnostico(self):
         console=self.console(detalhado=True)
         console.write('PASTA_NAVEGACAO {"fase":"proximo_no"}\n')

@@ -15,6 +15,11 @@ PREFIXOS_TECNICOS = (
     'LIVROS_PERIODO ', 'LIVROS_PERIODO_RELEITURA ',
     'PASTA_NAVEGACAO ',
 )
+# Linhas curtas sem dados fiscais que também vão para o diagnóstico local (para medir tempo e
+# entender falhas sem pedir cópia do console): etapas, tempos, otimizações em uso, conferência dos
+# PDFs, foco perdido.
+PREFIXOS_DESEMPENHO = ('[estado]', '[tempo]', '[perfil]', 'OTIMIZACOES ', 'OTIMIZACAO_DESLIGADA ',
+                       'LIVROS_CONFERENCIA ', 'FOCO_PERDIDO ', 'EFD_RESULTADO ', 'EFD: ')
 PREFIXOS_ESPERA = (
     'Esperando pelo menos ', 'Nenhum estado esperado reconhecido ainda ',
     'Tela igual à tentativa anterior, pulando checagem ',
@@ -55,7 +60,7 @@ class ConsoleServidor:
     def _linha(self,linha,terminador='\n'):
         tecnica=linha.startswith(PREFIXOS_TECNICOS)
         espera=linha.startswith(PREFIXOS_ESPERA)
-        if self._arquivo is not None and (tecnica or espera or linha.startswith('[estado]')):
+        if self._arquivo is not None and (tecnica or espera or linha.startswith(PREFIXOS_DESEMPENHO)):
             # Listas OCR livres podem incluir dados fiscais; não as duplicar.
             registro=linha.split('Palavras vistas:',1)[0].rstrip()
             try:

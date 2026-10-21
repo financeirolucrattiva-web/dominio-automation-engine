@@ -15,6 +15,7 @@ isolado por empresa, roadmap seção 6).
 
 import datetime
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -588,6 +589,28 @@ def _confirmar_saida_aviso_efd(item_menu, janela, texto_confirmacao):
     return False
 
 
+def _rotulo_fechar(palavras):
+    """Rótulo do botão "Fechar" do formulário, mesmo quando o F sublinhado é lido errado.
+
+    O F é a tecla de atalho (sublinhado) e cola na borda do botão: nas capturas reais de 20/10 o
+    tesseract leu "Eechar" nas duas preparações (cinza e binária), então a busca exata por "Fechar"
+    falhava sempre, o fechamento da EFD esgotava as 4 tentativas (~45 s) e só a limpeza geral
+    fechava o formulário. Aceita a letra inicial variável (qualquer caractere) desde que o resto
+    seja exatamente "echar" e que haja UM candidato; nenhum outro botão desse formulário termina
+    em "echar" (OK, Empresas, Outros dados, Auditar, Visualizar, Concluir, Conteúdo, Soluções).
+    """
+    from .formulario_livros import _normalizar, _rotulo
+    try:
+        return _rotulo(palavras, 'Fechar')
+    except ValueError:
+        pass
+    candidatos = [p for p in palavras if re.fullmatch(r'.echar', _normalizar(p['texto']))]
+    if len(candidatos) != 1:
+        raise ValueError('Rótulo ausente ou ambíguo: Fechar.')
+    c = candidatos[0]
+    return {'x': c['x'], 'y': c['y'], 'w': c['w'], 'h': c['h']}
+
+
 def _fechar_formulario_efd(acompanhamento, prefixo=''):
     """Relê Fechar no formulário atual; nunca usa a posição anterior à geração.
 
@@ -624,7 +647,7 @@ def _fechar_formulario_efd(acompanhamento, prefixo=''):
                             except ValueError:
                                 continue
                             return False
-                        botao = _rotulo(palavras, 'Fechar')
+                        botao = _rotulo_fechar(palavras)
                         if not (0 <= botao['x'] < botao['x']+botao['w'] <= area.width
                                 and 0 <= botao['y'] < botao['y']+botao['h'] <= area.height):
                             continue

@@ -150,6 +150,34 @@ class TestEncerramentoEFD(unittest.TestCase):
         self.interacao.clicar.assert_not_called()
         self.sem_teclas()
 
+    def test_f_sublinhado_lido_como_eechar_ainda_acha_o_botao_e_clica_uma_vez(self):
+        # Captura real de 20/10: o tesseract leu "Fechar" como "Eechar" nas duas preparações.
+        self.ocr.return_value = self.leitura(('Eechar',))
+        self.assertTrue(self.executar())
+        self.interacao.clicar.assert_called_once_with(120, 76)
+        self.sem_teclas()
+
+    def test_dois_candidatos_terminados_em_echar_sao_ambiguos_e_nao_clicam(self):
+        self.ocr.return_value = self.leitura(('Eechar', 'Pechar'))
+        self.assertFalse(self.executar())
+        self.interacao.clicar.assert_not_called()
+        self.sem_teclas()
+
+    def test_rotulo_fechar_so_aceita_letra_inicial_diferente_de_um_unico_caractere(self):
+        def palavra(texto, y):
+            return {'texto': texto, 'x': 400.0, 'y': float(y), 'w': 40.0, 'h': 10.0}
+        # palavras da coluna de botões da captura real (EFD Contribuições)
+        reais = [palavra(t, 20 + 30 * i) for i, t in enumerate(
+            ['Eechar', 'Empresas...', 'Outros', 'dados...', 'Suditar', 'Arquivo...', 'Visualizar',
+             'Concluir', 'Atigidade...l', 'Conteúdo...', 'Soluções'])]
+        self.assertEqual(self.d._rotulo_fechar(reais)['y'], 20.0)
+        for texto in ('FecharTudo', 'echar', 'Fechar2'):
+            with self.subTest(texto=texto), self.assertRaises(ValueError):
+                self.d._rotulo_fechar([palavra(texto, 20), palavra('Empresas...', 50)])
+        # o rótulo exato continua tendo prioridade sobre a variação
+        exato = [palavra('Eechar', 20), palavra('Fechar', 60)]
+        self.assertEqual(self.d._rotulo_fechar(exato)['y'], 60.0)
+
 
 if __name__ == '__main__':
     unittest.main()

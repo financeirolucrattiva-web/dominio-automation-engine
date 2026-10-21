@@ -27,7 +27,7 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from . import tela
+from . import perfil, tela
 from .controle_execucao import ponto_seguro
 from .formulario_resumo import MOTIVOS_PERIODO
 
@@ -107,6 +107,9 @@ class AcompanhamentoRotina:
         self.finalizada = False
         self.inicio = time.monotonic()
         self.inicio_etapa = self.inicio
+        perfil.instalar()
+        self._marca_perfil = perfil.instantaneo()
+        self._marca_perfil_total = self._marca_perfil
         self._aviso_log = False
         self.recuperacao_iniciada = False
         self.janela_dominio = None  # HWND/PID em memória; nunca no JSONL.
@@ -133,6 +136,12 @@ class AcompanhamentoRotina:
             segundos = f" [{evento['elapsed_seconds']:.0f}s]"
             self.duracoes.append((etapa, evento["elapsed_seconds"]))
         print(f"[estado] {etapa}: {status}" + (f" ({evidencia})" if evidencia else "") + segundos)
+        if status == "inicio":
+            self._marca_perfil = perfil.instantaneo()
+        elif etapa != "fim":
+            agora = perfil.instantaneo()
+            print(f"[perfil] {etapa}: " + perfil.texto(perfil.diferenca(self._marca_perfil, agora)), flush=True)
+            self._marca_perfil = agora
         try:
             self.caminho_log.parent.mkdir(parents=True, exist_ok=True)
             with self.caminho_log.open("a", encoding="utf-8") as arquivo:
@@ -208,6 +217,8 @@ class AcompanhamentoRotina:
         total = time.monotonic() - self.inicio
         por_etapa = ", ".join(f"{etapa} {segundos:.0f}s" for etapa, segundos in self.duracoes)
         print(f"[tempo] {self.rotina}: total {total:.0f}s | {por_etapa}", flush=True)
+        print(f"[perfil] {self.rotina}: total " + perfil.texto(
+            perfil.diferenca(self._marca_perfil_total, perfil.instantaneo())), flush=True)
         self.finalizada = True
 
 

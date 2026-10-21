@@ -22,11 +22,11 @@ import threading
 ARQUIVO = Path(__file__).resolve().parent.parent / "data" / "otimizacoes.json"
 
 NOMES = {
+    # Descrições em ASCII: o atalho `Ver Otimizacoes.bat` as imprime no console do Windows.
     "ocr_paralelo": "leituras OCR de uma mesma captura rodam em paralelo (tela.pre_aquecer_ocr)",
-    "geometria_lembrada": "posição dos campos de data lembrada entre leituras (leitura_resumo.ler_campos)",
-    "ocr_centro_seletor": "OCR do Procurar Pasta só no centro da tela, com volta à tela inteira",
-    "fechar_adobe_curto": "Livros não espera 20 s por um Adobe que já foi fechado",
-    "foco_antes_de_fechar_efd": "EFD recupera o foco do Domínio antes de fechar o formulário",
+    "geometria_lembrada": "posicao dos campos de data lembrada entre leituras (leitura_resumo.ler_campos)",
+    "ocr_centro_seletor": "OCR do Procurar Pasta so no centro da tela, com volta a tela inteira",
+    "fechar_adobe_curto": "Livros nao espera 20 s por um Adobe que ja foi fechado",
 }
 
 # Os testes forçam True/False para todas (as simulações antigas de OCR dependem da ordem das

@@ -59,6 +59,10 @@ Paddle continua opcional; o motor mantém o Tesseract atual.
 | [Executar Presumido em Lote.bat](ferramentas/Executar%20Presumido%20em%20Lote.bat) | Informe os códigos separados por vírgula; executa as três rotinas por empresa na mesma fila, após confirmar competência fechada em todas; parar o servidor antes |
 | [Listar Funcoes.bat](ferramentas/Listar%20Funcoes.bat) | Consultar o catálogo descritivo |
 | [Abrir Motor SPED.bat](ferramentas/Abrir%20Motor%20SPED.bat) | Abrir o menu de texto existente |
+| [Ver Otimizacoes.bat](ferramentas/Ver%20Otimizacoes.bat) | Mostra quais otimizacoes de velocidade estao ligadas (LIGADA) ou no caminho classico (desligada) |
+| [Modo Seguro (sem otimizacoes).bat](ferramentas/Modo%20Seguro%20%28sem%20otimizacoes%29.bat) | Volta todas as rotinas ao caminho classico (mais lento, ja testado); vale na proxima leitura, sem reiniciar o servidor |
+| [Modo Rapido (otimizacoes ligadas).bat](ferramentas/Modo%20Rapido%20%28otimizacoes%20ligadas%29.bat) | Liga de novo todas as otimizacoes (padrao) |
+| [Voltar Versao Estavel.bat](ferramentas/Voltar%20Versao%20Estavel.bat) | Troca para uma versao marcada `estavel-*` sem apagar nada; `Atualizar.bat` traz a mais nova de volta; parar o servidor antes |
 
 - `ferramentas/Testar Livros Fiscais.bat`: teste individual dos três livros,
   com código/competência/apuração informados e servidor parado. Usa o mesmo
