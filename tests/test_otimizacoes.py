@@ -116,14 +116,32 @@ class TestOcrCentroDoSeletor(unittest.TestCase):
             leitor.ler(self.imagem)  # mesma captura: cache
         self.assertEqual(medir.call_count, 1)
 
-    def test_centro_sem_o_ok_medido_cai_para_a_tela_inteira(self):
-        # Captura real: no recorte central o OCR perdia OK/Cancelar e medir_dialogo devolvia ok=None.
+    def test_navegacao_aceita_o_centro_mesmo_sem_o_ok_medido(self):
+        # Captura real: no recorte central o OCR perde OK/Cancelar; a navegação não precisa do OK.
+        with patch.object(seletor, 'medir_dialogo', return_value={'combo': (1, 2, 3, 4), 'ok': None}) as chamada:
+            detalhes = seletor._LeitorDialogo().ler(self.imagem)
+        self.assertIsNone(detalhes['ok'])
+        self.assertEqual(chamada.call_count, 1)
+        self.assertTrue(chamada.call_args.kwargs.get('centro'))
+
+    def test_leitura_completa_para_a_confirmacao_final_mede_a_tela_inteira_e_acha_o_ok(self):
         def medir(imagem, **kw):
             return {'combo': (1, 2, 3, 4), 'ok': None if kw.get('centro') else (833, 560)}
         with patch.object(seletor, 'medir_dialogo', side_effect=medir) as chamada:
-            detalhes = seletor._LeitorDialogo().ler(self.imagem)
+            detalhes = seletor._LeitorDialogo(completo=True).ler(self.imagem)
         self.assertEqual(detalhes['ok'], (833, 560))
-        self.assertEqual([c.kwargs.get('centro', False) for c in chamada.call_args_list], [True, False])
+        self.assertEqual([c.kwargs.get('centro', False) for c in chamada.call_args_list], [False])
+
+    def test_aguardar_dialogo_repassa_completo_ao_leitor(self):
+        with patch.object(seletor, '_LeitorDialogo') as leitor:
+            leitor.return_value.ler.return_value = {'arvore': (0, 0, 1, 1)}
+            seletor._aguardar_dialogo(lambda: self.imagem, fase='confirmar_destino_e_ok', completo=True)
+        leitor.assert_called_once_with(completo=True)
+
+    def test_confirmacoes_finais_do_seletor_pedem_leitura_completa(self):
+        import inspect
+        codigo = inspect.getsource(seletor.selecionar_pasta)
+        self.assertEqual(codigo.count("fase='confirmar_destino_e_ok',completo=True"), 3)
 
     def test_fase_so_da_unidade_aceita_o_centro_sem_ok(self):
         with patch.object(seletor, 'medir_dialogo', return_value={'combo': (1, 2, 3, 4)}) as chamada:

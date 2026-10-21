@@ -162,53 +162,97 @@ class TestPerguntaDeGuiasDoAcrobat(unittest.TestCase):
                                 (100, 'Fechar todas as guias Fechar a guia atual Cancelar')])
         self.assertEqual(interacao._posicao_fechar_todas_as_guias(com_botao, 1)[1], 110)
 
-    def preparar(self, antes, depois):
-        imagens = iter([antes, depois])
-        fake_tela = Mock()
-        fake_tela.capturar_tela.side_effect = lambda: next(imagens)
-        fake_tela.LIMITE_TESSERACT = 8
-        return fake_tela
+    def executar(self, antes, depois, dialogos=(7,), retangulo=(100, 100, 517, 259), posicao_local=(84, 128)):
+        api = Mock()
 
-    def executar(self, antes, depois):
-        fake_tela = self.preparar(antes, depois)
-        clique = Mock()
+        def medir(hwnd, referencia):
+            r = referencia._obj
+            r.left, r.top, r.right, r.bottom = retangulo
+            return True
+        api.GetWindowRect.side_effect = medir
+        capturas = Mock(side_effect=[antes, depois])
+        clique, pressionar = Mock(), Mock()
         with patch.dict('sys.modules', {'pytesseract': Mock(image_to_data=Mock(return_value=object()),
                                                             Output=Mock(DICT='dict'))}), \
-                patch('app.tela.capturar_tela', fake_tela.capturar_tela), \
+                patch.object(interacao, '_api_janelas', return_value=(api, Mock())), \
+                patch.object(interacao, '_janelas_dialogo_guias', return_value=list(dialogos)), \
+                patch('app.tela.capturar_tela', capturas), \
                 patch('app.tela._preparar_para_ocr', return_value='x'), \
-                patch.object(interacao, '_posicao_fechar_todas_as_guias', return_value=(300, 200)), \
+                patch.object(interacao, '_posicao_fechar_todas_as_guias', return_value=posicao_local), \
                 patch.object(interacao, 'ponto_seguro_sem_foco'), \
-                patch.object(interacao.pyautogui, 'moveTo'), patch.object(interacao.pyautogui, 'click', clique):
+                patch.object(interacao.pyautogui, 'size', return_value=(1440, 900)), \
+                patch.object(interacao.pyautogui, 'moveTo'), patch.object(interacao.pyautogui, 'press', pressionar), \
+                patch.object(interacao.pyautogui, 'click', clique):
             interacao._ultimo_clique_guias = -10.0
             resultado = interacao.fechar_pergunta_de_guias_do_acrobat()
-        return resultado, clique
+        return resultado, clique, pressionar, capturas
 
-    def test_clica_se_o_recorte_continua_igual_e_nao_clica_se_a_tela_mudou(self):
-        igual = Image.new('RGB', (800, 600), 'white')
-        resultado, clique = self.executar(igual, igual.copy())
+    def test_clica_no_botao_em_coordenadas_da_tela_se_o_dialogo_continua_igual(self):
+        igual = Image.new('RGB', (1440, 900), 'white')
+        resultado, clique, _, _ = self.executar(igual, igual.copy())
         self.assertTrue(resultado)
-        clique.assert_called_once_with(300, 200)
+        clique.assert_called_once_with(184, 228)  # canto do dialogo (100,100) + posicao no recorte (84,128)
+
+    def test_nao_clica_se_a_tela_mudou_entre_a_leitura_e_o_clique(self):
+        igual = Image.new('RGB', (1440, 900), 'white')
         mudada = igual.copy()
-        mudada.paste('black', (250, 190, 350, 210))
-        resultado, clique = self.executar(igual, mudada)
+        mudada.paste('black', (150, 150, 300, 200))
+        resultado, clique, _, _ = self.executar(igual, mudada)
         self.assertFalse(resultado)
         clique.assert_not_called()
 
+    def test_sem_janela_do_dialogo_nao_le_a_tela_nem_clica(self):
+        igual = Image.new('RGB', (1440, 900), 'white')
+        resultado, clique, _, capturas = self.executar(igual, igual.copy(), dialogos=())
+        self.assertFalse(resultado)
+        capturas.assert_not_called()
+        clique.assert_not_called()
+
+    def test_janela_que_nao_tem_tamanho_de_dialogo_ou_esta_fora_da_tela_e_ignorada(self):
+        igual = Image.new('RGB', (1440, 900), 'white')
+        for retangulo in ((0, 0, 1440, 900), (100, 100, 150, 130), (1300, 100, 1717, 259)):
+            with self.subTest(retangulo=retangulo):
+                resultado, clique, _, _ = self.executar(igual, igual.copy(), retangulo=retangulo)
+                self.assertFalse(resultado)
+                clique.assert_not_called()
+
+    def test_ocr_sem_confirmar_a_pergunta_nao_clica_nem_aperta_enter(self):
+        igual = Image.new('RGB', (1440, 900), 'white')
+        resultado, clique, pressionar, _ = self.executar(igual, igual.copy(), posicao_local=None)
+        self.assertFalse(resultado)
+        clique.assert_not_called()
+        pressionar.assert_not_called()
+
     def test_nao_clica_duas_vezes_em_menos_de_tres_segundos(self):
-        igual = Image.new('RGB', (800, 600), 'white')
-        fake_tela = self.preparar(igual, igual.copy())
+        igual = Image.new('RGB', (1440, 900), 'white')
+        api = Mock()
+        api.GetWindowRect.side_effect = lambda h, r: (setattr(r._obj, 'left', 100), setattr(r._obj, 'top', 100),
+                                                       setattr(r._obj, 'right', 517), setattr(r._obj, 'bottom', 259), True)[-1]
         with patch.dict('sys.modules', {'pytesseract': Mock(image_to_data=Mock(return_value=object()),
                                                             Output=Mock(DICT='dict'))}), \
+                patch.object(interacao, '_api_janelas', return_value=(api, Mock())), \
+                patch.object(interacao, '_janelas_dialogo_guias', return_value=[7]), \
                 patch('app.tela.capturar_tela', side_effect=[igual, igual.copy(), igual, igual.copy()]), \
                 patch('app.tela._preparar_para_ocr', return_value='x'), \
-                patch.object(interacao, '_posicao_fechar_todas_as_guias', return_value=(300, 200)), \
+                patch.object(interacao, '_posicao_fechar_todas_as_guias', return_value=(84, 128)), \
                 patch.object(interacao, 'ponto_seguro_sem_foco'), \
+                patch.object(interacao.pyautogui, 'size', return_value=(1440, 900)), \
                 patch.object(interacao.pyautogui, 'moveTo'), \
                 patch.object(interacao.pyautogui, 'click') as clique:
             interacao._ultimo_clique_guias = -10.0
             self.assertTrue(interacao.fechar_pergunta_de_guias_do_acrobat())
             self.assertFalse(interacao.fechar_pergunta_de_guias_do_acrobat())
         self.assertEqual(clique.call_count, 1)
+
+    def test_janelas_do_dialogo_so_com_titulo_exato_adobe_acrobat(self):
+        titulos = {1: 'Adobe Acrobat', 2: 'Empresa 70 - X.pdf - Adobe Acrobat Reader (32-bit)', 3: ' adobe acrobat ',
+                   4: 'Domínio Escrita Fiscal'}
+        api = Mock()
+        api.EnumWindows.side_effect = lambda cb, _: [cb(h, 0) for h in titulos]
+        callback = lambda funcao: funcao
+        with patch.object(interacao, '_dados_janela', side_effect=lambda a, h: {'hwnd': h, 'titulo': titulos[h]}):
+            self.assertEqual(interacao._janelas_dialogo_guias(api, callback), [1, 3])
+
 
 
 if __name__ == '__main__':

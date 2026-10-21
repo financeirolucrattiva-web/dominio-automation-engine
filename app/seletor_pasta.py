@@ -335,10 +335,13 @@ def _selecionado(imagem, no):
 
 class _LeitorDialogo:
     """Cache só desta espera; pixels iguais dispensam repetir OCR/contornos."""
-    def __init__(self,*,somente_unidade=False):
+    def __init__(self,*,somente_unidade=False,completo=False):
         self.assinatura=None
         self.detalhes=None
         self.somente_unidade=somente_unidade
+        # `completo`: leitura da tela inteira (a confirmação final exige o botão OK, que o recorte
+        # central perde: 4 de 4 capturas reais); a navegação aceita o recorte central.
+        self.completo=completo
 
     def ler(self,imagem):
         assinatura=(imagem.mode,imagem.size,imagem.tobytes())
@@ -348,16 +351,11 @@ class _LeitorDialogo:
             extra={'somente_unidade':True} if self.somente_unidade else {}
             medir=lambda **k:medir_dialogo(imagem,**extra,**k)
             from app import otimizacoes
-            if otimizacoes.ativa('ocr_centro_seletor'):
+            if not self.completo and otimizacoes.ativa('ocr_centro_seletor'):
                 try:
                     # OCR só do centro da tela (~2,5x mais rápido); diálogo fora dele: tela inteira.
-                    detalhes=medir(centro=True)
-                    # Nas capturas reais o recorte central perdia as palavras OK/Cancelar (ficam na
-                    # base do diálogo) e devolvia `ok=None` sem erro: a confirmação final recusaria.
-                    # Só vale o resultado do centro se o OK foi medido; senão mede a tela inteira.
-                    if self.somente_unidade or detalhes.get('ok') is not None:
-                        self.detalhes=detalhes
-                        return self._devolver()
+                    self.detalhes=medir(centro=True)
+                    return self._devolver()
                 except SeletorPastaNaoConfirmado:
                     pass
             self.detalhes=medir()
@@ -369,10 +367,10 @@ class _LeitorDialogo:
         return self.detalhes
 
 
-def _aguardar_dialogo(capturar, confirmar=None, tentativas=6, fase='medir_dialogo',estavel=False):
+def _aguardar_dialogo(capturar, confirmar=None, tentativas=6, fase='medir_dialogo',estavel=False,completo=False):
     """Relê a captura após cada ação; nunca repete o clique por atraso."""
     assinatura_anterior=None
-    leitor=_LeitorDialogo()
+    leitor=_LeitorDialogo(completo=completo)
     for tentativa in range(tentativas):
         ponto_seguro()
         imagem = capturar()
@@ -1151,7 +1149,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, cl
             d['sel_final']=sel
             d['ok']=_ok_final(img,d)
             return d['ok'] is not None
-        imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok')
+        imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok',completo=True)
         if clicar_duplo is not None:
             # Operador: a pasta final também recebe duplo clique antes do OK. Relê para
             # garantir que a seleção continua nela.
@@ -1160,7 +1158,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, cl
             clicar_duplo(round(sel['x']-ICONE_DESLOCAMENTO_X),round(sel['y']+sel['h']/2))
             print('PASTA_NAVEGACAO '+json.dumps({'fase':'duplo_clique_final'}),flush=True)
             time.sleep(0.8)
-            imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok')
+            imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final_digitado,fase='confirmar_destino_e_ok',completo=True)
         if not clicar_ok:
             print('Destino dos livros: ensaio concluído, pasta final selecionada; OK NÃO clicado.',flush=True)
             return True
@@ -1180,7 +1178,7 @@ def selecionar_pasta(caminho_remoto, capturar, clicar, tecla, clicar_ok=True, cl
         if not _drive_selecionado(d,caminho.drive[0]) or not _mesmo_no(_no_selecionado(img,d),folha):return False
         d['ok']=_ok_final(img,d)
         return d['ok'] is not None
-    imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final,fase='confirmar_destino_e_ok')
+    imagem,detalhes=_aguardar_dialogo(capturar,confirmar_final,fase='confirmar_destino_e_ok',completo=True)
     if not clicar_ok:
         # Ensaio de navegação: a pasta certa está selecionada e o OK foi localizado, mas
         # nada é confirmado (o operador fecha o diálogo com Cancelar).

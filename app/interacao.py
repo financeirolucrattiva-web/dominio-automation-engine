@@ -303,28 +303,61 @@ def _posicao_fechar_todas_as_guias(dados, escala=2):
 _ultimo_clique_guias = -10.0
 
 
+def _janelas_dialogo_guias(api, callback):
+    """HWND das janelas de título exatamente "Adobe Acrobat": é o título do diálogo "Deseja fechar
+    todas as guias ou a guia atual?"; a janela do documento tem o nome do .pdf no título."""
+    achados = []
+
+    def enumerar(hwnd, _):
+        dados = _dados_janela(api, hwnd)
+        if dados and dados["titulo"].strip().casefold() == "adobe acrobat":
+            achados.append(hwnd)
+        return True
+
+    api.EnumWindows(callback(enumerar), 0)
+    return achados
+
+
 def fechar_pergunta_de_guias_do_acrobat():
     """Se o Acrobat perguntou "fechar todas as guias ou a guia atual?", clica em "Fechar todas as guias".
 
     Só é chamada depois de pedir o fechamento de um leitor novo. Devolve True se clicou.
+    Primeiro acha a JANELA do diálogo pelo título (sem OCR: sem diálogo não custa nada) e lê só o
+    retângulo dela (pequeno: ~0,3 s por leitura). A leitura da tela inteira, usada antes, não
+    reconhecia o diálogo de forma confiável e custava ~3,5 s por varredura (45 s para fechar o Acrobat).
     """
     from app import tela
-    ponto_seguro_sem_foco()
-    imagem = tela.capturar_tela()
-    # OCR direto: com o Acrobat na frente a trava de foco de `_ler_dados_ocr` recusaria.
     import pytesseract
-    dados = pytesseract.image_to_data(tela._preparar_para_ocr(imagem, 2), lang="por",
-                                      output_type=pytesseract.Output.DICT, timeout=tela.LIMITE_TESSERACT)
-    posicao = _posicao_fechar_todas_as_guias(dados, 2)
-    if posicao is None:
+    ponto_seguro_sem_foco()
+    api, callback = _api_janelas()
+    dialogos = _janelas_dialogo_guias(api, callback)
+    if not dialogos:
         return False
     global _ultimo_clique_guias
     if time.monotonic() - _ultimo_clique_guias < 3.0:
-        return False  # o dialogo acabou de receber um clique: espera sumir em vez de clicar de novo
-    # O recorte em volta do botao precisa estar IGUAL numa captura nova (dialogo ainda ali, sem troca).
-    caixa = (max(posicao[0] - 200, 0), max(posicao[1] - 40, 0), posicao[0] + 200, posicao[1] + 40)
-    antes = imagem.crop(caixa).convert("RGB").tobytes()
-    if tela.capturar_tela().crop(caixa).convert("RGB").tobytes() != antes:
+        return False  # o diálogo acabou de receber um clique: espera sumir em vez de clicar de novo
+    retangulo = _Retangulo()
+    if not api.GetWindowRect(dialogos[0], ctypes.byref(retangulo)):
+        return False
+    esquerda, topo, direita, base = retangulo.left, retangulo.top, retangulo.right, retangulo.bottom
+    largura_tela, altura_tela = pyautogui.size()
+    if not (250 <= direita - esquerda <= 800 and 90 <= base - topo <= 350
+            and 0 <= esquerda and 0 <= topo and direita <= largura_tela and base <= altura_tela):
+        return False  # não tem o tamanho de um diálogo na tela: não é este
+    caixa = (esquerda, topo, direita, base)
+    recorte = tela.capturar_tela().crop(caixa)
+    posicao_local = None
+    for escala in (2, 3, 4):  # a escala 4 cola "Fechar todas" numa palavra em alguns casos
+        dados = pytesseract.image_to_data(tela._preparar_para_ocr(recorte, escala), lang="por",
+                                          output_type=pytesseract.Output.DICT, timeout=tela.LIMITE_TESSERACT)
+        posicao_local = _posicao_fechar_todas_as_guias(dados, escala)
+        if posicao_local is not None:
+            break
+    if posicao_local is None:
+        return False  # nunca aperta Enter às cegas: outro diálogo "Adobe Acrobat" poderia ter outro padrão
+    posicao = (esquerda + posicao_local[0], topo + posicao_local[1])
+    # O diálogo precisa estar IGUAL numa captura nova (ainda ali, sem troca) imediatamente antes do clique.
+    if tela.capturar_tela().crop(caixa).convert("RGB").tobytes() != recorte.convert("RGB").tobytes():
         return False
     print("Acrobat perguntou sobre as guias: clicando em Fechar todas as guias.", flush=True)
     ponto_seguro_sem_foco()
