@@ -321,8 +321,12 @@ _GEOMETRIA_LEMBRADA={}
 _LIMITE_ASSINATURA=6.0
 
 
+_FALHAS_DA_MEMORIA={}
+
+
 def esquecer_geometria():
     _GEOMETRIA_LEMBRADA.clear()
+    _FALHAS_DA_MEMORIA.clear()
 
 
 def _assinatura_dos_rotulos(imagem,campos):
@@ -355,9 +359,17 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
         if atual is not None and _distancia(atual,assinatura)<=_LIMITE_ASSINATURA:
             try:
                 if registrar:registrar({'fase':'geometria','confirmado':True,'motivo':'geometria_lembrada'})
-                return _ler_valores(imagem,campos,[],registrar,salvar_recorte)
+                resultado=_ler_valores(imagem,campos,[],registrar,salvar_recorte)
+                _FALHAS_DA_MEMORIA.pop(chave,None)
+                return resultado
             except ValueError:
-                pass  # leitura do recorte falhou: esquece e refaz a medição completa
+                # Rótulos iguais e data ilegível no recorte (campo com cursor/seleção logo depois de
+                # digitar): é o mesmo erro que a medição completa daria (e refazê-la custava ~12 s a
+                # cada releitura: 53 s no período do Resumo). Só na 2ª falha seguida a memória é
+                # descartada e a tela inteira é medida de novo.
+                _FALHAS_DA_MEMORIA[chave]=_FALHAS_DA_MEMORIA.get(chave,0)+1
+                if _FALHAS_DA_MEMORIA[chave]<2:raise
+                _FALHAS_DA_MEMORIA.pop(chave,None)
         _GEOMETRIA_LEMBRADA.pop(chave,None)
     from app.tela import OCR_PADRAO, pre_aquecer_ocr, reutilizar_ocr  # módulo real, não o patch dos testes
     with reutilizar_ocr():

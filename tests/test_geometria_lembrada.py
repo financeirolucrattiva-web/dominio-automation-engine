@@ -47,17 +47,38 @@ class TestGeometriaLembrada(unittest.TestCase):
         self.assertTrue(ocr.called)
         self.assertEqual(lr._GEOMETRIA_LEMBRADA, {})
 
-    def test_falha_de_leitura_com_geometria_lembrada_esquece_e_refaz(self):
+    def test_primeira_falha_do_recorte_repete_o_erro_e_mantem_a_memoria_sem_medir_de_novo(self):
         imagem = tela()
         self.lembrar(imagem)
-        with patch.object(lr, '_ler_valores', side_effect=ValueError('data ilegível')), \
-                patch('app.tela._ler_dados_ocr', side_effect=RuntimeError('sem OCR')) as ocr, \
-                patch('app.tela.ler_dados_ocr_windows', return_value=None), \
-                patch('app.tela.ler_dados_ocr_formulario', return_value=None):
+        with patch.object(lr, '_ler_valores', side_effect=ValueError('data ilegível')),                 patch('app.tela._ler_dados_ocr', side_effect=AssertionError('nao pode medir a tela inteira')) as ocr:
+            with self.assertRaises(ValueError):
+                lr.ler_campos(imagem)
+        ocr.assert_not_called()
+        self.assertIn((False, imagem.size), lr._GEOMETRIA_LEMBRADA)
+
+    def test_segunda_falha_seguida_esquece_e_refaz_a_medicao_completa(self):
+        imagem = tela()
+        self.lembrar(imagem)
+        with patch.object(lr, '_ler_valores', side_effect=ValueError('data ilegível')),                 patch('app.tela._ler_dados_ocr', side_effect=RuntimeError('sem OCR')) as ocr,                 patch('app.tela.ler_dados_ocr_windows', return_value=None),                 patch('app.tela.ler_dados_ocr_formulario', return_value=None):
+            with self.assertRaises(ValueError):
+                lr.ler_campos(imagem)
+            ocr.assert_not_called()
             with self.assertRaises(ValueError):
                 lr.ler_campos(imagem)
         self.assertTrue(ocr.called)
         self.assertEqual(lr._GEOMETRIA_LEMBRADA, {})
+
+    def test_leitura_com_sucesso_zera_a_contagem_de_falhas(self):
+        imagem = tela()
+        self.lembrar(imagem)
+        valores = {'inicial': {'valor': '01/08/2026', 'posicao': (641, 432)}}
+        with patch.object(lr, '_ler_valores', side_effect=[ValueError('x'), valores, ValueError('y')]):
+            with self.assertRaises(ValueError):
+                lr.ler_campos(imagem)
+            self.assertEqual(lr.ler_campos(imagem), valores)
+            with self.assertRaises(ValueError):  # 1a falha de novo (contagem zerada), nao a 2a
+                lr.ler_campos(imagem)
+        self.assertIn((False, imagem.size), lr._GEOMETRIA_LEMBRADA)
 
     def test_medicao_completa_com_duas_leituras_concordantes_grava_a_memoria(self):
         # Regressao (21/10): _ler_campos_medindo usava `otimizacoes` sem importar -> NameError no Resumo e no Livros.
