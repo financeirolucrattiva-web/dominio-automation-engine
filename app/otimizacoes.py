@@ -49,7 +49,7 @@ def _ler_arquivo():
     if _cache["mtime"] == mtime and _cache["config"] is not None:
         return _cache["config"]
     try:
-        dados = json.loads(ARQUIVO.read_text(encoding="utf-8"))
+        dados = json.loads(ARQUIVO.read_text(encoding="utf-8-sig"))  # o Bloco de Notas grava BOM
         if not isinstance(dados, dict) or any(not isinstance(v, bool) for v in dados.values()):
             raise ValueError("valores precisam ser verdadeiro/falso")
         desconhecidos = set(dados) - set(NOMES) - {"modo_seguro"}
@@ -66,7 +66,9 @@ def _ler_arquivo():
 
 
 def _modo_seguro_no_ambiente():
-    return os.environ.get("DOMINIO_MODO_SEGURO", "").strip().lower() in ("1", "true", "sim", "yes")
+    """Qualquer valor preenchido liga o modo seguro, exceto os que dizem "não" (na dúvida, o clássico)."""
+    valor = os.environ.get("DOMINIO_MODO_SEGURO", "").strip().lower()
+    return bool(valor) and valor not in ("0", "false", "nao", "não", "no", "off")
 
 
 def ativa(nome):

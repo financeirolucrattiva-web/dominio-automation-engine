@@ -186,6 +186,14 @@ def _preencher(inicial, final, interacao, referencia=None):
     return _conferir_antes_ok(inicial, final, referencia=referencia, leitura_previa=leitura)
 
 
+def _registrar_conferencia(dados):
+    """Linha de diagnóstico por PDF. ASCII e à prova de falha: o log nunca decide a classificação."""
+    try:
+        print('LIVROS_CONFERENCIA '+json.dumps(dados, ensure_ascii=True), flush=True)
+    except Exception:
+        pass
+
+
 def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignorar=frozenset()):
     """Classifica pelo conteúdo, nunca pelo nome, ordem ou primeiro preview."""
     from pypdf import PdfReader
@@ -220,14 +228,13 @@ def _conferir_conjunto(pasta, inicial, final, cnpj, nome, artefatos=None, ignora
                     tipos.append(tipo)
                 except ValueError as erro:
                     motivos[tipo] = str(erro)  # mensagens fixas do validador, sem dados do PDF
-            print('LIVROS_CONFERENCIA '+json.dumps({'arquivo': caminho.name, 'paginas': paginas,
-                  'tipos': tipos, 'motivos': motivos if len(tipos) != 1 else {}}, ensure_ascii=False), flush=True)
+            _registrar_conferencia({'arquivo': caminho.name, 'paginas': paginas,
+                                    'tipos': tipos, 'motivos': motivos if len(tipos) != 1 else {}})
             if len(tipos) == 1:
                 candidatos.setdefault(tipos[0], []).append(caminho)
         except Exception as erro:
             # PDF ilegível fica na pasta de saída e nunca vira artefato válido.
-            print('LIVROS_CONFERENCIA '+json.dumps({'arquivo': caminho.name, 'ilegivel': type(erro).__name__}),
-                  flush=True)
+            _registrar_conferencia({'arquivo': caminho.name, 'ilegivel': type(erro).__name__})
             continue
     artefatos = [] if artefatos is None else artefatos
     for tipo in TIPOS:

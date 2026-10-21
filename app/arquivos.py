@@ -133,6 +133,9 @@ def validar_livro_dos_textos(textos, tipo, inicio, fim, cnpj_esperado=None):
         try:
             return validar_livro(texto, tipo, inicio, fim, cnpj_esperado)
         except ValueError as erro:
+            if "CNPJ do PDF não corresponde" in str(erro):
+                raise  # CNPJ de outra empresa num dos textos: a outra leitura não pode "salvar"
+
             ultimo_erro = erro
     raise ultimo_erro
 

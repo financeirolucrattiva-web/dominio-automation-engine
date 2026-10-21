@@ -1,5 +1,7 @@
 @echo off
-cd /d "%~dp0..\.."
+rem Este atalho troca os arquivos do projeto (inclusive ele mesmo): por isso roda a partir de uma COPIA em %TEMP%.
+if "%~1"=="" (copy /y "%~f0" "%TEMP%\voltar_versao_copia.bat" >nul & "%TEMP%\voltar_versao_copia.bat" "%~dp0" & exit /b)
+cd /d "%~1..\.."
 echo Voltar para uma versao estavel (nada e apagado; Atualizar.bat traz a versao mais nova de volta).
 echo PARE O SERVIDOR antes e reinicie depois.
 echo.

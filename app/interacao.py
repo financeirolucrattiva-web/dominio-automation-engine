@@ -289,6 +289,8 @@ def _posicao_fechar_todas_as_guias(dados, escala=2):
             continue  # caixa "Sempre fechar..." ou a pergunta "Deseja fechar..."
         if posicao + 4 < len(texto) and texto[posicao + 4] == "ou":
             continue
+        if "atual" not in texto[posicao + 4:posicao + 8]:
+            continue  # o botao vem na mesma fileira do vizinho "Fechar a guia atual"; a caixa nao
         grupo = [palavras[n][0] for n in range(posicao, min(posicao + 4, len(palavras)))]
         esquerda = min(dados["left"][i] for i in grupo)
         direita = max(dados["left"][i] + dados["width"][i] for i in grupo)
@@ -296,6 +298,9 @@ def _posicao_fechar_todas_as_guias(dados, escala=2):
         baixo = max(dados["top"][i] + dados["height"][i] for i in grupo)
         return ((esquerda + direita) // 2 // escala, (topo + baixo) // 2 // escala)
     return None
+
+
+_ultimo_clique_guias = -10.0
 
 
 def fechar_pergunta_de_guias_do_acrobat():
@@ -313,8 +318,17 @@ def fechar_pergunta_de_guias_do_acrobat():
     posicao = _posicao_fechar_todas_as_guias(dados, 2)
     if posicao is None:
         return False
+    global _ultimo_clique_guias
+    if time.monotonic() - _ultimo_clique_guias < 3.0:
+        return False  # o dialogo acabou de receber um clique: espera sumir em vez de clicar de novo
+    # O recorte em volta do botao precisa estar IGUAL numa captura nova (dialogo ainda ali, sem troca).
+    caixa = (max(posicao[0] - 200, 0), max(posicao[1] - 40, 0), posicao[0] + 200, posicao[1] + 40)
+    antes = imagem.crop(caixa).convert("RGB").tobytes()
+    if tela.capturar_tela().crop(caixa).convert("RGB").tobytes() != antes:
+        return False
     print("Acrobat perguntou sobre as guias: clicando em Fechar todas as guias.", flush=True)
     ponto_seguro_sem_foco()
+    _ultimo_clique_guias = time.monotonic()
     pyautogui.moveTo(*posicao, duration=0.2)
     pyautogui.click(*posicao)
     return True

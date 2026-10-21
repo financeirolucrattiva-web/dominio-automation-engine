@@ -21,7 +21,7 @@ from app import otimizacoes  # noqa: E402
 
 def _ler():
     try:
-        dados = json.loads(otimizacoes.ARQUIVO.read_text(encoding="utf-8"))
+        dados = json.loads(otimizacoes.ARQUIVO.read_text(encoding="utf-8-sig"))
         return dados if isinstance(dados, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -42,9 +42,9 @@ def modo_seguro(ligado):
     dados = _ler()
     if ligado:
         dados["modo_seguro"] = True
+        _gravar(dados)
     else:
-        dados.pop("modo_seguro", None)
-    _gravar(dados)
+        _gravar({})  # "rapido" = padrao: apaga tambem os desligamentos individuais
 
 
 def definir(nome, valor):
@@ -61,7 +61,8 @@ def definir(nome, valor):
 def status():
     otimizacoes.restaurar_para_testes()
     existe = " (existe)" if otimizacoes.ARQUIVO.exists() else " (nao existe)"
-    linhas = ["Arquivo: " + str(otimizacoes.ARQUIVO) + existe]
+    linhas = ["Configuracao (arquivo/ambiente): " + str(otimizacoes.ARQUIVO) + existe,
+              "(desligamento automatico por falha aparece como OTIMIZACAO_DESLIGADA em data/servidor_detalhes.log)"]
     if os.environ.get("DOMINIO_MODO_SEGURO", "").strip():
         linhas.append("Variavel DOMINIO_MODO_SEGURO definida: " + os.environ["DOMINIO_MODO_SEGURO"])
     for nome, ativa in otimizacoes.estado().items():

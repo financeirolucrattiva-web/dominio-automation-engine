@@ -150,7 +150,7 @@ class TestModoOtimizacoes(unittest.TestCase):
         codigo, texto = self.executar("seguro")
         self.assertEqual(codigo, 0)
         self.assertEqual(json.loads(self.arquivo.read_text(encoding="utf-8")), {"modo_seguro": True})
-        self.assertNotIn("LIGADA", texto)
+        self.assertNotIn("  LIGADA ", texto)
         codigo, texto = self.executar("rapido")
         self.assertFalse(self.arquivo.exists())
         self.assertNotIn("desligada", texto)

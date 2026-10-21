@@ -19,6 +19,7 @@ except ImportError:  # executado como `python scripts/voltar_versao.py`
     from atualizar_projeto import AtualizacaoRecusada, _git
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 PREFIXO = "estavel-"
 
 
@@ -49,11 +50,33 @@ def _conferir_instalacao(pasta):
         raise AtualizacaoRecusada(
             "Existem alteracoes locais em arquivos versionados. Elas foram preservadas.\n"
             "Confira git status --short --branch antes de trocar de versao.")
+    if _git(pasta, "symbolic-ref", "--quiet", "HEAD", aceitar=(0, 1)).returncode != 0:
+        # HEAD destacado: o commit atual pode nao estar em nenhuma branch e ficaria inalcancavel.
+        if not _git(pasta, "for-each-ref", "--contains", "HEAD", "--format=%(refname)", "refs/heads", "refs/remotes").stdout.strip():
+            raise AtualizacaoRecusada(
+                "HEAD destacado com commits que nao estao em nenhuma branch. Nada foi alterado. "
+                "Guarde esse trabalho numa branch (git switch -c minha-branch) e tente de novo.")
 
 
 def voltar(pasta=ROOT, tag=None):
+    """Troca de versao com o servidor/rotina parados: as travas de execucao impedem trocar o codigo
+    no meio de uma rotina (ImportError)."""
+    from contextlib import ExitStack
+    from app.trava_execucao import TravaExecucao
     pasta = Path(pasta).resolve()
     _conferir_instalacao(pasta)
+    with ExitStack() as pilha:
+        for nome in ("sessao_executor.lock", "executor_simulado.lock"):
+            trava = TravaExecucao(pasta / "data" / nome)
+            try:
+                trava.adquirir()
+            except OSError:
+                raise AtualizacaoRecusada("Pare o servidor e aguarde a rotina atual terminar antes de voltar.") from None
+            pilha.callback(trava.liberar)
+        return _voltar_travado(pasta, tag)
+
+
+def _voltar_travado(pasta, tag):
     disponiveis = tags_estaveis(pasta)
     if tag is None:
         if not disponiveis:
