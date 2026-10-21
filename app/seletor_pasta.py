@@ -351,8 +351,13 @@ class _LeitorDialogo:
             if otimizacoes.ativa('ocr_centro_seletor'):
                 try:
                     # OCR só do centro da tela (~2,5x mais rápido); diálogo fora dele: tela inteira.
-                    self.detalhes=medir(centro=True)
-                    return self._devolver()
+                    detalhes=medir(centro=True)
+                    # Nas capturas reais o recorte central perdia as palavras OK/Cancelar (ficam na
+                    # base do diálogo) e devolvia `ok=None` sem erro: a confirmação final recusaria.
+                    # Só vale o resultado do centro se o OK foi medido; senão mede a tela inteira.
+                    if self.somente_unidade or detalhes.get('ok') is not None:
+                        self.detalhes=detalhes
+                        return self._devolver()
                 except SeletorPastaNaoConfirmado:
                     pass
             self.detalhes=medir()

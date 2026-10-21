@@ -104,17 +104,31 @@ class TestOcrCentroDoSeletor(unittest.TestCase):
             chamadas.append(kw.get('centro', False))
             if kw.get('centro'):
                 raise seletor.SeletorPastaNaoConfirmado('fora do centro')
-            return {'combo': (1, 2, 3, 4)}
+            return {'combo': (1, 2, 3, 4), 'ok': (9, 9)}
         with patch.object(seletor, 'medir_dialogo', side_effect=medir):
-            self.assertEqual(seletor._LeitorDialogo().ler(self.imagem), {'combo': (1, 2, 3, 4)})
+            self.assertEqual(seletor._LeitorDialogo().ler(self.imagem), {'combo': (1, 2, 3, 4), 'ok': (9, 9)})
         self.assertEqual(chamadas, [True, False])
 
     def test_centro_que_funciona_nao_repete_a_leitura(self):
-        with patch.object(seletor, 'medir_dialogo', return_value={'combo': (1, 2, 3, 4)}) as medir:
+        with patch.object(seletor, 'medir_dialogo', return_value={'combo': (1, 2, 3, 4), 'ok': (9, 9)}) as medir:
             leitor = seletor._LeitorDialogo()
             leitor.ler(self.imagem)
             leitor.ler(self.imagem)  # mesma captura: cache
         self.assertEqual(medir.call_count, 1)
+
+    def test_centro_sem_o_ok_medido_cai_para_a_tela_inteira(self):
+        # Captura real: no recorte central o OCR perdia OK/Cancelar e medir_dialogo devolvia ok=None.
+        def medir(imagem, **kw):
+            return {'combo': (1, 2, 3, 4), 'ok': None if kw.get('centro') else (833, 560)}
+        with patch.object(seletor, 'medir_dialogo', side_effect=medir) as chamada:
+            detalhes = seletor._LeitorDialogo().ler(self.imagem)
+        self.assertEqual(detalhes['ok'], (833, 560))
+        self.assertEqual([c.kwargs.get('centro', False) for c in chamada.call_args_list], [True, False])
+
+    def test_fase_so_da_unidade_aceita_o_centro_sem_ok(self):
+        with patch.object(seletor, 'medir_dialogo', return_value={'combo': (1, 2, 3, 4)}) as chamada:
+            seletor._LeitorDialogo(somente_unidade=True).ler(self.imagem)
+        self.assertEqual(chamada.call_count, 1)
 
     def test_com_a_otimizacao_desligada_usa_so_a_tela_inteira(self):
         with patch.object(otimizacoes, '_forcado', False), \
