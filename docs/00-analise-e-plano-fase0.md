@@ -5209,6 +5209,67 @@ encerramento do EFD (94 s, causa ainda não registrada), esperas de renderizaç�
 **Validação:** testes novos (geometria lembrada, cabeçalhos reais); suíte completa sem falhas
 novas em relação à base. Não validado ao vivo.
 
+### 0.149 Segunda rodada de velocidade: OCR em paralelo, EFD fecha o formulário, interruptores e volta de versão (21/10/2026)
+
+**Pedido do operador:** o lote das 3 rotinas já roda certo, mas leva 12–15 min por empresa; reduzir
+bastante, "com recursos de segurança para voltar se preciso".
+
+**Evidência medida (eventos de execução de 20/10, versão anterior):** Resumo 212 s (período 85, prévia
+31–49, exportar 36–47, mais ~31 s sem etapa para o Adobe abrir e fechar), EFD 114–140 s (**encerrar 72–125 s**),
+Livros 380–520 s (período 69–94, prévia 37–55, exportar 163–270). Em sequência, cada leitura OCR de tela
+inteira custa 1–4 s (tesseract 2x 2,2 s, 4x 3,5 s, Windows ~1,2 s) e os detectores as repetem de 2 a 8 vezes por
+tentativa; medido neste PC (8 núcleos), 6 leituras rodam em 5 s quando em paralelo contra 26 s em sequência.
+
+**Causa do EFD lento (captura real `erro_fechar_formulario_efd`):** o F sublinhado do botão (tecla de atalho)
+cola na borda e o tesseract lê "Eechar" nas duas preparações; `_rotulo(palavras, 'Fechar')` exigia o texto
+exato e falhava sempre. `_fechar_formulario_efd` gastava as 4 tentativas (~45 s de OCR pesado), salvava a
+captura de erro e só a limpeza geral (Alt+Tab + Esc) fechava o formulário (~19 s). Reproduzido offline na captura
+real: o novo `_rotulo_fechar` (letra inicial qualquer + "echar", candidato único) clica em (926, 354), centro do
+botão Fechar.
+
+**Mudanças de velocidade (cada uma com interruptor e volta ao caminho clássico):**
+- `ocr_paralelo`: `tela.pre_aquecer_ocr` roda em threads as leituras que o código sequencial pedirá (tesseract em
+  paralelo, OCR do Windows numa só tarefa porque aceita uma leitura por vez) e as põe no cache da checagem;
+  usado na leitura do formulário de Livros, no formulário do Resumo, na medição dos campos de data, na guarda de
+  avisos e no `_achar_texto_reforcado` (EFD). As decisões não mudam, só o tempo.
+- `geometria_lembrada`: a posição dos campos de data (medida por 6 leituras de tela inteira, ~10–15 s, 4 a 6 vezes
+  por rotina) fica guardada com uma assinatura da faixa dos rótulos; só vale se a faixa for igual e as duas
+  leituras do recorte de cada data concordarem; senão refaz tudo.
+- `ocr_centro_seletor`: o OCR a 4x do Procurar Pasta (feito a cada passo, ~3,5 s) lê só o centro 60% x 60% da
+  tela; se o diálogo não for reconhecido ali, lê a tela inteira.
+- `fechar_adobe_curto`: Livros não espera 20 s por um Adobe que `_aguardar_arquivos` já fechou.
+
+- Pré-aquecimento ESCALONADO: onde a 1ª leitura costuma bastar (seleção dos livros, formulário do Resumo,
+  `_achar_texto_reforcado`) o paralelo só entra depois da 1ª falha, para não custar mais que antes no caso
+  comum; tela e centro da 1ª tentativa rodam juntos (`tela.pre_aquecer_deteccao`); as esperas do Livros
+  (`_aguardar`) pré-aquecem avisos + leitura do detector na 1ª checagem.
+- Comparador `scripts/comparar_otimizacoes.py` / `Comparar Otimizacoes.bat`: roda o MESMO OCR clássico e otimizado
+  sobre capturas salvas e confere identidade (só nomes, contagens e tempos; não opera o Domínio). Nas
+  comparações feitas (leitura dos livros, campos de data, avisos) todas idênticas, p.ex. `ler_campos` 22–28 s
+  clássico contra ~7 s otimizado.
+
+**Recursos para voltar (nada exige mexer em código):**
+- `data/otimizacoes.json` (`{"modo_seguro": true}` ou `{"ocr_paralelo": false}`) ou `DOMINIO_MODO_SEGURO=1`;
+  atalhos `Modo Seguro`, `Modo Rapido`, `Ver Otimizacoes` (script `scripts/modo_otimizacoes.py`). Vale na leitura
+  seguinte, sem reiniciar o servidor. Arquivo inválido = modo seguro. O log mostra `OTIMIZACOES {...}` uma vez
+  por processo.
+- Desligamento automático: falha do próprio mecanismo paralelo desliga `ocr_paralelo` pelo resto do processo
+  (`OTIMIZACAO_DESLIGADA`) e a rotina segue em sequência.
+- Volta de versão: `scripts/voltar_versao.py` / `Voltar Versao Estavel.bat` troca para a tag `estavel-*` numa branch
+  local `voltar-<tag>` sem apagar nada (recusa se houver alteração local em arquivo versionado);
+  `Atualizar.bat` reabre a main. Tag `estavel-2026-10-21` = versão em que o operador relatou o lote completo.
+- Saída da tela: `voltar_ao_inicio` sobe com até 12 Esc (antes 5) conferindo a tela azul a cada passo e tenta
+  Alt+Tab se o foco do Domínio se perder no meio.
+
+**Para a próxima medição:** `[perfil] etapa: ocr Nx Ss-cpu (tesseract…, windows…) | captura…` por etapa e total,
+gravado no console e em `data/servidor_detalhes.log` junto com `[tempo]`, `OTIMIZACOES`, `LIVROS_CONFERENCIA` e
+`FOCO_PERDIDO` (`app/perfil.py`, só contadores). Itens ainda lentos e sem causa medida: Procurar Pasta
+(unidade ~30 s), abertura/fechamento do Adobe (~25–30 s por PDF/guia), espera da prévia.
+
+**Validação:** testes novos (paralelismo e cache, memória de geometria, interruptores e arquivo inválido, centro do
+seletor com volta à tela inteira, `_rotulo_fechar`, volta de versão em repositórios Git reais, modo seguro, perfil,
+linhas no diagnóstico); suíte completa sem falhas novas em relação à base. Não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e
