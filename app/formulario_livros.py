@@ -295,6 +295,19 @@ def ler_selecao_com_ocr(imagem, registrar=None):
                   ('tesseract',4,'cinza'), ('tesseract',4,'binaria'),
                   ('tesseract',6,'binaria'), ('windows',2,'padrao'),
                   ('windows',4,'padrao')]
+    from app.tela import pre_aquecer_ocr, reutilizar_ocr  # módulo real, não o patch dos testes
+    with reutilizar_ocr():
+        # Com o formulário ainda não pintado, as 7 leituras rodavam uma atrás da outra (~15 s por
+        # tentativa); em paralelo o tempo é o da mais lenta e as decisões continuam as mesmas.
+        pre_aquecer_ocr((imagem, [
+            ('windows' if m == 'windows' else 'tesseract', e) if p == 'padrao' or m == 'windows'
+            else ('formulario', e, p, 6) for m, e, p in tentativas]))
+        return _ler_selecao_sequencial(imagem, registrar, tentativas, tela)
+
+
+def _ler_selecao_sequencial(imagem, registrar, tentativas, tela):
+    ultimo = None
+    lidos = []
     for motor, escala, preparo in tentativas:
         contexto = {'motor':motor, 'escala':escala, 'preparo':preparo}
         def registrar_tentativa(diagnostico):

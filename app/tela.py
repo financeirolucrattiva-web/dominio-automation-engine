@@ -18,6 +18,8 @@ suposição:
 import ctypes
 import copy
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+import contextvars
 from contextvars import ContextVar
 import hashlib
 import re
@@ -186,9 +188,66 @@ def _ler_dados_ocr(imagem, escala):
     imagem_ocr = _preparar_para_ocr(imagem, escala) if escala > 1 else imagem
     ponto_seguro()
     dados = pytesseract.image_to_data(imagem_ocr, lang="por", output_type=Output.DICT,timeout=LIMITE_TESSERACT)
-    if cache is not None and len(cache) < 8:
+    if cache is not None and len(cache) < _LIMITE_CACHE_OCR:
         cache[chave] = dados
     return dados
+
+
+_LIMITE_CACHE_OCR = 24
+
+
+OCR_PADRAO = (('tesseract', 2), ('tesseract', 4), ('windows', 2), ('windows', 4))
+
+
+def pre_aquecer_ocr(*pares, maximo=6):
+    """Roda em paralelo as leituras OCR que o código vai pedir em seguida.
+
+    Cada `par` é (imagem, variantes), com variantes ('tesseract', escala) | ('windows', escala) |
+    ('formulario', escala, preparo, psm). Uma leitura de tela inteira leva 1–4 s e os detectores
+    as chamam em sequência (2 a 8 vezes quando o estado ainda não apareceu); em paralelo o tempo
+    cai para o da mais lenta. O resultado vai para o cache da checagem (`reutilizar_ocr`), então o
+    código sequencial existente só passa a achar tudo pronto, com as mesmas decisões de antes.
+    Sem cache ativo não faz nada. O OCR do Windows aceita uma leitura por vez (`LEITOR_WINDOWS`):
+    as variantes dele rodam em sequência numa só tarefa. Falha de uma variante é ignorada aqui (a
+    chamada sequencial refaz e trata, como antes); parar/pausar continua valendo. Interruptor:
+    `otimizacoes` ("ocr_paralelo"); falha do próprio mecanismo o desliga e a rotina segue em sequência.
+    """
+    from . import otimizacoes
+    if _CACHE_OCR.get() is None or not otimizacoes.ativa('ocr_paralelo'):
+        return
+    trabalhos = [(imagem, variante) for imagem, variantes in pares for variante in variantes]
+    if len(trabalhos) < 2:
+        return
+    ponto_seguro()
+
+    def executar(grupo):
+        for imagem, variante in grupo:
+            try:
+                if variante[0] == 'tesseract':
+                    _ler_dados_ocr(imagem, variante[1])
+                elif variante[0] == 'windows':
+                    ler_dados_ocr_windows(imagem, variante[1])
+                else:
+                    ler_dados_ocr_formulario(imagem, variante[1], variante[2], variante[3])
+            except ExecucaoInterrompida:
+                raise
+            except Exception:
+                pass
+
+    windows = tuple(t for t in trabalhos if t[1][0] == 'windows')
+    grupos = [(t,) for t in trabalhos if t[1][0] != 'windows']
+    if windows:
+        grupos.append(windows)
+    try:
+        with ThreadPoolExecutor(min(maximo, len(grupos))) as executor:
+            futuros = [executor.submit(contextvars.copy_context().run, executar, grupo) for grupo in grupos]
+            for futuro in futuros:
+                futuro.result()
+    except ExecucaoInterrompida:
+        raise
+    except Exception as erro:
+        otimizacoes.desligar('ocr_paralelo', type(erro).__name__)  # o laço sequencial faz as leituras
+    ponto_seguro()
 
 
 def preparar_recorte_ocr(imagem, escala=4, preparo='cinza'):
@@ -209,9 +268,20 @@ def ler_dados_ocr_formulario(imagem, escala=4, preparo='cinza', psm=6):
     """Opinião adicional isolada do cache geral de tela inteira."""
     if psm not in (6, 11):
         raise ValueError('Segmentação OCR não reconhecida.')
+    cache = _CACHE_OCR.get()
+    chave = None
+    if cache is not None:
+        pixels = imagem.convert('RGBA').tobytes() if imagem.mode == 'P' else imagem.tobytes()
+        chave = ('formulario', imagem.mode, imagem.size, escala, preparo, psm,
+                 hashlib.sha256(pixels).digest())
+        if chave in cache:
+            return cache[chave]
     imagem_ocr = preparar_recorte_ocr(imagem, escala, preparo)
-    return pytesseract.image_to_data(imagem_ocr, lang='por',
+    dados = pytesseract.image_to_data(imagem_ocr, lang='por',
         config=f'--psm {psm}', output_type=Output.DICT,timeout=LIMITE_TESSERACT)
+    if cache is not None and len(cache) < _LIMITE_CACHE_OCR:
+        cache[chave] = dados
+    return dados
 
 
 def ler_dados_ocr_linha_rotulo(imagem, escala=4, preparo='cinza'):
@@ -307,7 +377,7 @@ def _reconhecer_ocr_windows(imagem, escala, lang='pt', preparar=True):
     except OCRTempoLimite:
         print('OCR_WINDOWS tempo_limite; continuando com os outros leitores.',flush=True)
         raise
-    if (cache is not None and len(cache)<8 and isinstance(resultado,dict)
+    if (cache is not None and len(cache)<_LIMITE_CACHE_OCR and isinstance(resultado,dict)
             and isinstance(resultado.get('lines'),list)):cache[chave]=resultado
     return resultado
 

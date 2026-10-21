@@ -452,7 +452,10 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         acompanhamento.confirmar('arquivo_novo_estavel')
         acompanhamento.iniciar('conferir_pdf')
     _conferir_conjunto(pasta,inicial,final,cnpj,empresa[0],artefatos=artefatos,ignorar=previos)
-    dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio, espera=3)  # garante que nenhum Acrobat ficou na frente
+    from app import otimizacoes
+    # Os leitores já foram fechados durante a espera dos PDFs; esperar 20 s por outro é tempo perdido.
+    dominio._fechar_leitores_pdf(leitores_antes, acompanhamento.janela_dominio,
+                                 espera=3 if otimizacoes.ativa('fechar_adobe_curto') else 20)  # garante que nenhum Acrobat ficou na frente
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')

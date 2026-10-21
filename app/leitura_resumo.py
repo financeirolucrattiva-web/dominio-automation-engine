@@ -242,8 +242,19 @@ def _titulo_resumo_nos_dados(dados, escala):
 def formulario_resumo_reconhecido(imagem, registrar=None):
     """Título e dupla de rótulos; não exige datas legíveis para abrir a etapa."""
     from app import tela
+    from app.tela import OCR_PADRAO, pre_aquecer_ocr, recortar_centro, reutilizar_ocr
     def informar(**dados):
         if registrar:registrar(dados)
+    with reutilizar_ocr():
+        # Estado ainda não pintado: os 4 motores e as 8 segmentações abaixo rodavam em sequência
+        # (~25 s por tentativa). Em paralelo, o laço só consome o cache.
+        segmentacoes=[('formulario',4,pr,ps) for ps,pr in ((6,'cinza'),(11,'cinza'),(6,'binaria'),(11,'binaria'))]
+        pre_aquecer_ocr((imagem,[*OCR_PADRAO,*segmentacoes]),(recortar_centro(imagem)[0],segmentacoes))
+        return _formulario_resumo_reconhecido(imagem,informar)
+
+
+def _formulario_resumo_reconhecido(imagem,informar):
+    from app import tela
     for motor, escala in (('tesseract', 2), ('tesseract', 4), ('windows', 2), ('windows', 4)):
         ponto_seguro()
         titulo=None
@@ -326,8 +337,10 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
     conflitantes recusam confirmação; não escolhe pela data esperada.
     Com a geometria lembrada (e os rótulos idênticos) pula a leitura da tela inteira.
     """
+    from app import otimizacoes
     chave=(bool(livros),imagem.size)
-    lembrada=_GEOMETRIA_LEMBRADA.get(chave)
+    memoria=otimizacoes.ativa('geometria_lembrada')
+    lembrada=_GEOMETRIA_LEMBRADA.get(chave) if memoria else None
     if lembrada is not None:
         campos,assinatura=lembrada
         atual=_assinatura_dos_rotulos(imagem,campos)
@@ -338,6 +351,14 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
             except ValueError:
                 pass  # leitura do recorte falhou: esquece e refaz a medição completa
         _GEOMETRIA_LEMBRADA.pop(chave,None)
+    from app.tela import OCR_PADRAO, pre_aquecer_ocr, reutilizar_ocr  # módulo real, não o patch dos testes
+    with reutilizar_ocr():
+        # As 6 leituras da tela inteira (~3 s cada) rodam em paralelo; o laço abaixo só as consome.
+        pre_aquecer_ocr((imagem,[*OCR_PADRAO,('formulario',4,'binaria',6),('formulario',4,'binaria',11)]))
+        return _ler_campos_medindo(imagem,registrar,livros,salvar_recorte,chave)
+
+
+def _ler_campos_medindo(imagem,registrar,livros,salvar_recorte,chave):
     from app import tela
     contextos=[]; completos=[]
     for motor,escala in (('tesseract',2),('tesseract',4),('windows',2),('windows',4),
@@ -392,7 +413,8 @@ def ler_campos(imagem, registrar=None, livros=False, salvar_recorte=None):
         raise ValueError('Geometria dos campos conflitante entre leituras.')
     campos=contextos[0]
     resultado=_ler_valores(imagem,campos,completos,registrar,salvar_recorte)
-    assinatura=_assinatura_dos_rotulos(imagem,campos) if len(contextos)>=2 else None
+    assinatura=(_assinatura_dos_rotulos(imagem,campos)
+                if len(contextos)>=2 and otimizacoes.ativa('geometria_lembrada') else None)
     if assinatura is not None:_GEOMETRIA_LEMBRADA[(bool(livros),imagem.size)]=(campos,assinatura)
     return resultado
 

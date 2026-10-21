@@ -22,11 +22,17 @@ def _normalizar(texto):
     return ''.join(c for c in texto if not unicodedata.combining(c)).strip()
 
 
-def _palavras(imagem):
+def _palavras(imagem, centro=False):
+    """Palavras da captura (OCR a 4x). `centro`: só a região central (60% x 60%), onde o diálogo
+    nativo nasce; o OCR a 4x da tela inteira levava ~3,5 s por leitura e é repetido a cada passo.
+    As coordenadas voltam para o referencial da captura inteira."""
     from app import tela
     from app.leitura_resumo import normalizar_selecao
+    dx = dy = 0
+    if centro:
+        imagem, dx, dy = tela.recortar_centro(imagem)
     dados = tela._ler_dados_ocr(normalizar_selecao(imagem), 4)
-    return [{'texto': str(t), 'x': dados['left'][i]/4, 'y': dados['top'][i]/4,
+    return [{'texto': str(t), 'x': dados['left'][i]/4+dx, 'y': dados['top'][i]/4+dy,
              'w': dados['width'][i]/4, 'h': dados['height'][i]/4}
             for i,t in enumerate(dados['text']) if str(t).strip()]
 
@@ -104,11 +110,11 @@ def _rotulo_unidade_local(imagem,caixas,titulo):
     return confirmados[0]
 
 
-def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None,usar_referencia=True):
+def medir_dialogo(imagem,*,somente_unidade=False,registrar_unidade=None,usar_referencia=True,centro=False):
     """Combo e árvore medidos, restritos pelos rótulos nativos inequívocos."""
     import cv2
     import numpy as np
-    palavras = _palavras(imagem)
+    palavras = _palavras(imagem, True) if centro else _palavras(imagem)
     from app.formulario_livros import _rotulo
     try:titulo = _rotulo(palavras, 'Procurar Pasta')
     except ValueError:titulo = None  # branco sobre a barra azul: o OCR não o lê (captura real de 20/10)
@@ -339,8 +345,20 @@ class _LeitorDialogo:
         if assinatura!=self.assinatura:
             self.assinatura=assinatura
             self.detalhes=None
-            self.detalhes=(medir_dialogo(imagem,somente_unidade=True)
-                           if self.somente_unidade else medir_dialogo(imagem))
+            extra={'somente_unidade':True} if self.somente_unidade else {}
+            medir=lambda **k:medir_dialogo(imagem,**extra,**k)
+            from app import otimizacoes
+            if otimizacoes.ativa('ocr_centro_seletor'):
+                try:
+                    # OCR só do centro da tela (~2,5x mais rápido); diálogo fora dele: tela inteira.
+                    self.detalhes=medir(centro=True)
+                    return self._devolver()
+                except SeletorPastaNaoConfirmado:
+                    pass
+            self.detalhes=medir()
+        return self._devolver()
+
+    def _devolver(self):
         if self.detalhes is None:
             raise SeletorPastaNaoConfirmado('Diálogo não reconhecido nesta captura.')
         return self.detalhes

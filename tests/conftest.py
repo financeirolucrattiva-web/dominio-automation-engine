@@ -15,3 +15,14 @@ def geometria_dos_campos_limpa():
     leitura_resumo.esquecer_geometria()
     yield
     leitura_resumo.esquecer_geometria()
+
+
+@pytest.fixture(autouse=True)
+def otimizacoes_desligadas_nos_testes_antigos(monkeypatch):
+    """As simulações antigas de OCR dependem da ORDEM das chamadas e do caminho clássico; os testes
+    das otimizações as ligam explicitamente (`otimizacoes._forcado = True`)."""
+    from app import otimizacoes
+    otimizacoes.restaurar_para_testes()
+    monkeypatch.setattr(otimizacoes, "_forcado", False)
+    yield
+    otimizacoes.restaurar_para_testes()

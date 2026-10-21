@@ -131,6 +131,8 @@ def _conferir_avisos(imagem, registrar=None):
     emissão. Não transforma indisponibilidade dos motores em ausência de aviso.
     """
     centro, _, _ = tela.recortar_centro(imagem)
+    from app.tela import OCR_PADRAO, pre_aquecer_ocr
+    pre_aquecer_ocr((imagem, OCR_PADRAO), (centro, OCR_PADRAO))  # 8 leituras em paralelo
     validas = 0
     validas_tela = 0
     for regiao, area in (('tela', imagem), ('centro', centro)):

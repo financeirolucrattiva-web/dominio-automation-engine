@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
-from app import leitura_resumo as lr
+from app import leitura_resumo as lr, otimizacoes
 
 CAMPOS = {'inicial': {'retangulo': (609, 423, 83, 19), 'area_texto': (610, 424, 673, 441), 'posicao': (641, 432)},
           'final': {'retangulo': (609, 445, 83, 19), 'area_texto': (610, 446, 673, 463), 'posicao': (641, 454)}}
@@ -19,6 +19,11 @@ def tela(rotulo=True):
 
 
 class TestGeometriaLembrada(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(otimizacoes, '_forcado', True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def lembrar(self, imagem, livros=False):
         lr._GEOMETRIA_LEMBRADA[(livros, imagem.size)] = (CAMPOS, lr._assinatura_dos_rotulos(imagem, CAMPOS))
 
