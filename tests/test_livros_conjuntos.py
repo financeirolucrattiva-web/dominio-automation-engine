@@ -455,4 +455,29 @@ class TestCabecalhosReaisDoDominio(unittest.TestCase):
         self.assertEqual(arquivos.validar_livro_dos_textos(textos, 'registro_icms', INICIO, FIM, CNPJ), CNPJ)
 
 
+class TestAguardarPreAquece(unittest.TestCase):
+    def test_primeira_checagem_pre_aquece_avisos_e_leituras_do_detector_uma_so_vez(self):
+        dominio=Mock();dominio.TITULOS_ERRO=('Aviso','Erro')
+        def esperar(detectores,**kw):
+            for _nome,funcao in detectores:
+                funcao('frame')
+            return 'frame','menu',(1,2)
+        with patch.object(livros.estados,'esperar_por_estado',side_effect=esperar), \
+                patch.object(livros.tela,'pre_aquecer_deteccao') as pre, \
+                patch.object(livros.tela,'achar_texto_ou_no_centro',return_value=None) as achar:
+            self.assertEqual(livros._aguardar(dominio,'menu',lambda img:(1,2),'',
+                                              leituras=[('tesseract',4)],leituras_centro=[('tesseract',4)]),'frame')
+        pre.assert_called_once_with('frame',[('tesseract',2),('tesseract',4)],[('tesseract',2),('tesseract',4)])
+        self.assertEqual(achar.call_count,2)  # os dois avisos continuam sendo procurados, em ordem
+
+    def test_sem_leituras_extras_so_o_ocr_dos_avisos_e_pre_aquecido(self):
+        dominio=Mock();dominio.TITULOS_ERRO=('Aviso',)
+        with patch.object(livros.estados,'esperar_por_estado',
+                          side_effect=lambda detectores,**kw:(detectores[0][1]('frame'),('frame','previa',(1,2)))[1]), \
+                patch.object(livros.tela,'pre_aquecer_deteccao') as pre, \
+                patch.object(livros.tela,'achar_texto_ou_no_centro',return_value=None):
+            livros._aguardar(dominio,'previa',lambda img:(1,2),'')
+        pre.assert_called_once_with('frame',[('tesseract',2)],[('tesseract',2)])
+
+
 if __name__=='__main__':unittest.main()

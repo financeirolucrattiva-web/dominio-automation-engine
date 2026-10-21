@@ -65,9 +65,16 @@ def _aguardar_formulario(dominio, prefixo, referencia=None):
     return _aguardar(dominio, 'formulario', detectar, prefixo, tentativas=20, referencia=referencia)
 
 
-def _aguardar(dominio, nome, detector, prefixo, tentativas=90, referencia=None):
-    detectores = [(titulo, lambda img, t=titulo:
-                   tela.achar_texto_ou_no_centro(img, t, escala=2)) for titulo in dominio.TITULOS_ERRO]
+def _aguardar(dominio, nome, detector, prefixo, tentativas=90, referencia=None,
+              leituras=(), leituras_centro=()):
+    """`leituras`/`leituras_centro`: leituras OCR extras (tela inteira / centro) que o detector vai
+    pedir; entram em paralelo com as dos avisos de erro (que vêm antes) na primeira checagem."""
+    def detectar_aviso(img, titulo, primeiro):
+        if primeiro:
+            tela.pre_aquecer_deteccao(img, [('tesseract', 2), *leituras], [('tesseract', 2), *leituras_centro])
+        return tela.achar_texto_ou_no_centro(img, titulo, escala=2)
+    detectores = [(titulo, lambda img, t=titulo, primeiro=(posicao == 0): detectar_aviso(img, t, primeiro))
+                  for posicao, titulo in enumerate(dominio.TITULOS_ERRO)]
     # Pixels exatos e releitura a cada 3 tentativas mesmo com a tela parada: uma
     # leitura de OCR negativa numa tela estática (ex.: a prévia já aberta) não pode
     # virar resultado permanente (64 vezes "Tela igual..." até estourar o prazo).
@@ -434,13 +441,15 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     if pos is None:return False
     antes_do_menu=imagem  # prévia de antes do clique no ícone PDF
     interacao.clicar(*pos)
-    imagem=_aguardar(dominio,'menu_pdf',_achar_opcao_pdf,prefixo,tentativas=15,referencia=antes_do_menu)
+    imagem=_aguardar(dominio,'menu_pdf',_achar_opcao_pdf,prefixo,tentativas=15,referencia=antes_do_menu,
+                     leituras=[('tesseract',4),('windows',4)])
     if imagem is None:return False
     pos=_achar_opcao_pdf(imagem)
     if pos is None:return False
     antes_da_pasta=imagem  # menu PDF aberto, antes de escolher a opção
     interacao.clicar_com_desvio(*pos)
-    imagem=_aguardar(dominio,'pasta',lambda img:tela.achar_texto_ou_no_centro(img,'Procurar Pasta',escala=4),prefixo,tentativas=15,referencia=antes_da_pasta)
+    imagem=_aguardar(dominio,'pasta',lambda img:tela.achar_texto_ou_no_centro(img,'Procurar Pasta',escala=4),prefixo,tentativas=15,referencia=antes_da_pasta,
+                     leituras=[('tesseract',4)],leituras_centro=[('tesseract',4)])
     if imagem is None:return False
     from app.seletor_pasta import selecionar_pasta
     leitores_antes=dominio._linha_base_leitores_pdf()

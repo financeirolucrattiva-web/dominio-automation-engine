@@ -242,20 +242,28 @@ def _titulo_resumo_nos_dados(dados, escala):
 def formulario_resumo_reconhecido(imagem, registrar=None):
     """Título e dupla de rótulos; não exige datas legíveis para abrir a etapa."""
     from app import tela
-    from app.tela import OCR_PADRAO, pre_aquecer_ocr, recortar_centro, reutilizar_ocr
+    from app.tela import OCR_PADRAO, pre_aquecer_deteccao, pre_aquecer_ocr, recortar_centro, reutilizar_ocr
     def informar(**dados):
         if registrar:registrar(dados)
+    segmentacoes=[('formulario',4,pr,ps) for ps,pr in ((6,'cinza'),(11,'cinza'),(6,'binaria'),(11,'binaria'))]
+    def aquecer_restantes():
+        # Estado ainda não pintado: depois da 1ª tentativa, os outros 3 motores e as 8 segmentações
+        # rodavam em sequência (~25 s por tentativa). Em paralelo, o laço só consome o cache.
+        try:
+            centro=recortar_centro(imagem)[0]
+        except Exception:
+            return
+        pre_aquecer_ocr((imagem,[*OCR_PADRAO[1:],*segmentacoes]),(centro,[('tesseract',4),*segmentacoes]))
     with reutilizar_ocr():
-        # Estado ainda não pintado: os 4 motores e as 8 segmentações abaixo rodavam em sequência
-        # (~25 s por tentativa). Em paralelo, o laço só consome o cache.
-        segmentacoes=[('formulario',4,pr,ps) for ps,pr in ((6,'cinza'),(11,'cinza'),(6,'binaria'),(11,'binaria'))]
-        pre_aquecer_ocr((imagem,[*OCR_PADRAO,*segmentacoes]),(recortar_centro(imagem)[0],segmentacoes))
-        return _formulario_resumo_reconhecido(imagem,informar)
+        # 1ª tentativa (tesseract 2x): tela e centro em paralelo (o título costuma vir já na 1ª).
+        pre_aquecer_deteccao(imagem,[OCR_PADRAO[0]],[OCR_PADRAO[0]])
+        return _formulario_resumo_reconhecido(imagem,informar,aquecer_restantes)
 
 
-def _formulario_resumo_reconhecido(imagem,informar):
+def _formulario_resumo_reconhecido(imagem,informar,aquecer_restantes=None):
     from app import tela
-    for motor, escala in (('tesseract', 2), ('tesseract', 4), ('windows', 2), ('windows', 4)):
+    for indice,(motor, escala) in enumerate((('tesseract', 2), ('tesseract', 4), ('windows', 2), ('windows', 4))):
+        if indice==1 and aquecer_restantes is not None:aquecer_restantes()
         ponto_seguro()
         titulo=None
         try:

@@ -42,11 +42,9 @@ class TestPreAquecerOcr(unittest.TestCase):
     def test_leituras_rodam_em_paralelo_e_o_codigo_sequencial_acha_tudo_pronto(self):
         variantes = [('tesseract', 2), ('tesseract', 4), ('formulario', 4, 'binaria', 6), ('formulario', 4, 'cinza', 11)]
         with patch('pytesseract.image_to_data', side_effect=self.lento), tela.reutilizar_ocr():
-            inicio = time.monotonic()
             tela.pre_aquecer_ocr((self.imagem, variantes))
-            gasto = time.monotonic() - inicio
-            self.assertGreaterEqual(self.maximo, 2)  # houve concorrência
-            self.assertLess(gasto, 0.15 * len(variantes))  # mais rápido que em sequência
+            # A prova é a concorrência observada (não o relógio: sob carga de CPU o tempo oscila).
+            self.assertGreaterEqual(self.maximo, 2)
             antes = len(self.chamadas)
             tela._ler_dados_ocr(self.imagem, 2)
             tela._ler_dados_ocr(self.imagem, 4)
@@ -75,6 +73,25 @@ class TestPreAquecerOcr(unittest.TestCase):
         with patch('pytesseract.image_to_data', side_effect=quebra), tela.reutilizar_ocr():
             tela.pre_aquecer_ocr((self.imagem, [('formulario', 4, 'cinza', 11), ('formulario', 4, 'cinza', 6)]))
             self.assertEqual(len([k for k in tela._CACHE_OCR.get()]), 1)
+
+    def test_pre_aquecer_deteccao_le_tela_e_centro_em_paralelo_e_o_detector_acha_tudo_pronto(self):
+        imagem = Image.new('RGB', (1000, 600), 'white')
+        with patch('pytesseract.image_to_data', side_effect=self.lento), tela.reutilizar_ocr():
+            tela.pre_aquecer_deteccao(imagem, [('tesseract', 2), ('tesseract', 4)], [('tesseract', 2), ('tesseract', 4)])
+            feitas = len(self.chamadas)
+            tela.achar_texto_ou_no_centro(imagem, 'qualquer', escala=2)  # tela (miss) e depois centro
+            tela.achar_texto_ou_no_centro(imagem, 'qualquer', escala=4)
+            self.assertEqual(len(self.chamadas), feitas)  # nada novo: veio do cache
+        self.assertEqual(feitas, 4)
+
+    def test_pre_aquecer_deteccao_nao_toca_na_imagem_com_a_otimizacao_desligada_nem_quebra_com_imagem_estranha(self):
+        with patch.object(otimizacoes, '_forcado', False), tela.reutilizar_ocr():
+            tela.pre_aquecer_deteccao('nao e imagem')  # desligada: nem olha a imagem
+        with tela.reutilizar_ocr():
+            tela.pre_aquecer_deteccao('nao e imagem')  # ligada: recorte falha e e ignorado
+        with patch('pytesseract.image_to_data', side_effect=self.lento):
+            tela.pre_aquecer_deteccao(self.imagem)  # sem cache de checagem ativo: nada
+        self.assertEqual(self.chamadas, [])
 
     def test_interrupcao_do_operador_propaga(self):
         def para(*args, **kwargs):

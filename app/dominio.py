@@ -272,15 +272,25 @@ def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
     """Relê a mesma captura por motores/escala, com cancelamento entre opiniões."""
     from .controle_execucao import ponto_seguro, ExecucaoInterrompida
     escalas = tuple(dict.fromkeys((escala, *escalas_adicionais)))
-    if ocr_windows and len(escalas) > 1:
-        # Caminho de 2 escalas x (tela, centro) x (tesseract, Windows) = 8 leituras que, quando o
-        # texto ainda não apareceu, rodavam em sequência (~15 s). Em paralelo; o laço usa o cache.
-        from .tela import pre_aquecer_ocr
-        centro, _, _ = tela.recortar_centro(imagem)
-        variantes = [(motor, e) for motor in ('tesseract', 'windows') for e in escalas]
-        pre_aquecer_ocr((imagem, variantes), (centro, variantes))
-    for ampliacao in escalas:
+    from .tela import pre_aquecer_deteccao
+    # 1ª tentativa (tesseract na escala base): tela e centro em paralelo (o centro só pesa no relógio
+    # quando a tela inteira não acha; em paralelo não soma).
+    pre_aquecer_deteccao(imagem, [('tesseract', escalas[0])], [('tesseract', escalas[0])])
+    # Se a 1ª não achar, o caminho completo (outras escalas x tela/centro x tesseract/Windows, até 6
+    # leituras a mais) rodava em sequência (~15 s); em paralelo o laço abaixo só consome o cache.
+    restantes = ([('tesseract', e) for e in escalas[1:]]
+                 + ([('windows', e) for e in escalas] if ocr_windows else []))
+    aquecido = False
+
+    def aquecer_restantes():
+        nonlocal aquecido
+        if restantes and not aquecido:
+            aquecido = True
+            pre_aquecer_deteccao(imagem, restantes, restantes)
+    for indice, ampliacao in enumerate(escalas):
         ponto_seguro()
+        if indice == 1:
+            aquecer_restantes()
         try:
             pos = tela.achar_texto_ou_no_centro(imagem, texto, escala=ampliacao,
                 debug=debug and not escalas_adicionais and not ocr_windows)
@@ -291,6 +301,7 @@ def _achar_texto_reforcado(imagem, texto, escala=2, escalas_adicionais=(),
         if pos is not None:
             return pos
     if ocr_windows:
+        aquecer_restantes()
         for ampliacao in escalas:
             ponto_seguro()
             pos = tela.achar_texto_windows(imagem, texto, escala=ampliacao)

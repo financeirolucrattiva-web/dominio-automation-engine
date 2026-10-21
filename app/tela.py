@@ -250,6 +250,25 @@ def pre_aquecer_ocr(*pares, maximo=6):
     ponto_seguro()
 
 
+def pre_aquecer_deteccao(imagem, variantes=(('tesseract', 2),), centro=(('tesseract', 2),)):
+    """Pré-aquece em paralelo o OCR da tela inteira e do recorte central que um detector do tipo
+    "acha na tela ou, se não achar, no centro" (`achar_texto_ou_no_centro`) vai pedir.
+
+    Sequencial, uma checagem que ainda não achou o texto paga a leitura da tela e depois a do
+    centro; em paralelo paga só a mais lenta. Nunca levanta erro por causa da otimização (só
+    parar/pausar/foco do operador propagam, dentro de `pre_aquecer_ocr`). Sem cache de checagem ativo
+    ou com `ocr_paralelo` desligado não faz nada (nem toca na imagem).
+    """
+    from . import otimizacoes
+    if _CACHE_OCR.get() is None or not otimizacoes.ativa('ocr_paralelo'):
+        return
+    try:
+        recorte = recortar_centro(imagem)[0]
+    except Exception:
+        return
+    pre_aquecer_ocr((imagem, list(variantes)), (recorte, list(centro)))
+
+
 def preparar_recorte_ocr(imagem, escala=4, preparo='cinza'):
     """Amplia só a cópia do recorte, preservando coordenadas do desktop."""
     if preparo not in ('cinza', 'binaria'):

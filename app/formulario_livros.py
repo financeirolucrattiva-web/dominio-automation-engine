@@ -289,26 +289,33 @@ def ler_formulario(imagem, dados, escala=2, periodo_confirmado=None):
 def ler_selecao_com_ocr(imagem, registrar=None):
     """Varia a leitura dos rótulos sem transformar os pixels das caixas."""
     from app import tela
-    ultimo = None
-    lidos = []
     tentativas = [('tesseract',2,'padrao'), ('tesseract',4,'padrao'),
                   ('tesseract',4,'cinza'), ('tesseract',4,'binaria'),
                   ('tesseract',6,'binaria'), ('windows',2,'padrao'),
                   ('windows',4,'padrao')]
     from app.tela import pre_aquecer_ocr, reutilizar_ocr  # módulo real, não o patch dos testes
+
+    def variante(motor, escala, preparo):
+        if motor == 'windows':
+            return ('windows', escala)
+        return ('tesseract', escala) if preparo == 'padrao' else ('formulario', escala, preparo, 6)
+
+    def aquecer_restantes():
+        # A 1ª leitura (tesseract 2x, ~2 s) basta quando o formulário já está pintado e é a
+        # chamada mais comum (marcação dos livros, conferências); só se ela falhar as outras 6
+        # (~13 s em sequência) rodam em paralelo. As decisões continuam as mesmas.
+        pre_aquecer_ocr((imagem, [variante(*t) for t in tentativas[1:]]))
+
     with reutilizar_ocr():
-        # Com o formulário ainda não pintado, as 7 leituras rodavam uma atrás da outra (~15 s por
-        # tentativa); em paralelo o tempo é o da mais lenta e as decisões continuam as mesmas.
-        pre_aquecer_ocr((imagem, [
-            ('windows' if m == 'windows' else 'tesseract', e) if p == 'padrao' or m == 'windows'
-            else ('formulario', e, p, 6) for m, e, p in tentativas]))
-        return _ler_selecao_sequencial(imagem, registrar, tentativas, tela)
+        return _ler_selecao_sequencial(imagem, registrar, tentativas, tela, aquecer_restantes)
 
 
-def _ler_selecao_sequencial(imagem, registrar, tentativas, tela):
+def _ler_selecao_sequencial(imagem, registrar, tentativas, tela, aquecer_restantes=None):
     ultimo = None
     lidos = []
-    for motor, escala, preparo in tentativas:
+    for indice, (motor, escala, preparo) in enumerate(tentativas):
+        if indice == 1 and aquecer_restantes is not None:
+            aquecer_restantes()
         contexto = {'motor':motor, 'escala':escala, 'preparo':preparo}
         def registrar_tentativa(diagnostico):
             if registrar:
