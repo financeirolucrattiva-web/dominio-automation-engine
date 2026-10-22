@@ -467,6 +467,49 @@ def _fechar_caixa_erro(texto_lido, prefixo=""):
     interacao.pressionar_enter()
 
 
+def _posicao_radio_codigo(dados, escala=2):
+    """(x, y) do botão de opção "Código" do grupo "Busca por" da tela Troca de empresas, ou None.
+
+    O Domínio lembra o último modo de busca; com "Apelido" marcado, digitar o código filtra por apelido
+    e o Acessar abre OUTRA empresa (captura real de 22/10: digitou 68 e abriu a 12). A palavra "Código"
+    aparece também no cabeçalho da lista: vale só a que está logo abaixo de "Busca por"."""
+    import unicodedata
+
+    def norma(t):
+        t = unicodedata.normalize("NFKD", str(t).casefold())
+        return "".join(c for c in t if not unicodedata.combining(c)).strip(" :")
+    palavras = [(i, norma(t)) for i, t in enumerate(dados["text"]) if str(t).strip()]
+    busca = [i for (i, t), (j, u) in zip(palavras, palavras[1:]) if t == "busca" and u == "por"]
+    if len(busca) != 1:
+        return None
+    base = dados["top"][busca[0]] + dados["height"][busca[0]]
+    candidatos = [i for i, t in palavras if t == "codigo" and 0 <= dados["top"][i] - base <= 60 * escala]
+    if len(candidatos) != 1:
+        return None
+    i = candidatos[0]
+    return (round(dados["left"][i] / escala - 11), round((dados["top"][i] + dados["height"][i] / 2) / escala))
+
+
+def _forcar_busca_por_codigo(prefixo=""):
+    """Marca "Código" em "Busca por" antes de digitar (idempotente: clicar no marcado não muda nada)."""
+    imagem = tela.capturar_tela()
+    for escala in (2, 4):
+        try:
+            pos = _posicao_radio_codigo(tela._ler_dados_ocr(imagem, escala), escala)
+        except ExecucaoInterrompida:
+            raise
+        except Exception:
+            pos = None  # leitura ruim: segue; o código da empresa é conferido depois
+        if pos is not None:
+            print(f"Busca por: marcando 'Código' em {pos}.", flush=True)
+            interacao.clicar(*pos)
+            time.sleep(0.3)
+            return True
+    print("Busca por: não achei o marcador 'Código'; seguindo (o código da empresa é conferido depois).", flush=True)
+    salvar(imagem, f"{prefixo}troca_empresa_sem_radio_codigo.png")
+    return False
+
+
 def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     """Troca a empresa selecionada no Domínio via F8, buscando por
     código (seção 0.14). Assume que o modo de busca "Busca por" já está
@@ -532,6 +575,7 @@ def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
         print("Limpou depois do Esc — 'Troca de empresas' abriu na segunda tentativa.")
     print(f"'Troca de empresas' aberta (botão 'Acessar' em: {pos})")
 
+    _forcar_busca_por_codigo(prefixo)
     print(f"Digitando '{codigo}'...")
     interacao.digitar(str(codigo))
     time.sleep(1)
