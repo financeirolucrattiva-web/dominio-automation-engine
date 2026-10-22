@@ -14,6 +14,7 @@ mexer em código nem atualizar versão:
 O estado vigente é impresso uma vez por processo (`OTIMIZACOES {...}`) para que o log mostre com
 qual configuração a rodada foi feita.
 """
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -33,6 +34,7 @@ NOMES = {
 # chamadas). `None` = segue arquivo/ambiente.
 _forcado = None
 _desligadas = {}
+_temporario = 0  # > 0: todas desligadas enquanto durar `modo_seguro_temporario()`
 _trava = threading.Lock()
 _cache = {"mtime": None, "config": None, "aviso": False}
 _impresso = False
@@ -76,9 +78,9 @@ def ativa(nome):
     if nome not in NOMES:
         raise KeyError("Otimização desconhecida: " + nome)
     if _forcado is not None:
-        return bool(_forcado) and nome not in _desligadas
+        return bool(_forcado) and _temporario <= 0 and nome not in _desligadas
     _imprimir_uma_vez()
-    if nome in _desligadas or _modo_seguro_no_ambiente():
+    if _temporario > 0 or nome in _desligadas or _modo_seguro_no_ambiente():
         return False
     seguro, individuais = _ler_arquivo()
     if seguro:
@@ -98,6 +100,19 @@ def desligar(nome, motivo):
               ensure_ascii=False), flush=True)
 
 
+@contextmanager
+def modo_seguro_temporario():
+    """Todas as otimizações desligadas dentro do bloco (a retentativa da rotina no caminho clássico)."""
+    global _temporario
+    with _trava:
+        _temporario += 1
+    try:
+        yield
+    finally:
+        with _trava:
+            _temporario -= 1
+
+
 def estado():
     return {nome: ativa(nome) for nome in NOMES}
 
@@ -115,8 +130,9 @@ def _imprimir_uma_vez():
 
 
 def restaurar_para_testes():
-    global _forcado, _impresso
+    global _forcado, _impresso, _temporario
     _forcado = None
+    _temporario = 0
     _impresso = False
     _desligadas.clear()
     _cache.update(mtime=None, config=None, aviso=False)

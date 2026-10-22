@@ -93,6 +93,56 @@ class TestPreAquecerOcr(unittest.TestCase):
             tela.pre_aquecer_deteccao(self.imagem)  # sem cache de checagem ativo: nada
         self.assertEqual(self.chamadas, [])
 
+    def test_mapear_em_paralelo_devolve_na_ordem_captura_erros_e_roda_os_seriais_numa_thread(self):
+        threads = []
+
+        def tarefa(i, falha=False, serial=False):
+            def f():
+                if serial:
+                    threads.append(threading.get_ident())
+                time.sleep(0.05)
+                if falha:
+                    raise RuntimeError('x%d' % i)
+                return i
+            return f
+        tarefas = [tarefa(0), tarefa(1, falha=True), tarefa(2, serial=True), tarefa(3), tarefa(4, serial=True)]
+        resultado = tela.mapear_em_paralelo(tarefas, seriais=(2, 4))
+        self.assertEqual([r[0] for r in resultado], ['ok', 'erro', 'ok', 'ok', 'ok'])
+        self.assertEqual([r[1] for r in resultado if r[0] == 'ok'], [0, 2, 3, 4])
+        self.assertIsInstance(resultado[1][1], RuntimeError)
+        self.assertEqual(len(set(threads)), 1)  # os seriais compartilham uma thread
+
+    def test_mapear_em_paralelo_com_a_otimizacao_desligada_roda_em_sequencia_na_ordem(self):
+        ordem = []
+        tarefas = [lambda i=i: ordem.append(i) or i for i in range(5)]
+        with patch.object(otimizacoes, '_forcado', False):
+            resultado = tela.mapear_em_paralelo(tarefas)
+        self.assertEqual(ordem, [0, 1, 2, 3, 4])
+        self.assertEqual([r[1] for r in resultado], [0, 1, 2, 3, 4])
+
+    def test_mapear_em_paralelo_propaga_interrupcao_do_operador(self):
+        def para():
+            raise ExecucaoInterrompida('teste')
+        with self.assertRaises(ExecucaoInterrompida):
+            tela.mapear_em_paralelo([lambda: 1, para, lambda: 3])
+
+    def test_ler_valores_da_o_mesmo_resultado_em_paralelo_e_em_sequencia(self):
+        from app import leitura_resumo as lr
+        campos = {'inicial': {'retangulo': (10, 10, 80, 19), 'area_texto': (10, 10, 70, 28), 'posicao': (20, 20)},
+                  'final': {'retangulo': (10, 40, 80, 19), 'area_texto': (10, 40, 70, 58), 'posicao': (20, 50)}}
+        imagem = Image.new('RGB', (200, 100), 'white')
+        dados = {'text': ['01/08/2026'], 'left': [0], 'top': [5], 'width': [60], 'height': [10]}
+
+        def executar():
+            with patch.object(tela, 'ler_dados_ocr_linha_data', return_value=dados), \
+                    patch.object(tela, 'ler_dados_ocr_windows', return_value=dados):
+                return lr._ler_valores(imagem, campos, [], None, None)
+        em_paralelo = executar()
+        with patch.object(otimizacoes, '_forcado', False):
+            em_sequencia = executar()
+        self.assertEqual(em_paralelo, em_sequencia)
+        self.assertEqual(em_paralelo['inicial']['valor'], '01/08/2026')
+
     def test_interrupcao_do_operador_propaga(self):
         def para(*args, **kwargs):
             raise ExecucaoInterrompida('teste')

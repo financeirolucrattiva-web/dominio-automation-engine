@@ -5270,6 +5270,35 @@ gravado no console e em `data/servidor_detalhes.log` junto com `[tempo]`, `OTIMI
 seletor com volta à tela inteira, `_rotulo_fechar`, volta de versão em repositórios Git reais, modo seguro, perfil,
 linhas no diagnóstico); suíte completa sem falhas novas em relação à base. Não validado ao vivo.
 
+### 0.150 Terceira rodada: leituras de data em paralelo, atalho curto da saída, retentativa em modo seguro e pré-voo para lote de 2–3 empresas (22/10/2026)
+
+**Evidência (lote completo de 21/10 17:06–17:25, versão 697f02f):** Resumo 123–139 s (período 41–53 s,
+119 leituras OCR), EFD 56–59 s, Livros 252 s (`exportar_pdf` 150 s: ~27 s esperando menu/Procurar Pasta,
+~75 s de navegação nas 4 pastas, ~45 s gerando/salvando/Acrobat). Total 7 min 44 s. Antes: 12–15 min.
+
+**Velocidade sem mudar decisão:**
+- `tela.mapear_em_paralelo`: as 8 leituras OCR de cada data (dois campos) em `_ler_valores` saem em paralelo
+  (Windows em sequência numa thread) e são consumidas na mesma ordem; com `ocr_paralelo` desligado é o laço
+  antigo. Teste prova resultado idêntico nos dois modos.
+- Atalho curto da saída (opcional, `data/atalho_saida.txt`): junção `C:\saida` para a MESMA pasta; o
+  Procurar Pasta anda 1 nível em vez de 4 (~35 s por empresa). Só vale se o atalho ainda resolve para a pasta de
+  saída; o caminho remoto não resolve a junção. `Configurar/Remover Atalho de Saida.bat`; o ensaio
+  `Testar Seletor de Pasta.bat` usa o atalho quando configurado.
+
+**Segurança para manter a rotina estável:**
+- Retentativa em modo seguro (`app/retentativa.py`, `executor_servidor`): se a rotina falha ANTES de gerar
+  (EFD: sem `gerar_documento`; Resumo/Livros: PDF ainda não aceito), volta à tela azul, confere a empresa e
+  repete UMA vez com todas as otimizações desligadas (`otimizacoes.modo_seguro_temporario`). Nunca com foco
+  perdido, parada do operador ou geração sinalizada. Log `RETENTATIVA_MODO_SEGURO`.
+- Recuperação entre rotinas do executor sobe com até 12 Esc (antes 5).
+- Pré-voo (`scripts/verificar_ambiente.py`, `Verificar Ambiente.bat`): Tesseract+português, OCR do Windows,
+  calibração, resolução, pasta de saída gravável/espaço, unidade do cliente, otimizações, atalho, servidor,
+  Domínio em foco. O lote por atalho (`explorar_presumido.py`) roda o pré-voo sozinho, exige servidor parado,
+  recusa se houver ERRO e imprime o tempo total do lote.
+
+**Validação:** testes novos (leituras em paralelo, atalho com junções reais, retentativa e decisão, pré-voo);
+suíte completa na versão final. Não validado ao vivo.
+
 ### 0.140 Calibração retorna ValueError sem informar a recusa (20/10/2026)
 
 **Evidência real:** após 2423c35, o operador recebeu zero opiniões OCR e

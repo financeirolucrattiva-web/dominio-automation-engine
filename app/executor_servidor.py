@@ -11,7 +11,8 @@ import time
 from types import SimpleNamespace
 
 from app.servidor import PrecondicaoRecusada, validar_pedido
-from app.controle_execucao import verificar_antes_de_agir, verificar_retomada, ponto_seguro, ponto_seguro_sem_foco
+from app.controle_execucao import (ExecucaoInterrompida, verificar_antes_de_agir, verificar_retomada,
+                                    ponto_seguro, ponto_seguro_sem_foco)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,13 +57,14 @@ class ExecutorDominio:
         contexto = SimpleNamespace(janela_dominio=janela)
         # Cada Esc usa a janela já reconhecida e volta a conferir o foco.
         # A tela azul interrompe a limpeza imediatamente, sem fechar Domínio.
-        for tentativa in range(9):
+        # Até 12 Esc (Livros deixa 3 prévias + o formulário abertos), depois fechar só a aba.
+        for tentativa in range(16):
             ponto_seguro()
             if dominio._verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
                 return interacao.janela_dominio_em_foco(janela)
-            if tentativa == 8:
+            if tentativa == 15:
                 break
-            if tentativa < 5:
+            if tentativa < 12:
                 if not interacao.pressionar_esc_no_dominio(
                         janela, vezes=1, confirmar_conteudo=dominio._confirmar_conteudo_dominio):
                     return False
@@ -140,7 +142,13 @@ class ExecutorDominio:
                 erro = FocoPerdidoDuranteExecucao if geracao_iniciada else PrecondicaoRecusada
                 raise erro("dominio_fora_de_foco")
 
-        with verificar_antes_de_agir(conferir_foco), verificar_retomada(preparar_retomada), estados.observar_eventos(receber_evento):
+        eventos_da_tarefa = []
+
+        def observar(evento):
+            eventos_da_tarefa.append(evento)
+            receber_evento(evento)
+
+        with verificar_antes_de_agir(conferir_foco), verificar_retomada(preparar_retomada), estados.observar_eventos(observar):
             ponto_seguro()
             if int(empresa[1]) != int(pedido["empresa_codigo"]):
                 if not dominio.trocar_empresa(str(int(pedido["empresa_codigo"])), prefixo=prefixo,
@@ -160,7 +168,44 @@ class ExecutorDominio:
                 self._janela_lote = janela
             datas = {chave: dt.date.fromisoformat(pedido[chave]).strftime("%d/%m/%Y") for chave in ("inicio", "fim")}
             geracao_iniciada = True
-            if pedido["capacidade"].startswith("registro_") or pedido["capacidade"] in ("resumo_acumulador", "livros_fiscais"):
-                return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],
-                                                       data_final=datas["fim"], prefixo=prefixo)
-            return geradores[pedido["capacidade"]](prefixo=prefixo, data_inicial=datas["inicio"], data_final=datas["fim"])
+
+            def gerar():
+                if pedido["capacidade"].startswith("registro_") or pedido["capacidade"] in ("resumo_acumulador", "livros_fiscais"):
+                    return geradores[pedido["capacidade"]](ROOT / "saida", data_inicial=datas["inicio"],
+                                                           data_final=datas["fim"], prefixo=prefixo)
+                return geradores[pedido["capacidade"]](prefixo=prefixo, data_inicial=datas["inicio"], data_final=datas["fim"])
+
+            from app import otimizacoes, retentativa
+            falha = None
+            try:
+                resultado = gerar()
+            except (FocoPerdidoDuranteExecucao, PrecondicaoRecusada,
+                    *((dominio.LoteInterrompido,) if hasattr(dominio, "LoteInterrompido") else ())):
+                raise
+            except Exception as erro:
+                if isinstance(erro, ExecucaoInterrompida):
+                    raise
+                resultado, falha = False, erro
+            if retentativa.foi_sucesso(resultado) or not retentativa.pode_retentar(
+                    pedido["capacidade"], eventos_da_tarefa, foco_perdido=foco_perdido,
+                    otimizacoes_ativas=any(otimizacoes.ativa(n) for n in otimizacoes.NOMES)):
+                if falha is not None:
+                    raise falha
+                return resultado
+            # Falhou antes de gerar algo, com otimizações ligadas: volta à tela azul e repete UMA vez no
+            # caminho clássico. Sem tela azul confirmada ou empresa trocada, devolve a falha original.
+            print("RETENTATIVA_MODO_SEGURO " + pedido["capacidade"] + ": falhou cedo; repetindo sem otimizacoes.", flush=True)
+            if not self._voltar_ao_inicio(janela):
+                print("RETENTATIVA_MODO_SEGURO cancelada: tela principal nao confirmada.", flush=True)
+                if falha is not None:
+                    raise falha
+                return resultado
+            atual = tela.ler_empresa_selecionada(tela.capturar_tela())
+            if (atual is None or not str(atual[1]).isdigit() or int(atual[1]) != int(pedido["empresa_codigo"])
+                    or not interacao.janela_dominio_em_foco(janela)):
+                print("RETENTATIVA_MODO_SEGURO cancelada: empresa nao confirmada.", flush=True)
+                if falha is not None:
+                    raise falha
+                return resultado
+            with otimizacoes.modo_seguro_temporario():
+                return gerar()

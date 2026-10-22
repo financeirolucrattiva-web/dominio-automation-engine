@@ -250,6 +250,55 @@ def pre_aquecer_ocr(*pares, maximo=6):
     ponto_seguro()
 
 
+def mapear_em_paralelo(tarefas, seriais=(), maximo=6):
+    """Executa `tarefas` (funções sem argumentos) e devolve, NA ORDEM, ('ok', valor) | ('erro', exceção).
+
+    Leituras OCR de recortes pequenos (cada uma ~0,3-1 s) rodavam uma atrás da outra; em paralelo o
+    tempo é o da mais lenta. `seriais`: índices que rodam em sequência numa só thread (o OCR do
+    Windows aceita uma leitura por vez). Cada tarefa decide o que fazer com o próprio erro (aqui só
+    é devolvido); parar/pausar do operador propaga. Com `ocr_paralelo` desligado, ou falha do
+    próprio mecanismo, roda em sequência na ordem original: o resultado é o mesmo.
+    """
+    from . import otimizacoes
+
+    def rodar(funcao):
+        try:
+            return ('ok', funcao())
+        except ExecucaoInterrompida:
+            raise
+        except Exception as erro:
+            return ('erro', erro)
+
+    def em_sequencia():
+        return [rodar(f) for f in tarefas]
+
+    if len(tarefas) < 2 or not otimizacoes.ativa('ocr_paralelo'):
+        return em_sequencia()
+    ponto_seguro()
+    seriais = set(seriais)
+    grupos = [[i] for i in range(len(tarefas)) if i not in seriais]
+    if seriais:
+        grupos.append(sorted(seriais))
+    resultados = [None] * len(tarefas)
+
+    def executar(indices):
+        for i in indices:
+            resultados[i] = rodar(tarefas[i])
+
+    try:
+        with ThreadPoolExecutor(min(maximo, len(grupos))) as executor:
+            futuros = [executor.submit(contextvars.copy_context().run, executar, g) for g in grupos]
+            for futuro in futuros:
+                futuro.result()
+    except ExecucaoInterrompida:
+        raise
+    except Exception as erro:
+        otimizacoes.desligar('ocr_paralelo', type(erro).__name__)
+        return em_sequencia()
+    ponto_seguro()
+    return resultados
+
+
 def pre_aquecer_deteccao(imagem, variantes=(('tesseract', 2),), centro=(('tesseract', 2),)):
     """Pré-aquece em paralelo o OCR da tela inteira e do recorte central que um detector do tipo
     "acha na tela ou, se não achar, no centro" (`achar_texto_ou_no_centro`) vai pedir.

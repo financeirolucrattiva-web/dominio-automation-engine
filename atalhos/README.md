@@ -59,6 +59,9 @@ Paddle continua opcional; o motor mantém o Tesseract atual.
 | [Executar Presumido em Lote.bat](ferramentas/Executar%20Presumido%20em%20Lote.bat) | Informe os códigos separados por vírgula; executa as três rotinas por empresa na mesma fila, após confirmar competência fechada em todas; parar o servidor antes |
 | [Listar Funcoes.bat](ferramentas/Listar%20Funcoes.bat) | Consultar o catálogo descritivo |
 | [Abrir Motor SPED.bat](ferramentas/Abrir%20Motor%20SPED.bat) | Abrir o menu de texto existente |
+| [Verificar Ambiente.bat](ferramentas/Verificar%20Ambiente.bat) | Pre-voo antes do lote: Tesseract, OCR do Windows, calibracao, pasta de saida, espaco, servidor, atalho; nao opera o Dominio. O lote por atalho roda isso sozinho |
+| [Configurar Atalho de Saida.bat](ferramentas/Configurar%20Atalho%20de%20Saida.bat) | Cria a juncao `C:\saida` para a pasta de saida: o Procurar Pasta anda 1 nivel em vez de 4 (~35 s a menos por empresa nos Livros). Opcional; ensaie com `Testar Seletor de Pasta.bat` |
+| [Remover Atalho de Saida.bat](ferramentas/Remover%20Atalho%20de%20Saida.bat) | Volta ao caminho completo (nao apaga nada) |
 | [Ver Otimizacoes.bat](ferramentas/Ver%20Otimizacoes.bat) | Mostra quais otimizacoes de velocidade estao ligadas (LIGADA) ou no caminho classico (desligada) |
 | [Modo Seguro (sem otimizacoes).bat](ferramentas/Modo%20Seguro%20%28sem%20otimizacoes%29.bat) | Volta todas as rotinas ao caminho classico (mais lento, ja testado); vale na proxima leitura, sem reiniciar o servidor |
 | [Modo Rapido (otimizacoes ligadas).bat](ferramentas/Modo%20Rapido%20%28otimizacoes%20ligadas%29.bat) | Liga de novo todas as otimizacoes (padrao) |

@@ -384,7 +384,7 @@ class TestExecutorServidor(unittest.TestCase):
         self.desktop["dominio"]._confirmar_conteudo_dominio = Mock(return_value=True)
         esc = self.desktop["interacao"].pressionar_esc_no_dominio = Mock(return_value=True)
         self.assertFalse(self.recuperar())
-        self.assertEqual(esc.call_count, 5)
+        self.assertEqual(esc.call_count, 12)  # Livros deixa 3 prévias + o formulário abertos
         self.assertEqual(self.desktop['dominio'].fechar_aba_ativa.call_count, 3)
         esc.reset_mock(); esc.return_value = False
         self.assertFalse(self.recuperar())

@@ -26,3 +26,9 @@ def otimizacoes_desligadas_nos_testes_antigos(monkeypatch):
     monkeypatch.setattr(otimizacoes, "_forcado", False)
     yield
     otimizacoes.restaurar_para_testes()
+
+
+@pytest.fixture(autouse=True)
+def sem_preflight_nos_testes_do_lote(monkeypatch):
+    from scripts import explorar_presumido
+    monkeypatch.setattr(explorar_presumido, "PREFLIGHT_ATIVO", False)

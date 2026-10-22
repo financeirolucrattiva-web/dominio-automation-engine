@@ -460,7 +460,15 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     if imagem is None:return False
     from app.seletor_pasta import selecionar_pasta
     leitores_antes=dominio._linha_base_leitores_pdf()
-    selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(pasta),tela.capturar_tela,
+    from app import atalho_saida
+    atalho=atalho_saida.destino_de_navegacao(pasta)
+    if atalho!=pasta:
+        # Junção curta para a MESMA pasta (opt-in): 1 nível no seletor em vez de 4 (~37 s a menos).
+        print('Destino dos livros: usando o atalho curto '+str(atalho)+' (mesma pasta de saida).',flush=True)
+        destino_remoto=atalho_saida.caminho_na_sessao_remota(atalho,dominio._unidade_cliente())
+    else:
+        destino_remoto=dominio.caminho_visto_pela_sessao_remota(pasta)
+    selecionar_pasta(destino_remoto,tela.capturar_tela,
                      interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo,
                      permitir_pasta_comum=True)
     completa=_aguardar_arquivos(pasta,tela.capturar_tela,dominio,prefixo,leitores_antes,ignorar=previos)

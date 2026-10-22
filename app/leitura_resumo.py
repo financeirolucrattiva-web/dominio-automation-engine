@@ -441,26 +441,39 @@ def _ler_campos_medindo(imagem,registrar,livros,salvar_recorte,chave):
 
 def _ler_valores(imagem,campos,completos,registrar,salvar_recorte):
     from app import tela
-    resultado={}
+    from app.tela import mapear_em_paralelo  # módulo real, não o patch dos testes
+    # Preparo: as 8 leituras de cada campo (e as dos dois campos) são independentes; saem juntas
+    # (~1 s em vez de ~5 s por campo) e são consumidas abaixo na MESMA ordem de antes.
+    preparados={}; tarefas=[]; seriais=[]
     for papel,campo in campos.items():
         original=imagem.crop(campo['area_texto'])
         normalizada=normalizar_selecao(original)
-        leituras=[]; detalhe=[]
+        especificacoes=[]
         for variante,recorte in (('original',original),('selecao_normalizada',normalizada)):
             for motor,escala in (('tesseract',4),('tesseract',6),('windows',2)):
-                try:
-                    dados=tela.ler_dados_ocr_linha_data(recorte,escala) if motor=='tesseract' else tela.ler_dados_ocr_windows(recorte,escala)
-                    valor=data_da_linha(dados) if dados is not None else None
-                except Exception:valor=None
-                detalhe.append({'variante':variante,'motor':motor,'escala':escala,'valor':valor})
-                if valor is not None:leituras.append(valor)
+                especificacoes.append((variante,motor,escala,recorte,None))
         # Preto e branco tenta ler dígitos pequenos sem mudar o valor pedido.
         for escala in (4,6):
-            try:
-                dados=tela.ler_dados_ocr_linha_data(normalizada,escala,preparo='binaria')
-                valor=data_da_linha(dados) if dados is not None else None
-            except Exception:valor=None
-            detalhe.append({'variante':'binaria','motor':'tesseract','escala':escala,'valor':valor})
+            especificacoes.append(('binaria','tesseract',escala,normalizada,'binaria'))
+        indices=[]
+        for variante,motor,escala,recorte,preparo in especificacoes:
+            def ler(motor=motor,escala=escala,recorte=recorte,preparo=preparo):
+                if motor=='windows':dados=tela.ler_dados_ocr_windows(recorte,escala)
+                elif preparo is None:dados=tela.ler_dados_ocr_linha_data(recorte,escala)
+                else:dados=tela.ler_dados_ocr_linha_data(recorte,escala,preparo=preparo)
+                return data_da_linha(dados) if dados is not None else None
+            if motor=='windows':seriais.append(len(tarefas))
+            indices.append(len(tarefas)); tarefas.append(ler)
+        preparados[papel]=(original,normalizada,especificacoes,indices)
+    execucoes=mapear_em_paralelo(tarefas,seriais)
+    resultado={}
+    for papel,campo in campos.items():
+        original,normalizada,especificacoes,indices=preparados[papel]
+        leituras=[]; detalhe=[]
+        for (variante,motor,escala,_recorte,_preparo),i in zip(especificacoes,indices):
+            situacao,valor=execucoes[i]
+            if situacao=='erro':valor=None
+            detalhe.append({'variante':variante,'motor':motor,'escala':escala,'valor':valor})
             if valor is not None:leituras.append(valor)
         valores=set(leituras)
         if registrar:registrar({'campo':papel,'retangulo':list(campo['retangulo']),

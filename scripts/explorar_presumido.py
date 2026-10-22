@@ -12,6 +12,7 @@ import uuid
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
+PREFLIGHT_ATIVO=True  # os testes (conftest) desligam: o pre-voo olha o PC de verdade
 
 
 def main(argv=None):
@@ -22,6 +23,8 @@ def main(argv=None):
     parser.add_argument('--competencia',help='AAAA-MM de competência passada fechada.')
     parser.add_argument('--apuracao-confirmada',action='store_true')
     parser.add_argument('--somente-disponiveis',action='store_true',help='Teste parcial explícito: pendências ficam registradas sem emissão.')
+    parser.add_argument('--sem-preflight', action='store_true',
+                        help='Não confere o ambiente antes (não recomendado).')
     parser.add_argument('--limite-minutos', type=int, default=30,
                         help='Limite total antes de pedir cancelamento cooperativo (padrão: 30 minutos).')
     args=parser.parse_args(argv)
@@ -31,6 +34,17 @@ def main(argv=None):
     from app.executor_servidor import ExecutorDominio
     from scripts.piloto_console import (acompanhar_lote, encerrar_servico, periodo_competencia,
                                         salvar_diagnostico, solicitar_cancelamento)
+    if PREFLIGHT_ATIVO and not args.sem_preflight:
+        # Pré-voo: calibração, OCR, pasta de saída, servidor parado... (não opera o Domínio).
+        from scripts import verificar_ambiente
+        resultados=verificar_ambiente.executar(verificar_ambiente.VERIFICACOES_LOTE)
+        for nome,status,mensagem in resultados:
+            if status!=verificar_ambiente.OK:print(f'[{status}] {nome}: {mensagem}',flush=True)
+        if any(r[1]==verificar_ambiente.ERRO for r in resultados):
+            print('Corrija os ERROS acima (Verificar Ambiente.bat mostra tudo) e rode de novo.',flush=True)
+            return 1
+        print('Pré-voo ok.',flush=True)
+    inicio_do_lote=time.monotonic()
     print('PRESUMIDO POR EMPRESA OU LOTE — Resumo, EFD Contribuições e três Livros Fiscais.',flush=True)
     print('Use este atalho com o servidor parado e Domínio aberto no painel azul.',flush=True)
     print('Se o servidor estiver ligado, execute pelo painel: Lucro Presumido por empresa.',flush=True)
@@ -81,6 +95,8 @@ def main(argv=None):
                 for artefato in tarefa.get('artefatos',[]):
                     print(f"  {artefato['tipo']}: {artefato['nome']}; disponível: {artefato['disponivel']}",flush=True)
             print('Resultado da sequência:',final['status'],flush=True)
+            decorrido=int(time.monotonic()-inicio_do_lote)
+            print(f"Tempo total do lote: {decorrido//60} min {decorrido%60} s para {len(plano['empresas'])} empresa(s).",flush=True)
             print('Pendências não executadas:',final['plano']['quantidade_pendencias'],flush=True)
             try:
                 print('Diagnóstico local:',salvar_diagnostico(repo,final,ROOT),flush=True)
