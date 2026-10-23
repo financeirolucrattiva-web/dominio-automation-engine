@@ -607,11 +607,19 @@ class ServicoExecucao:
             plano = destinos_livros.planejar_destino(empresa, regime, pedido["inicio"][:7],
                                                      self.repositorio.caminho.parent)
             pasta_destino = plano["caminho_local"]
+        from app import docauto
+        competencia = pedido["inicio"][:7] if pedido["inicio"][:7] == pedido["fim"][:7] else None
+        if competencia:  # contrato com o docauto (opt-in): a pasta da empresa vem de lá
+            da_pasta = docauto.destino(pedido["empresa_codigo"], competencia, tipo)
+            if da_pasta is not None:
+                pasta_destino = da_pasta
         destino = arquivos.nomear_relatorio_cadastrado(
             arquivo, self.pasta_saida, tipo, empresa["nome"], pedido["inicio"], pedido["fim"],
             pasta_destino=pasta_destino, codigo=str(int(pedido["empresa_codigo"])))
         if pasta_destino is not None:
             self.repositorio.registrar_arquivo_publicado(tarefa["id"], destino, pasta_destino)
+        if competencia:
+            docauto.registrar_resultado(pedido["empresa_codigo"], competencia, tipo, "concluida", destino)
         return str(destino)
 
     def _publicar_livros(self, tarefa, pedido, itens):
