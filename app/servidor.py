@@ -583,6 +583,28 @@ class ServicoExecucao:
                   "tela_principal_reconhecida" if recuperada else None)
         return recuperada
 
+    def _localizar_efd(self, tarefa, pedido):
+        """O Domínio grava o TXT da EFD na saída sem avisar o nome: acha o único .txt novo cujo
+        registro 0000 traz exatamente o período pedido. Ambíguo ou ausente: não publica."""
+        try:
+            inicio = dt.datetime.fromisoformat(tarefa["criado"]).timestamp()
+            esperado = (pedido["inicio"][8:] + pedido["inicio"][5:7] + pedido["inicio"][:4],
+                        pedido["fim"][8:] + pedido["fim"][5:7] + pedido["fim"][:4])
+            achados = []
+            for candidato in Path(self.pasta_saida).glob("*.txt"):
+                if candidato.stat().st_mtime < inicio - 5:
+                    continue
+                with candidato.open("r", encoding="latin-1") as f:
+                    campos = f.readline().split("|")
+                if len(campos) > 7 and campos[1] == "0000" and (campos[6], campos[7]) == esperado:
+                    achados.append(candidato)
+            if len(achados) == 1:
+                return str(achados[0])
+            logging.getLogger(__name__).warning("EFD: %s candidatos na saída; nada publicado", len(achados))
+        except (OSError, ValueError, KeyError):
+            logging.getLogger(__name__).exception("EFD: arquivo da saída não localizado")
+        return None
+
     def _publicar_sem_cadastro(self, pedido, arquivo, tipo):
         from app import docauto
         competencia = pedido["inicio"][:7] if pedido["inicio"][:7] == pedido["fim"][:7] else None
@@ -739,6 +761,8 @@ class ServicoExecucao:
                     motivos_periodo = [e['evidence'] for e in self.repositorio.eventos(identificador)
                                        if e['status'] == 'falha' and e.get('evidence') in MOTIVOS_PERIODO]
                     motivo = motivos_periodo[-1] if motivos_periodo else None
+                if status == "concluida" and not arquivo and pedido['capacidade'] == 'efd_contribuicoes':
+                    arquivo = self._localizar_efd(tarefa, pedido)
                 if status == "concluida" and arquivo and pedido['capacidade'] != 'livros_fiscais':
                     try:
                         arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)

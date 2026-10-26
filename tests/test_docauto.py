@@ -92,3 +92,25 @@ class TestEmpresaSemCadastro(unittest.TestCase):
         with mock.patch.object(docauto, "destino", return_value=None):
             self.assertEqual(modulo.ServicoExecucao._publicar_sem_cadastro(
                 SimpleNamespace(pasta_saida=Path(".")), pedido, "a.pdf", "resumo_acumulador"), "a.pdf")
+
+
+class TestLocalizarEfd(unittest.TestCase):
+    PEDIDO = {"inicio": "2026-08-01", "fim": "2026-08-31"}
+
+    def _rodar(self, arquivos_txt):
+        import datetime as dt
+        import app.servidor as modulo
+        with tempfile.TemporaryDirectory() as raiz:
+            for nome, texto in arquivos_txt.items():
+                (Path(raiz) / nome).write_text(texto, encoding="latin-1")
+            tarefa = {"criado": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)).isoformat()}
+            achado = modulo.ServicoExecucao._localizar_efd(SimpleNamespace(pasta_saida=raiz), tarefa, self.PEDIDO)
+            return Path(achado).name if achado else None
+
+    def test_acha_o_unico_txt_do_periodo(self):
+        self.assertEqual(self._rodar({"A.txt": "|0000|006|0|||01082026|31082026|X|1|MT|\n"}), "A.txt")
+
+    def test_periodo_diferente_ou_ambiguo_nao_publica(self):
+        self.assertIsNone(self._rodar({"A.txt": "|0000|006|0|||01072026|31072026|X|1|MT|\n"}))
+        igual = "|0000|006|0|||01082026|31082026|X|1|MT|\n"
+        self.assertIsNone(self._rodar({"A.txt": igual, "B.txt": igual}))
