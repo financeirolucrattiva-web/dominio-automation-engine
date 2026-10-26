@@ -133,6 +133,16 @@ class ExecutorDominio:
             # Diálogos remotos (Salvar em PDF, Procurar Pasta) são janelas do mesmo
             # cliente GO-Global, com outro HWND: não contam como foco perdido.
             em_foco = getattr(interacao, "janela_dominio_ou_remota_em_foco", interacao.janela_dominio_em_foco)
+            if not foco_perdido and not em_foco(janela):
+                # Ao abrir a prévia/diálogo o Windows fica ~1 s SEM janela em primeiro plano
+                # ("nenhuma visível"): é transição, não o operador tirando o foco. Espera até 3 s.
+                descrever = getattr(interacao, "descrever_primeiro_plano", None)
+                for _ in range(10):
+                    if not callable(descrever) or "nenhuma visível" not in str(descrever(None)):
+                        break
+                    time.sleep(0.3)
+                    if em_foco(janela):
+                        break
             if foco_perdido or not em_foco(janela):
                 if not foco_perdido:
                     descrever = getattr(interacao, "descrever_primeiro_plano", None)
