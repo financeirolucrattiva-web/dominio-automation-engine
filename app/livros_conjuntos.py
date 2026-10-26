@@ -288,6 +288,7 @@ def _aguardar_arquivos(pasta, capturar, dominio, prefixo, leitores_antes=None, i
             except Exception:
                 pass
         ponto_seguro()
+        dominio._dispensar_erro_dde()
         imagem = capturar()
         for titulo in dominio.TITULOS_ERRO:
             pos = tela.achar_texto_ou_no_centro(imagem, titulo, escala=2)

@@ -1466,6 +1466,16 @@ def _fechar_leitores_pdf(linha_base, janela=None, espera=20):
         pass
 
 
+def _dispensar_erro_dde():
+    """OK no aviso "Acrobat failed to send a DDE command"; nunca derruba a espera que o chamou."""
+    try:
+        return interacao.dispensar_erro_dde_do_acrobat()
+    except ExecucaoInterrompida:
+        raise
+    except Exception:
+        return False
+
+
 def _fechar_leitores_pdf_uma_vez(linha_base, fechados):
     """Uma varredura de fechamento (usada dentro de esperas que checam o foco)."""
     return interacao.fechar_leitores_pdf_uma_vez(linha_base, fechados)
@@ -2419,6 +2429,7 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     acao('salvar_pdf','tecla',None,interacao.pressionar_enter)
     anterior = None
     for tentativa in range(30):
+        _dispensar_erro_dde()
         imagem = tela.capturar_tela()
         novos = [p for p in pasta_destino.glob("*.pdf") if p.name not in antes and p.is_file() and not p.is_symlink()]
         if not novos and _achar_texto_resumo(imagem,"does not exist") is not None:
