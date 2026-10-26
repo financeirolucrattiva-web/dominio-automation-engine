@@ -2371,14 +2371,24 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
         print("RESUMO_CONFERENCIA codigo_da_previa_difere_do_conferido_antes_de_abrir", flush=True)
         print("Resumo: o código da empresa na prévia difere do conferido antes de abrir.")
         return False, None
+    cnpj = None
     try:
         cnpj = arquivos.validar_previa_resumo(tela.ler_texto(imagem, escala=2), data_inicial, data_final,
                                               cnpj_esperado, nome_empresa=empresa[0])
     except ValueError as erro:
         print("RESUMO_CONFERENCIA " + str(erro), flush=True)  # mensagem fixa do validador: vai ao log local
         print(str(erro))
-        salvar(imagem, f"{prefixo}erro_conferencia_previa_resumo.png")
-        return False, None
+        # A prévia só adianta a conferência: o PDF exportado ainda passa pela validação rígida (título,
+        # período e CNPJ único). Falha "mole" (nome/CNPJ não lidos pelo OCR da tela cheia) NÃO barra o
+        # salvamento quando o CÓDIGO da empresa foi lido na própria prévia e é o esperado e o período
+        # confere. Período errado, CNPJ de outra empresa ou código diferente continuam barrando.
+        mole = (atual is not None and "período" not in str(erro) and "não corresponde à empresa esperada" not in str(erro)
+                and "título" not in str(erro))
+        if not mole:
+            salvar(imagem, f"{prefixo}erro_conferencia_previa_resumo.png")
+            return False, None
+        print("RESUMO_CONFERENCIA seguindo: codigo da empresa confirmado na previa; o PDF sera validado de forma rigida.", flush=True)
+        salvar(imagem, f"{prefixo}aviso_conferencia_previa_resumo.png")
     acompanhamento.confirmar("previa_resumo_reconhecida")
     acompanhamento.janela_dominio = interacao.identificar_janela_dominio_atual()
     acompanhamento.iniciar("exportar_pdf")
