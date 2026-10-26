@@ -62,3 +62,33 @@ class TestDocauto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEmpresaSemCadastro(unittest.TestCase):
+    def test_publica_na_pasta_do_docauto_mesmo_sem_cadastro_no_painel(self):
+        from unittest import mock
+        import app.servidor as modulo
+        with tempfile.TemporaryDirectory() as raiz:
+            raiz = Path(raiz)
+            saida, final = raiz / "saida", raiz / "final"
+            saida.mkdir()
+            final.mkdir()
+            pdf = saida / "x.pdf"
+            pdf.write_bytes(b"%PDF-1.4 teste")
+            alvo = SimpleNamespace(pasta_saida=saida)
+            pedido = {"empresa_codigo": "19", "inicio": "2026-08-01", "fim": "2026-08-31"}
+            registros = []
+            with mock.patch.object(docauto, "destino", return_value=final), \
+                 mock.patch.object(docauto, "registrar_resultado", lambda *a, **k: registros.append(a)):
+                novo = modulo.ServicoExecucao._publicar_sem_cadastro(alvo, pedido, pdf, "resumo_acumulador")
+            self.assertTrue(Path(novo).is_file())
+            self.assertEqual(Path(novo).parent, final.resolve())
+            self.assertEqual(len(registros), 1)
+
+    def test_sem_destino_mantem_arquivo(self):
+        from unittest import mock
+        import app.servidor as modulo
+        pedido = {"empresa_codigo": "19", "inicio": "2026-08-01", "fim": "2026-08-31"}
+        with mock.patch.object(docauto, "destino", return_value=None):
+            self.assertEqual(modulo.ServicoExecucao._publicar_sem_cadastro(
+                SimpleNamespace(pasta_saida=Path(".")), pedido, "a.pdf", "resumo_acumulador"), "a.pdf")

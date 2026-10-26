@@ -583,6 +583,19 @@ class ServicoExecucao:
                   "tela_principal_reconhecida" if recuperada else None)
         return recuperada
 
+    def _publicar_sem_cadastro(self, pedido, arquivo, tipo):
+        from app import docauto
+        competencia = pedido["inicio"][:7] if pedido["inicio"][:7] == pedido["fim"][:7] else None
+        da_pasta = docauto.destino(pedido["empresa_codigo"], competencia, tipo) if competencia else None
+        if da_pasta is None:
+            return arquivo
+        codigo = str(int(pedido["empresa_codigo"]))
+        destino = arquivos.nomear_relatorio_cadastrado(
+            arquivo, self.pasta_saida, tipo, f"Empresa {codigo}", pedido["inicio"], pedido["fim"],
+            pasta_destino=da_pasta, codigo=codigo)
+        docauto.registrar_resultado(codigo, competencia, tipo, "concluida", destino)
+        return str(destino)
+
     def _nomear_arquivo(self, tarefa, pedido, arquivo, tipo=None):
         if not arquivo:
             return arquivo
@@ -593,7 +606,8 @@ class ServicoExecucao:
             empresas = self.repositorio.configuracao.listar()["empresas"]
         empresa = next((e for e in empresas if e["codigo"] == str(int(pedido["empresa_codigo"]))), None)
         if empresa is None:
-            return arquivo  # Chamadas antigas sem cadastro conservam a convenção local.
+            # Sem cadastro no painel: conserva a convenção local, salvo se o docauto indicar a pasta.
+            return self._publicar_sem_cadastro(pedido, arquivo, tipo or pedido["capacidade"])
         pasta_destino = None
         tipo = tipo or pedido['capacidade']
         if (tipo in ("registro_entradas", "registro_saidas", "registro_icms") and
