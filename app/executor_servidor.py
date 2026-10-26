@@ -93,9 +93,13 @@ class ExecutorDominio:
             if not self._voltar_ao_inicio(janela):
                 raise PrecondicaoRecusada("tela_principal_nao_confirmada")
         empresa = tela.ler_empresa_selecionada(tela.capturar_tela())
-        if (empresa is None or not str(empresa[1]).isdigit()
-                or not interacao.janela_dominio_em_foco(janela)):
+        if not interacao.janela_dominio_em_foco(janela):
             raise PrecondicaoRecusada("empresa_nao_confirmada")
+        if empresa is None or not str(empresa[1]).isdigit():
+            # Cabeçalho ilegível (ex.: sobra da empresa anterior ou OCR ruim): a troca de empresa (F8 +
+            # código) não depende da atual; a empresa só vale depois de relida e conferida abaixo.
+            print("Empresa atual não lida; trocando para a empresa pedida e conferindo depois.", flush=True)
+            empresa = None
         validar_pedido(pedido)  # inclusive se o calendário mudou durante as leituras
         geradores = {
             "sped_fiscal": dominio.gerar_sped_fiscal,
@@ -169,7 +173,7 @@ class ExecutorDominio:
 
         with verificar_antes_de_agir(conferir_foco), verificar_retomada(preparar_retomada), estados.observar_eventos(observar):
             ponto_seguro()
-            if int(empresa[1]) != int(pedido["empresa_codigo"]):
+            if empresa is None or int(empresa[1]) != int(pedido["empresa_codigo"]):
                 if not dominio.trocar_empresa(str(int(pedido["empresa_codigo"])), prefixo=prefixo,
                                              recuperar_inicio=lambda: self._voltar_ao_inicio(janela)):
                     raise PrecondicaoRecusada("empresa_nao_confirmada")

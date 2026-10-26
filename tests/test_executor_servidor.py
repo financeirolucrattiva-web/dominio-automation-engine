@@ -115,11 +115,19 @@ class TestExecutorServidor(unittest.TestCase):
         self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
         self.desktop["dominio"].trocar_empresa.assert_not_called()
 
-    def test_codigo_ilegivel_nao_tenta_f8_nem_gera(self):
+    def test_codigo_ilegivel_tenta_trocar_e_nao_gera_se_a_troca_falhar(self):
         self.desktop["tela"].ler_empresa_selecionada.return_value = None
+        self.desktop["dominio"].trocar_empresa.return_value = False
         with self.assertRaisesRegex(PrecondicaoRecusada, "empresa_nao_confirmada"):
             self.executar(lote=True)
-        self.desktop["dominio"].trocar_empresa.assert_not_called()
+        self.desktop["dominio"].trocar_empresa.assert_called_once()
+        self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
+
+    def test_codigo_ilegivel_nao_gera_se_a_empresa_nao_for_relida_apos_a_troca(self):
+        self.desktop["tela"].ler_empresa_selecionada.return_value = None
+        self.desktop["dominio"].trocar_empresa.return_value = True
+        with self.assertRaisesRegex(PrecondicaoRecusada, "empresa_nao_confirmada"):
+            self.executar(lote=True)
         self.desktop["dominio"].gerar_sped_fiscal.assert_not_called()
 
     def test_foco_perdido_bloqueia_acao_mesmo_se_excecao_for_absorvida(self):
