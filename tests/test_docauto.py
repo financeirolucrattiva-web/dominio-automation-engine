@@ -19,7 +19,9 @@ class TestDocauto(unittest.TestCase):
         self.assertEqual(docauto.destino(70, "2026-08", "livro_x", self.CFG), None)  # rotina fora do contrato
         ok = saida(caminho="D:/c/70/2026/08", existe=True)
         self.assertEqual(docauto.destino(70, "2026-08", "registro_entradas", self.CFG, ok), Path("D:/c/70/2026/08"))
-        self.assertIsNone(docauto.destino(70, "2026-08", "registro_icms", self.CFG, ok))  # ICMS sem rotina no contrato
+        chamadas = []
+        docauto.destino(70, "2026-08", "registro_icms", self.CFG, lambda cmd, **k: chamadas.append(cmd) or ok())
+        self.assertEqual(chamadas[0][-3:-1], ["--tipo", "APURACAO_ICMS"])  # apuração vai por --tipo
         self.assertIsNone(docauto.destino(70, "2026-08", "resumo_acumulador", self.CFG, saida(0, caminho="x", existe=False)))
         self.assertIsNone(docauto.destino(70, "2026-08", "resumo_acumulador", self.CFG, saida(2)))
 

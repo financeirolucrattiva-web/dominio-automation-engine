@@ -19,9 +19,11 @@ from pathlib import Path
 import subprocess
 
 ARQUIVO = Path(__file__).resolve().parent.parent / "data" / "docauto.json"
-# registro_icms não existe no contrato do docauto: usa a convenção local.
+# registro_icms (livro de apuração) usa `--tipo APURACAO_ICMS` no docauto, não `--rotina`.
 ROTINAS = {"resumo_acumulador": "resumo_acumulador", "efd_contribuicoes": "efd_contribuicoes",
-           "registro_entradas": "livro_entradas", "registro_saidas": "livro_saidas"}
+           "registro_entradas": "livro_entradas", "registro_saidas": "livro_saidas",
+           "registro_icms": "APURACAO_ICMS"}
+_COMO_TIPO = {"APURACAO_ICMS"}
 CABECALHO = ["codigo_dominio", "competencia", "rotina", "status", "arquivo", "sha256", "gerado_em"]
 _log = logging.getLogger(__name__)
 
@@ -42,7 +44,8 @@ def destino(codigo, competencia, tipo, config=None, executar=subprocess.run):
         return None
     try:
         r = executar([config["python"], "-m", "docauto", "destino", "--codigo-dominio", str(int(codigo)),
-                      "--competencia", competencia, "--rotina", rotina, "--json"],
+                      "--competencia", competencia,
+                      "--tipo" if rotina in _COMO_TIPO else "--rotina", rotina, "--json"],
                      cwd=config.get("cwd"), env={**os.environ, "PYTHONPATH": "src"},
                      capture_output=True, text=True, encoding="utf-8", timeout=30)
         dados = json.loads(r.stdout) if r.returncode == 0 else {}
