@@ -2368,12 +2368,14 @@ def _executar_resumo_acumulador(pasta_destino, data_inicial, data_final, prefixo
     # Se o código estiver visível, precisa ser o mesmo.
     atual = tela.ler_empresa_selecionada(imagem)
     if atual is not None and str(int(atual[1])) != str(int(empresa[1])):
+        print("RESUMO_CONFERENCIA codigo_da_previa_difere_do_conferido_antes_de_abrir", flush=True)
         print("Resumo: o código da empresa na prévia difere do conferido antes de abrir.")
         return False, None
     try:
         cnpj = arquivos.validar_previa_resumo(tela.ler_texto(imagem, escala=2), data_inicial, data_final,
                                               cnpj_esperado, nome_empresa=empresa[0])
     except ValueError as erro:
+        print("RESUMO_CONFERENCIA " + str(erro), flush=True)  # mensagem fixa do validador: vai ao log local
         print(str(erro))
         salvar(imagem, f"{prefixo}erro_conferencia_previa_resumo.png")
         return False, None

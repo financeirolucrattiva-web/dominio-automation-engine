@@ -19,7 +19,7 @@ PREFIXOS_TECNICOS = (
 # entender falhas sem pedir cópia do console): etapas, tempos, otimizações em uso, conferência dos
 # PDFs, foco perdido.
 PREFIXOS_DESEMPENHO = ('[estado]', '[tempo]', '[perfil]', 'OTIMIZACOES ', 'OTIMIZACAO_DESLIGADA ',
-                       'LIVROS_CONFERENCIA ', 'FOCO_PERDIDO ', 'EFD_RESULTADO ', 'EFD: ')
+                       'LIVROS_CONFERENCIA ', 'RESUMO_CONFERENCIA ', 'FOCO_PERDIDO ', 'EFD_RESULTADO ', 'EFD: ')
 PREFIXOS_ESPERA = (
     'Esperando pelo menos ', 'Nenhum estado esperado reconhecido ainda ',
     'Tela igual à tentativa anterior, pulando checagem ',
