@@ -134,6 +134,15 @@ class ExecutorDominio:
             # cliente GO-Global, com outro HWND: não contam como foco perdido.
             em_foco = getattr(interacao, "janela_dominio_ou_remota_em_foco", interacao.janela_dominio_em_foco)
             if not foco_perdido and not em_foco(janela):
+                dispensar = getattr(interacao, "dispensar_erro_dde_do_acrobat", None)
+                try:
+                    if callable(dispensar) and dispensar():
+                        time.sleep(0.5)  # devolve o foco ao Domínio antes de reavaliar
+                except ExecucaoInterrompida:
+                    raise
+                except Exception:
+                    pass
+            if not foco_perdido and not em_foco(janela):
                 # Ao abrir a prévia/diálogo o Windows fica ~1 s SEM janela em primeiro plano
                 # ("nenhuma visível"): é transição, não o operador tirando o foco. Espera até 3 s.
                 descrever = getattr(interacao, "descrever_primeiro_plano", None)

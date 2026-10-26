@@ -114,3 +114,10 @@ class TestLocalizarEfd(unittest.TestCase):
         self.assertIsNone(self._rodar({"A.txt": "|0000|006|0|||01072026|31072026|X|1|MT|\n"}))
         igual = "|0000|006|0|||01082026|31082026|X|1|MT|\n"
         self.assertIsNone(self._rodar({"A.txt": igual, "B.txt": igual}))
+
+
+class TestErroDdeAcrobat(unittest.TestCase):
+    def test_reconhece_mensagem_do_erro(self):
+        from app import interacao
+        self.assertTrue(interacao._texto_confirma_erro_dde("Fatal Error\nAcrobat failed to send a DDE command.\nOK"))
+        self.assertFalse(interacao._texto_confirma_erro_dde("Fatal Error\nOutro problema qualquer"))

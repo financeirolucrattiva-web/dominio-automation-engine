@@ -367,6 +367,55 @@ def fechar_pergunta_de_guias_do_acrobat():
     return True
 
 
+def _texto_confirma_erro_dde(texto):
+    """Mensagem do Acrobat "Acrobat failed to send a DDE command" (OCR tolerante a ruído)."""
+    palavras = re.findall(r"[a-z]+", texto.casefold())
+    return "acrobat" in palavras and "dde" in palavras and "failed" in palavras
+
+
+def dispensar_erro_dde_do_acrobat():
+    """Fecha o aviso "Fatal Error: Acrobat failed to send a DDE command" (botão OK).
+
+    Aparece quando o Domínio pede para abrir o PDF e o Acrobat não atende; é só um aviso do
+    Windows e o OK é a resposta certa. Acha a janela de título exato "Fatal Error", confirma o
+    texto lendo só o retângulo dela e envia WM_CLOSE (equivale a OK/Esc nesse diálogo), sem teclas
+    nem cliques. Devolve True se dispensou.
+    """
+    from app import tela
+    import pytesseract
+    api, callback = _api_janelas()
+    achados = []
+
+    def enumerar(hwnd, _):
+        dados = _dados_janela(api, hwnd)
+        if dados and dados["titulo"].strip().casefold() == "fatal error":
+            achados.append(hwnd)
+        return True
+
+    api.EnumWindows(callback(enumerar), 0)
+    for hwnd in achados:
+        retangulo = _Retangulo()
+        if not api.GetWindowRect(hwnd, ctypes.byref(retangulo)):
+            continue
+        caixa = (retangulo.left, retangulo.top, retangulo.right, retangulo.bottom)
+        largura_tela, altura_tela = pyautogui.size()
+        if not (200 <= caixa[2] - caixa[0] <= 800 and 80 <= caixa[3] - caixa[1] <= 350
+                and 0 <= caixa[0] and 0 <= caixa[1] and caixa[2] <= largura_tela and caixa[3] <= altura_tela):
+            continue
+        recorte = tela.capturar_tela().crop(caixa)
+        for escala in (2, 3):
+            texto = pytesseract.image_to_string(tela._preparar_para_ocr(recorte, escala), lang="eng",
+                                                timeout=tela.LIMITE_TESSERACT)
+            if _texto_confirma_erro_dde(texto):
+                print("Acrobat avisou 'failed to send a DDE command': dispensando com OK.", flush=True)
+                api.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
+                time.sleep(0.8)
+                if api.IsWindow(hwnd) and api.GetForegroundWindow() == hwnd:
+                    pyautogui.press("esc")  # diálogo remoto (GO-Global) pode ignorar WM_CLOSE; Esc = OK aqui
+                return True
+    return False
+
+
 def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
     """Uma varredura: pede o fechamento (WM_CLOSE, como o X) de leitores de PDF novos.
 
@@ -389,6 +438,12 @@ def fechar_leitores_pdf_uma_vez(linha_base, fechadas):
             print("Fechando o leitor de PDF aberto pela exportação.", flush=True)
             api.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
             fechadas.add(hwnd)
+    try:
+        dispensar_erro_dde_do_acrobat()
+    except ExecucaoInterrompida:
+        raise
+    except Exception:
+        pass
     ainda_abertas = [h for h in fechadas if h in atuais]
     if ainda_abertas:
         # Com várias guias (os 3 livros), o Acrobat segura o fechamento e pergunta.
