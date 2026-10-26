@@ -62,12 +62,12 @@ ERROS_CONHECIDOS = {
     # empresa — é cadastro dentro do Domínio, tentar de novo não resolve.
     "caminho especificado nao e valido": PULAR,
     # Seção 0.32: "Outros dados não digitados! Deseja copiar do último
-    # mês digitado?" (Sim/Não) — decisão do usuário: nunca copiar dado
-    # de um mês pro outro sozinho, responder Não e pular a empresa pra
-    # alguém revisar à mão (`_fechar_caixa_erro()` clica em "No"
-    # especificamente, não em Enter — o botão em foco na caixa real é
-    # "Yes", não "No").
-    "outros dados nao digitados": PULAR,
+    # mês digitado?" (Sim/Não). Decisão ANTERIOR do usuário: responder Não e
+    # pular a empresa. REVISTA em 26/10/2026 (lote real, EFD da empresa 18): o
+    # usuário decidiu responder Sim (copiar do último mês) e seguir com a
+    # geração; `_fechar_caixa_erro()` clica em "Yes" (que na caixa real é o
+    # botão em foco) e a rotina volta a esperar o aviso de sucesso.
+    "outros dados nao digitados": CONTINUAR,
     # Seção 0.32: "Saldo dos impostos não foram calculados no
     # período" (só OK) — decisão do usuário: apertar OK mas não gerar
     # sem a apuração feita, pular a empresa pra revisão.
@@ -86,7 +86,7 @@ ERROS_CONHECIDOS = {
 # **não** é o padrão (em foco) da caixa — precisa achar e clicar no
 # texto do botão certo, não usar Enter. Seção 0.32.
 BOTAO_NAO_PADRAO = {
-    "outros dados nao digitados": "No",
+    "outros dados nao digitados": "Yes",
 }
 
 # Siglas que aparecem em maiúsculo em mensagem do Domínio e não são

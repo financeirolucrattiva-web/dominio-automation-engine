@@ -1567,6 +1567,7 @@ def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
                 return False
         for passo in range(max_esc + max_fechar + 1):
             ponto_seguro_sem_foco()
+            _dispensar_erro_dde()  # o aviso do Acrobat toma o foco e atrasa/derruba a volta ao início
             if not interacao.janela_dominio_em_foco(janela):
                 # Depois de fechar o Adobe o foco pode não voltar sozinho: no meio da subida
                 # (nunca no primeiro passo, onde a recuperação já foi tentada) Alt+Tab e reconfere.

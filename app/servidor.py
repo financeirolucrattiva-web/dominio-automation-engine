@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sqlite3
 import threading
+import time
 import uuid
 
 from app import arquivos, capacidades, destinos_livros, painel
@@ -583,11 +584,13 @@ class ServicoExecucao:
                   "tela_principal_reconhecida" if recuperada else None)
         return recuperada
 
-    def _localizar_efd(self, tarefa, pedido):
-        """O Domínio grava o TXT da EFD na saída sem avisar o nome: acha o único .txt novo cujo
-        registro 0000 traz exatamente o período pedido. Ambíguo ou ausente: não publica."""
+    def _localizar_efd(self, tarefa, pedido, desde=None):
+        """O Domínio grava o TXT da EFD na saída sem avisar o nome: acha o .txt gravado DURANTE esta
+        execução (`desde`) cujo registro 0000 traz exatamente o período pedido. Sobras de rodadas
+        anteriores ficam de fora pela hora; se ainda houver mais de um, vale o mais recente.
+        Nenhum: não publica."""
         try:
-            inicio = dt.datetime.fromisoformat(tarefa["criado"]).timestamp()
+            inicio = desde if desde is not None else dt.datetime.fromisoformat(tarefa["criado"]).timestamp()
             esperado = (pedido["inicio"][8:] + pedido["inicio"][5:7] + pedido["inicio"][:4],
                         pedido["fim"][8:] + pedido["fim"][5:7] + pedido["fim"][:4])
             achados = []
@@ -598,9 +601,11 @@ class ServicoExecucao:
                     campos = f.readline().split("|")
                 if len(campos) > 7 and campos[1] == "0000" and (campos[6], campos[7]) == esperado:
                     achados.append(candidato)
-            if len(achados) == 1:
-                return str(achados[0])
-            logging.getLogger(__name__).warning("EFD: %s candidatos na saída; nada publicado", len(achados))
+            if achados:
+                if len(achados) > 1:
+                    logging.getLogger(__name__).warning("EFD: %s candidatos novos na saída; publicando o mais recente", len(achados))
+                return str(max(achados, key=lambda c: c.stat().st_mtime_ns))
+            logging.getLogger(__name__).warning("EFD: nenhum TXT novo do período na saída; nada publicado")
         except (OSError, ValueError, KeyError):
             logging.getLogger(__name__).exception("EFD: arquivo da saída não localizado")
         return None
@@ -733,6 +738,7 @@ class ServicoExecucao:
             identificador = tarefa["id"]
             try:
                 pedido = validar_pedido(json.loads(tarefa["pedido"]))
+                inicio_execucao = time.time()
                 with controlar_execucao(controle):
                     executar = getattr(self.executor, "executar_em_lote", self.executor) if tarefa.get("lote_id") else self.executor
                     resultado = executar(pedido, lambda ev: self.repositorio.registrar_evento(identificador, ev))
@@ -762,7 +768,7 @@ class ServicoExecucao:
                                        if e['status'] == 'falha' and e.get('evidence') in MOTIVOS_PERIODO]
                     motivo = motivos_periodo[-1] if motivos_periodo else None
                 if status == "concluida" and not arquivo and pedido['capacidade'] == 'efd_contribuicoes':
-                    arquivo = self._localizar_efd(tarefa, pedido)
+                    arquivo = self._localizar_efd(tarefa, pedido, desde=inicio_execucao)
                 if status == "concluida" and arquivo and pedido['capacidade'] != 'livros_fiscais':
                     try:
                         arquivo = self._nomear_arquivo(tarefa, pedido, arquivo)

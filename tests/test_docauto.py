@@ -110,10 +110,10 @@ class TestLocalizarEfd(unittest.TestCase):
     def test_acha_o_unico_txt_do_periodo(self):
         self.assertEqual(self._rodar({"A.txt": "|0000|006|0|||01082026|31082026|X|1|MT|\n"}), "A.txt")
 
-    def test_periodo_diferente_ou_ambiguo_nao_publica(self):
+    def test_periodo_diferente_nao_publica(self):
         self.assertIsNone(self._rodar({"A.txt": "|0000|006|0|||01072026|31072026|X|1|MT|\n"}))
         igual = "|0000|006|0|||01082026|31082026|X|1|MT|\n"
-        self.assertIsNone(self._rodar({"A.txt": igual, "B.txt": igual}))
+        self.assertIn(self._rodar({"A.txt": igual, "B.txt": igual}), ("A.txt", "B.txt"))  # vale o mais recente
 
 
 class TestErroDdeAcrobat(unittest.TestCase):
