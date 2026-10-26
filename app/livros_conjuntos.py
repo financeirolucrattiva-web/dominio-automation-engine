@@ -469,9 +469,19 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
         destino_remoto=atalho_saida.caminho_na_sessao_remota(atalho,dominio._unidade_cliente())
     else:
         destino_remoto=dominio.caminho_visto_pela_sessao_remota(pasta)
-    selecionar_pasta(destino_remoto,tela.capturar_tela,
-                     interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo,
-                     permitir_pasta_comum=True)
+    try:
+        selecionar_pasta(destino_remoto,tela.capturar_tela,
+                         interacao.clicar,interacao.pressionar_tecla,clicar_duplo=interacao.clicar_duplo,
+                         permitir_pasta_comum=True)
+    except SeletorPastaNaoConfirmado:
+        # O Domínio pode aceitar a pasta (duplo clique) e exportar antes de a rotina reconfirmar
+        # o diálogo. Sem o diálogo na tela e com PDFs novos na pasta, segue: _aguardar_arquivos e
+        # _conferir_conjunto validam cada PDF (tipo, período e CNPJ) antes de qualquer publicação.
+        imagem=tela.capturar_tela()
+        novos=[p for p in pasta.glob('*.pdf') if p.name not in previos and p.is_file()]
+        if tela.achar_texto_ou_no_centro(imagem,'Procurar Pasta',escala=4) is not None or not novos:
+            raise
+        print('LIVROS_OK {"fase":"pasta","motivo":"dialogo_fechado_com_pdfs_novos","pdfs":'+str(len(novos))+'}',flush=True)
     completa=_aguardar_arquivos(pasta,tela.capturar_tela,dominio,prefixo,leitores_antes,ignorar=previos)
     if completa:
         acompanhamento.confirmar('arquivo_novo_estavel')
