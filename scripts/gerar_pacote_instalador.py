@@ -48,6 +48,8 @@ def main(argv=None):
                 dados = com_crlf(dados)
             (destino / arquivo.name).write_bytes(dados)
     interface = RAIZ / "data" / "rede_local" / "interface_cliente"
+    if not interface.is_dir():  # rodando de outra copia do repositorio: usa a instalacao do servidor
+        interface = Path.home() / "dominio-automation-engine" / "data" / "rede_local" / "interface_cliente"
     if interface.is_dir():  # só endereço e certificado público: nenhuma chave de acesso
         alvo = destino / "Interface - outros PCs"
         shutil.rmtree(alvo, ignore_errors=True)
