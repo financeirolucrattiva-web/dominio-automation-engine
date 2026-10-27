@@ -25,6 +25,11 @@ def main(argv=None):
     for arquivo in (RAIZ / "instalador").iterdir():
         if arquivo.is_file():
             shutil.copyfile(arquivo, destino / arquivo.name)
+    interface = RAIZ / "data" / "rede_local" / "interface_cliente"
+    if interface.is_dir():  # só endereço e certificado público: nenhuma chave de acesso
+        alvo = destino / "Interface (outros PCs)"
+        shutil.rmtree(alvo, ignore_errors=True)
+        shutil.copytree(interface, alvo)
     print(f"Pacote gerado em {destino} (versão {commit}).")
     return 0
 

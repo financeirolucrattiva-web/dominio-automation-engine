@@ -55,11 +55,16 @@ A) PC DO DOMINIO - INSTALACAO COMPLETA
 ------------------------------------------------------------
 B) OUTRO PC SO PARA ABRIR O PAINEL
 ------------------------------------------------------------
-9. No PC do Dominio existe a pasta data\rede_local\interface_cliente (criada pelo "Configurar Acesso Rede.bat").
-   Copie essa pasta para o outro PC e rode "Instalar Interface.bat" dentro dela.
-   Para abrir: https://<IP do PC do Dominio>:8765 (aceite o certificado). A chave de acesso esta em
-   data\servidor_chave.txt no PC do Dominio. Se o IP do PC do Dominio mudar, rode "Configurar Acesso Rede.bat"
-   de novo e reinstale a interface.
+9. O pacote da Dropbox ja traz a pasta "Interface (outros PCs)" (so o endereco e o certificado publico; nenhuma
+   chave). No outro PC, basta:
+   a) Abrir a pasta "Automacao Dominio - Instalador" na Dropbox e entrar em "Interface (outros PCs)".
+   b) Duplo clique em "Instalar Interface.bat". Ele cria o atalho que abre o painel do PC do Dominio.
+   c) Abrir o atalho (ou https://<IP do PC do Dominio>:8765) e digitar a chave de acesso, que esta em
+      data\servidor_chave.txt no PC do Dominio (a pessoa responsavel entrega).
+   Nao ha nada para atualizar nesse PC: o painel e servido pelo PC do Dominio, entao ele sempre mostra a versao
+   que esta la. So o PC do Dominio roda o Atualizar.bat.
+   Se o IP do PC do Dominio mudar: rode "Configurar Acesso Rede.bat" la, "Gerar Pacote Instalador.bat" e
+   reinstale a interface nos outros PCs.
 
 PROBLEMAS COMUNS
 - "Conexao ou resultado indisponivel" no painel: servidor desligado, PC do Dominio dormindo, ou firewall
