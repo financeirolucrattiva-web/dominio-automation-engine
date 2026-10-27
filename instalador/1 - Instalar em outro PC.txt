@@ -55,9 +55,9 @@ A) PC DO DOMINIO - INSTALACAO COMPLETA
 ------------------------------------------------------------
 B) OUTRO PC SO PARA ABRIR O PAINEL
 ------------------------------------------------------------
-9. O pacote da Dropbox ja traz a pasta "Interface (outros PCs)" (so o endereco e o certificado publico; nenhuma
+9. O pacote da Dropbox ja traz a pasta "Interface - outros PCs" (so o endereco e o certificado publico; nenhuma
    chave). No outro PC, basta:
-   a) Abrir a pasta "Automacao Dominio - Instalador" na Dropbox e entrar em "Interface (outros PCs)".
+   a) Abrir a pasta "Automacao Dominio - Instalador" na Dropbox e entrar em "Interface - outros PCs".
    b) Duplo clique em "Instalar Interface.bat". Ele cria o atalho que abre o painel do PC do Dominio.
    c) Abrir o atalho (ou https://<IP do PC do Dominio>:8765) e digitar a chave de acesso, que esta em
       data\servidor_chave.txt no PC do Dominio (a pessoa responsavel entrega).

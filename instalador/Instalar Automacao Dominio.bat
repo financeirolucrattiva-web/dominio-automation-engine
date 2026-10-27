@@ -30,7 +30,7 @@ if errorlevel 1 (
 
 if exist "%DESTINO%\app" (
   echo A automacao JA esta instalada em:
-  echo   %DESTINO%
+  echo   "%DESTINO%"
   echo Nada foi alterado. Para atualizar use Atualizar.bat dentro dessa pasta.
   echo Para reinstalar do zero, renomeie essa pasta e rode este instalador de novo.
   pause
@@ -52,16 +52,18 @@ if not exist "%DESTINO%\app" (
 )
 
 where git >nul 2>nul
-if not errorlevel 1 (
-  pushd "%DESTINO%"
-  git init -q -b main >nul 2>nul
-  git remote add origin https://github.com/financeirolucrattiva-web/dominio-automation-engine >nul 2>nul
-  git add -A >nul 2>nul
-  git -c user.name=Instalador -c user.email=instalador@local commit -q -m "Instalacao inicial" >nul 2>nul
-  popd
-) else (
-  echo AVISO: Git nao encontrado. A automacao funciona, mas o Atualizar.bat precisa do Git.
-)
+if errorlevel 1 goto sem_git
+pushd "%DESTINO%"
+git init -q -b main >nul 2>nul
+git remote add origin https://github.com/financeirolucrattiva-web/dominio-automation-engine >nul 2>nul
+echo Ligando a instalacao ao GitHub para o Atualizar.bat funcionar...
+python scripts\atualizar_projeto.py
+if errorlevel 1 echo AVISO: nao consegui falar com o GitHub agora. Rode o Atualizar.bat depois, com internet.
+popd
+goto depois_git
+:sem_git
+echo AVISO: Git nao encontrado. A automacao funciona, mas o Atualizar.bat precisa do Git.
+:depois_git
 echo.
 echo Instalando dependencias (Python)...
 pushd "%DESTINO%"
@@ -71,7 +73,7 @@ popd
 if not "%CODIGO%"=="0" (
   echo.
   echo A instalacao das dependencias NAO foi concluida. Leia o erro acima, corrija e rode este
-  echo instalador de novo (ele continua de onde parou se apagar a pasta %DESTINO%).
+  echo instalador de novo. Se pedir, apague antes a pasta "%DESTINO%".
   pause
   exit /b 1
 )

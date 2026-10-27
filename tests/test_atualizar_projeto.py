@@ -76,6 +76,33 @@ class TestAtualizarProjeto(unittest.TestCase):
         self.executar()  # Segunda atualização não cria commits nem pede identidade.
         self.confirmar_main()
 
+    def _instalacao_do_pacote(self, com_commit):
+        """Simula o instalador por zip: arquivos extraidos + git init + remote, sem clonar."""
+        pacote = self.pasta / "pacote"
+        shutil.copytree(self.instalacao, pacote, ignore=shutil.ignore_patterns(".git"))
+        self.git(pacote, "init", "-q", "-b", "main")
+        self.git(pacote, "remote", "add", "origin", str(self.origem))
+        if com_commit:
+            self.git(pacote, "add", "-A")
+            self.git(pacote, "-c", "user.name=Instalador", "-c", "user.email=instalador@local",
+                     "commit", "-q", "-m", "Instalacao inicial")
+        return pacote
+
+    def test_instalacao_por_pacote_sem_commit_liga_na_main_publicada(self):
+        pacote = self._instalacao_do_pacote(com_commit=False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            atualizar(pacote)
+        self.assertEqual(self.git(pacote, "rev-parse", "HEAD").stdout.strip(), self.nova)
+        self.assertEqual((pacote / "motor.txt").read_text().strip(), "versao 2")
+
+    def test_instalacao_por_pacote_com_commit_inicial_nao_trava_mais(self):
+        pacote = self._instalacao_do_pacote(com_commit=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            atualizar(pacote)
+        self.assertEqual(self.git(pacote, "rev-parse", "HEAD").stdout.strip(), self.nova)
+        with contextlib.redirect_stdout(io.StringIO()):
+            atualizar(pacote)  # segunda vez: caminho normal (fast-forward), sem recriar nada
+
     def test_sai_da_branch_documento_sem_perder_seu_commit(self):
         self.git(self.instalacao, "switch", "--create", "documento")
         self.commit(self.instalacao, "esquema.md", "Esquema sintetico\n")

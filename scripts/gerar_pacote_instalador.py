@@ -49,7 +49,7 @@ def main(argv=None):
             (destino / arquivo.name).write_bytes(dados)
     interface = RAIZ / "data" / "rede_local" / "interface_cliente"
     if interface.is_dir():  # só endereço e certificado público: nenhuma chave de acesso
-        alvo = destino / "Interface (outros PCs)"
+        alvo = destino / "Interface - outros PCs"
         shutil.rmtree(alvo, ignore_errors=True)
         shutil.copytree(interface, alvo)
     print(f"Pacote gerado em {destino} (versão {commit}).")

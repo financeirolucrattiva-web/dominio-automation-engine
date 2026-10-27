@@ -26,11 +26,32 @@ def _git(pasta, *args, aceitar=(0,)):
     return resultado
 
 
+def _instalacao_do_pacote(pasta):
+    """True para repositorio criado pelo instalador do pacote: sem commit nenhum, ou so com o commit
+    "Instalacao inicial" (historico proprio, sem relacao com a main publicada)."""
+    if _git(pasta, "rev-parse", "--verify", "--quiet", "HEAD", aceitar=(0, 1)).returncode != 0:
+        return True
+    total = _git(pasta, "rev-list", "--count", "HEAD").stdout.strip()
+    assunto = _git(pasta, "log", "-1", "--format=%s", "HEAD").stdout.strip()
+    return total == "1" and assunto == "Instalacao inicial"
+
+
 def atualizar(pasta=ROOT):
     pasta = Path(pasta).resolve()
     raiz = Path(_git(pasta, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
     if raiz != pasta:
         raise AtualizacaoRecusada("Execute o atualizador na raiz do projeto clonado.")
+
+    if _instalacao_do_pacote(pasta):
+        print("Primeira atualizacao: ligando esta instalacao a main publicada...")
+        _git(pasta, "fetch", "origin", "refs/heads/main:refs/remotes/origin/main")
+        # Instalacao feita pelo pacote (zip): sem historico proprio, o conteudo e o da main de quando o
+        # pacote foi gerado. Forcar e seguro aqui e evita o "historico nao relacionado" que travava o Atualizar.
+        _git(pasta, "checkout", "-q", "-f", "-B", "main", "refs/remotes/origin/main")
+        _git(pasta, "branch", "--set-upstream-to=origin/main", "main", aceitar=(0, 1))
+        revisao = _git(pasta, "rev-parse", "--short", "HEAD").stdout.strip()
+        print(f"Codigo atualizado na main ({revisao}). Conferindo dependencias a seguir.")
+        return revisao
 
     git_dir = Path(_git(pasta, "rev-parse", "--absolute-git-dir").stdout.strip())
     estados = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge",
