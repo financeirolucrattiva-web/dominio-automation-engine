@@ -520,6 +520,9 @@ def voltar_ao_dominio_com_alt_tab(janela, tentativas=3, espera=0.8):
     ponto_seguro_sem_foco()
     if janela is None:
         return False
+    # O console do próprio servidor pode ter ido para a frente (lote real de 27/10: encerramento dos
+    # Livros falhou com a janela em foco "ConsoleWindowClass"): minimizá-lo é seguro e devolve o foco.
+    _minimizar_console_proprio()
     try:
         api, _ = _api_janelas()
         if not _identidade_dominio_confere(api, janela):
