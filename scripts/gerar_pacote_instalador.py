@@ -22,8 +22,9 @@ def main(argv=None):
     destino.mkdir(parents=True, exist_ok=True)
     zip_final = destino / "projeto.zip"
     subprocess.run(["git", "archive", "--format=zip", "-o", str(zip_final), "origin/main"], cwd=RAIZ, check=True)
-    for nome in ("Instalar Automacao Dominio.bat", "LEIAME.txt"):
-        shutil.copyfile(RAIZ / "instalador" / nome, destino / nome)
+    for arquivo in (RAIZ / "instalador").iterdir():
+        if arquivo.is_file():
+            shutil.copyfile(arquivo, destino / arquivo.name)
     print(f"Pacote gerado em {destino} (versão {commit}).")
     return 0
 

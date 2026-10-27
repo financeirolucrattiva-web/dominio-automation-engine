@@ -10,6 +10,8 @@ REQUISITOS NO PC DO DOMINIO
 2. Tesseract OCR com o idioma Portugues (https://github.com/UB-Mannheim/tesseract/wiki).
 3. Git (opcional, para o Atualizar.bat).
 
+PASSO A PASSO COMPLETO: leia "1 - Instalar em outro PC.txt" e "2 - Ligar o servidor.txt" (nesta pasta).
+
 INSTALAR
 1. Duplo clique em "Instalar Automacao Dominio.bat" (instala em %USERPROFILE%\dominio-automation-engine).
 2. Abra a pasta instalada e rode atalhos\ferramentas\"Verificar Ambiente.bat": mostra o que falta.

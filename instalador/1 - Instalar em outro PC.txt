@@ -1,0 +1,69 @@
+INSTALAR A AUTOMACAO EM OUTRO PC
+================================
+Dois casos. Veja qual e o seu:
+  A) PC que vai OPERAR o Dominio (onde o Dominio fica aberto): instalacao completa, passos 1 a 8.
+  B) PC que so vai ABRIR O PAINEL pela rede (sem Dominio): passo 9.
+
+------------------------------------------------------------
+A) PC DO DOMINIO - INSTALACAO COMPLETA
+------------------------------------------------------------
+1. PRE-REQUISITOS (uma vez por PC)
+   a) Python 3.12 ou mais novo, de https://www.python.org/downloads/ . Marque "Add Python to PATH".
+   b) Tesseract OCR com o idioma Portugues: https://github.com/UB-Mannheim/tesseract/wiki
+      Na instalacao marque "Portuguese" e deixe o Tesseract no PATH do Windows.
+   c) Git (recomendado, para o Atualizar.bat funcionar): https://git-scm.com/download/win
+   d) Dominio Escrita Fiscal aberto e logado, com a empresa na tela azul (tela principal).
+
+2. COPIAR O PACOTE
+   Copie a pasta "Automacao Dominio - Instalador" (da Dropbox, em 0.0 DOCAUTO) para este PC.
+
+3. INSTALAR
+   Duplo clique em "Instalar Automacao Dominio.bat". Ele instala em
+   C:\Users\<usuario>\dominio-automation-engine e as dependencias do Python.
+   Se ja existir instalacao, ele NAO sobrescreve: use o Atualizar.bat dentro da pasta instalada.
+
+4. INSTALAR OS COMPONENTES DO SERVIDOR
+   Na pasta instalada, duplo clique em "Instalar Servidor.bat". Ele instala o que o painel precisa e
+   pergunta como o acesso sera feito: escolha [2] (interface em outro PC da rede) e informe o IPv4 deste PC
+   (veja com "ipconfig"). Use um IP fixo (ou reserva no roteador) para ele nao mudar.
+
+5. CONFERIR O AMBIENTE
+   atalhos\ferramentas\"Verificar Ambiente.bat" mostra o que falta (Python, Tesseract, resolucao de tela etc.).
+   Corrija o que aparecer em vermelho antes de seguir.
+
+6. CALIBRAR A TELA (uma vez por PC e por resolucao)
+   Com o Dominio na tela azul, rode atalhos\ferramentas\"Calibrar Tela Principal.bat".
+   Se mudar a resolucao ou a escala do Windows, calibre de novo.
+
+7. LIGAR COM O DOCAUTO (arquivamento nas pastas das empresas)
+   a) Tenha o docauto instalado neste PC.
+   b) Crie o arquivo data\docauto.json (dentro da pasta instalada) neste formato, trocando os caminhos:
+        {
+          "python": "C:\\Users\\<usuario>\\AppData\\Local\\docauto\\app\\.venv\\Scripts\\python.exe",
+          "cwd": "C:\\Users\\<usuario>\\AppData\\Local\\docauto\\app",
+          "resultado_automacao": "C:\\Users\\<usuario>\\AppData\\Local\\docauto\\app\\data\\registro\\resultado_automacao.csv"
+        }
+      Use barras DUPLAS (\\). Com barra simples o arquivo e ignorado.
+   c) Sem esse arquivo nada quebra: os arquivos ficam em saida\ com o nome da convencao local.
+
+8. UNIDADE DO CLIENTE
+   Dentro do Dominio, o disco C: deste PC aparece com outra letra (aqui e "M:"). Se for diferente, grave a
+   letra (uma so, ex.: M) em data\unidade_cliente.txt.
+
+   Depois siga o arquivo "2 - Ligar o servidor.txt".
+
+------------------------------------------------------------
+B) OUTRO PC SO PARA ABRIR O PAINEL
+------------------------------------------------------------
+9. No PC do Dominio existe a pasta data\rede_local\interface_cliente (criada pelo "Configurar Acesso Rede.bat").
+   Copie essa pasta para o outro PC e rode "Instalar Interface.bat" dentro dela.
+   Para abrir: https://<IP do PC do Dominio>:8765 (aceite o certificado). A chave de acesso esta em
+   data\servidor_chave.txt no PC do Dominio. Se o IP do PC do Dominio mudar, rode "Configurar Acesso Rede.bat"
+   de novo e reinstale a interface.
+
+PROBLEMAS COMUNS
+- "Conexao ou resultado indisponivel" no painel: servidor desligado, PC do Dominio dormindo, ou firewall
+  sem liberar (rode "Liberar Acesso Rede.bat" como administrador).
+- Servidor nao inicia ("could not bind"): o IP configurado nao e mais o do PC. Rode "Configurar Acesso Rede.bat".
+- Atualizar: duplo clique em Atualizar.bat (traz a versao nova e limpa arquivos antigos). Voltar atras:
+  atalhos\ferramentas\"Voltar Versao Estavel.bat".

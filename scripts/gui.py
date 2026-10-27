@@ -520,7 +520,7 @@ class JanelaPrincipal:
         elif identificador == "ocr":
             python_ocr = ROOT / ".venv-ocr-paddle" / "Scripts" / "python.exe"
             if not python_ocr.is_file():
-                messagebox.showinfo("OCR opcional", "Prepare o OCR com atalhos/ocr/Instalar Python OCR.bat antes de comparar.")
+                messagebox.showinfo("OCR opcional", "Prepare o OCR com atalhos/avancado/Instalar Python OCR.bat antes de comparar.")
                 return
             comando = [str(python_ocr), str(ROOT / "scripts" / "abrir_ferramenta.py"), "ocr"]
         else:

@@ -1,0 +1,32 @@
+LIGAR O SERVIDOR (SEMPRE NO AR)
+===============================
+O servidor controla o Dominio pela tela. Por isso ele precisa de uma sessao do Windows aberta:
+  - usuario logado no PC do Dominio, tela desbloqueada e o Dominio aberto na tela azul;
+  - o PC nao pode dormir nem apagar a tela (o instalador abaixo ja ajusta isso).
+
+PREPARAR (uma unica vez)
+1. Configurar Acesso Rede.bat (pasta atalhos\servidor). Ja foi feito se voce usou o "Instalar Servidor.bat".
+2. Liberar Acesso Rede.bat: botao direito > Executar como administrador. Libera so a rede local.
+3. Instalar Servidor Permanente.bat: duplo clique (sem administrador).
+   Ele cria uma tarefa que liga o servidor sozinho toda vez que este usuario entra no Windows,
+   sem janela, e religa se ele cair (ate 5 vezes, 1 minuto entre elas). Tambem desliga a suspensao
+   e o desligamento da tela quando o PC esta na tomada.
+
+USO DIARIO
+- Ligou o PC e entrou no Windows: o servidor sobe sozinho em cerca de 1 minuto. Abra o Dominio na tela azul.
+- Abra o painel: https://<IP do PC do Dominio>:8765 (neste PC ou em qualquer outro da rede).
+- Crie o lote (empresas + competencia FECHADA + rotinas) e acompanhe pelo painel.
+- Durante a execucao NAO mexa no mouse nem no teclado do PC do Dominio.
+
+CONFERIR / DESLIGAR
+- Ver Servidor Permanente.bat mostra se a tarefa esta instalada e em que estado.
+- Remover Servidor Permanente.bat tira a tarefa e encerra o servidor que estava aberto.
+- Log do servidor permanente: data\servidor_permanente.log. Diagnostico das rotinas: data\servidor_detalhes.log.
+- Sem a tarefa, o modo manual continua: "Executar Dominio na Rede.bat" (deixe a janela aberta).
+
+SE O SERVIDOR NAO SOBE
+1. Rode "Ver Servidor Permanente.bat".
+2. Leia o fim de data\servidor_permanente.log.
+3. "could not bind": o IP deste PC mudou. Rode "Configurar Acesso Rede.bat" e reinstale a interface nos outros PCs.
+4. Depois do Atualizar.bat, reinicie o servidor (Remover e Instalar Servidor Permanente, ou reinicie o PC)
+   para ele carregar o codigo novo.

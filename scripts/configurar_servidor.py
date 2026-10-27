@@ -19,7 +19,7 @@ def main(argv=None):
         if not ip:
             escolha = input("Acesso: [1] somente neste PC, [2] interface em outro PC da rede. Escolha [2]: ").strip()
             if escolha == "1":
-                print("Acesso local mantido. Use atalhos/servidor/Testar Interface Servidor.bat.")
+                print("Acesso local mantido (somente este PC).")
                 return 0
             if escolha not in ("", "2"):
                 print("Opção inválida; configuração não alterada.")
@@ -34,7 +34,7 @@ def main(argv=None):
         print("Pacote para copiar ao outro PC: data/rede_local/interface_cliente")
         print("Certificado público SHA256: " + resultado["certificado_sha256"])
         print("Neste PC, execute atalhos/servidor/Liberar Acesso Rede.bat como administrador (rede privada).")
-        print("Depois abra atalhos/servidor/Testar Interface na Rede.bat. No outro PC, rode Instalar Interface.bat do pacote.")
+        print("Depois abra atalhos/servidor/Executar Dominio na Rede.bat (ou instale o servidor permanente). No outro PC, rode Instalar Interface.bat do pacote.")
         print("A chave de acesso é a mesma de data/servidor_chave.txt, criada ao iniciar o servidor.")
         return 0
     except (OSError, ValueError, KeyError, TypeError):
