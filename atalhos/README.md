@@ -63,6 +63,8 @@ Paddle continua opcional; o motor mantém o Tesseract atual.
 | [Listar Funcoes.bat](ferramentas/Listar%20Funcoes.bat) | Consultar o catálogo descritivo |
 | [Abrir Motor SPED.bat](ferramentas/Abrir%20Motor%20SPED.bat) | Abrir o menu de texto existente |
 | [Verificar Ambiente.bat](ferramentas/Verificar%20Ambiente.bat) | Pre-voo antes do lote: Tesseract, OCR do Windows, calibracao, pasta de saida, espaco, servidor, atalho; nao opera o Dominio. O lote por atalho roda isso sozinho |
+| [Limpar Pastas.bat](ferramentas/Limpar%20Pastas.bat) | Mostra e remove capturas, caches e backups antigos gerados pela automação (nunca configuração) |
+| [Gerar Pacote Instalador.bat](ferramentas/Gerar%20Pacote%20Instalador.bat) | Refaz o projeto.zip do instalador a partir do origin/main |
 | [Configurar Atalho de Saida.bat](ferramentas/Configurar%20Atalho%20de%20Saida.bat) | Cria a juncao `C:\saida` para a pasta de saida: o Procurar Pasta anda 1 nivel em vez de 4 (~35 s a menos por empresa nos Livros). Opcional; ensaie com `Testar Seletor de Pasta.bat` |
 | [Remover Atalho de Saida.bat](ferramentas/Remover%20Atalho%20de%20Saida.bat) | Volta ao caminho completo (nao apaga nada) |
 | [Ver Otimizacoes.bat](ferramentas/Ver%20Otimizacoes.bat) | Mostra quais otimizacoes de velocidade estao ligadas (LIGADA) ou no caminho classico (desligada) |

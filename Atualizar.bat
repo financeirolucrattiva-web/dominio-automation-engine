@@ -21,6 +21,9 @@ if errorlevel 1 goto atualizacao_falhou
 
 :atualizacao_concluida
 echo.
+echo Limpando capturas, caches e backups antigos...
+python scripts\limpar_pastas.py --aplicar --silencioso
+echo.
 echo Atualizacao concluida.
 pause
 exit /b 0

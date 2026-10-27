@@ -1,0 +1,42 @@
+AUTOMACAO DO DOMINIO - Lucro Presumido (Resumo por Acumulador, EFD Contribuicoes, Livros Fiscais)
+=====================================================================================================
+
+O QUE E
+Gera e le relatorios do Dominio por empresa e competencia FECHADA. Nao transmite nada e nao opera
+competencia em aberto. Roda no PC onde o Dominio esta aberto (sessao visivel).
+
+REQUISITOS NO PC DO DOMINIO
+1. Python 3.12 ou mais novo (marque "Add Python to PATH").
+2. Tesseract OCR com o idioma Portugues (https://github.com/UB-Mannheim/tesseract/wiki).
+3. Git (opcional, para o Atualizar.bat).
+
+INSTALAR
+1. Duplo clique em "Instalar Automacao Dominio.bat" (instala em %USERPROFILE%\dominio-automation-engine).
+2. Abra a pasta instalada e rode atalhos\ferramentas\"Verificar Ambiente.bat": mostra o que falta.
+3. Com o Dominio na tela azul, rode atalhos\ferramentas\"Calibrar Tela Principal.bat" (uma vez por PC/resolucao).
+
+USAR (PC do Dominio)
+- Servidor sempre no ar: atalhos\servidor\"Instalar Servidor Permanente.bat" (uma vez). Ele sobe sozinho quando o
+  usuario entra no Windows, sem janela, e reinicia se cair. O PC nao pode dormir nem bloquear a tela, e o Dominio
+  fica aberto na tela azul. "Ver" e "Remover Servidor Permanente.bat" ficam na mesma pasta.
+- Rede/painel: atalhos\servidor\"Configurar Acesso Rede.bat" (informe o IP do PC), "Liberar Acesso Rede.bat"
+  (como administrador) e "Executar Dominio na Rede.bat". Painel: https://<IP>:8765
+- Outro PC (so a interface): copie data\rede_local\interface_cliente e rode "Instalar Interface.bat".
+- Lote por atalho (servidor PARADO): atalhos\ferramentas\"Executar Presumido em Lote.bat".
+- Durante a execucao nao mexa no mouse nem no teclado do PC do Dominio.
+
+ARQUIVAMENTO (docauto) - opcional
+Crie data\docauto.json com: python, cwd e resultado_automacao do docauto instalado. Sem esse arquivo
+nada muda. Com ele, os arquivos vao para a pasta da empresa e a automacao grava o resultado_automacao.csv.
+
+MANUTENCAO
+- "Atualizar.bat" traz a versao mais nova e ja limpa capturas, caches e backups antigos.
+- atalhoserramentas\"Limpar Pastas.bat" mostra e remove so o que a automacao gera e pode refazer. Nunca mexe em
+  configuracao, bancos, chaves nem na pasta saida (exceto saidanteriores com mais de 30 dias).
+
+SEGURANCA / VOLTAR
+- "Modo Seguro (sem otimizacoes).bat" desliga as otimizacoes de velocidade.
+- "Voltar Versao Estavel.bat" volta para a ultima versao estavel (tag estavel-*), sem apagar nada.
+- "Atualizar.bat" traz a versao mais nova.
+
+SUPORTE: data\servidor_detalhes.log guarda o diagnostico (tempos e motivos), sem dados fiscais.
