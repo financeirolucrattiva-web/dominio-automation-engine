@@ -494,7 +494,7 @@ def _executar(dominio, interacao, acompanhamento, artefatos, pasta_destino,
     if not completa or {a['tipo'] for a in artefatos}!=set(TIPOS):return False
     acompanhamento.confirmar('pdf_tipo_periodo_cnpj_confirmados')
     acompanhamento.iniciar('encerrar')
-    if not dominio.voltar_ao_inicio(acompanhamento.janela_dominio):
+    if not dominio.voltar_ao_inicio(acompanhamento.janela_dominio, clicar_vazio_antes=True):
         acompanhamento.registrar_encerramento_inconclusivo()
         return False
     acompanhamento.confirmar('tela_principal_reconhecida')

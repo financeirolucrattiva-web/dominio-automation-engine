@@ -1542,7 +1542,28 @@ def fechar_aba_ativa(janela):
         return False
 
 
-def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
+def _clicar_no_vazio_do_relatorio():
+    """Clica numa área em branco da tela do relatório aberto (sem botão, texto ou
+    campo) para o Esc seguinte chegar ao relatório. Só clica onde a captura é
+    uniforme; se nenhum ponto candidato for liso, não clica. True se clicou."""
+    try:
+        imagem = tela.capturar_tela().convert("L")
+        largura, altura = imagem.size
+        for fx, fy in ((0.72, 0.68), (0.72, 0.45), (0.66, 0.78), (0.78, 0.30)):
+            x, y = int(largura * fx), int(altura * fy)
+            recorte = imagem.crop((x - 25, y - 25, x + 25, y + 25))
+            minimo, maximo = recorte.getextrema()
+            if maximo - minimo <= 12:
+                interacao.clicar(x, y)
+                return True
+    except ExecucaoInterrompida:
+        raise
+    except Exception:
+        pass
+    return False
+
+
+def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3, clicar_vazio_antes=False):
     """Fecha o que estiver aberto até reconhecer a tela principal calibrada.
 
     Só age se a tela principal NÃO estiver reconhecida (nunca envia tecla
@@ -1596,6 +1617,10 @@ def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
                     pular_esc = True
                     passo = max_esc
             if passo < max_esc:
+                if clicar_vazio_antes and passo == 0:
+                    # relatório aberto (ex.: Livros): o Esc só funciona depois de um clique no vazio
+                    if _clicar_no_vazio_do_relatorio():
+                        print("Cliquei no vazio do relatório antes do Esc.", flush=True)
                 if not interacao.pressionar_esc_no_dominio(
                         janela, vezes=1, confirmar_conteudo=_confirmar_conteudo_dominio):
                     return False
