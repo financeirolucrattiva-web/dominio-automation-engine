@@ -48,3 +48,22 @@ class TestTrocaEmpresaSegura(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAvisoBuscaConvencoes(TestTrocaEmpresaSegura):
+    def test_dispensa_aviso_com_enter_e_confere(self):
+        d = self.desktop
+        d["tela"].recortar_centro.return_value = (object(), 0, 0)
+        d["tela"].ler_texto.side_effect = ["Erro Ocorreu um erro ao realizar a verificação da ativação do módulo Busca Convenções OK", "Troca de empresas"]
+        d["erros"].normalizar.side_effect = lambda t: self.modulo.erros.__class__ and (
+            "busca convencoes" if "Convenções" in t else "troca de empresas")
+        self.assertTrue(self.modulo._dispensar_aviso_busca_convencoes())
+        d["interacao"].pressionar_enter.assert_called_once_with()
+
+    def test_sem_aviso_nao_envia_tecla(self):
+        d = self.desktop
+        d["tela"].recortar_centro.return_value = (object(), 0, 0)
+        d["tela"].ler_texto.return_value = "Troca de empresas Acessar"
+        d["erros"].normalizar.side_effect = lambda t: "troca de empresas acessar"
+        self.assertFalse(self.modulo._dispensar_aviso_busca_convencoes())
+        d["interacao"].pressionar_enter.assert_not_called()

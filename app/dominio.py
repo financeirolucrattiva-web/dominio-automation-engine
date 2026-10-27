@@ -510,6 +510,33 @@ def _forcar_busca_por_codigo(prefixo=""):
     return False
 
 
+_AVISOS_BENIGNOS_TROCA = ("busca convencoes", "ativacao do modulo")
+
+
+def _dispensar_aviso_busca_convencoes(prefixo="", tentativas=2):
+    """OK no aviso "Ocorreu um erro ao realizar a verificação da ativação do módulo Busca
+    Convenções", que o Domínio mostra na Troca de empresas (captura real de 27/10) e que só
+    pede OK. Reconhece pelo texto da caixa (região central) e fecha com Enter, que é o botão
+    em foco; confere que sumiu. Devolve True se havia o aviso e ele fechou."""
+    dispensou = False
+    for _ in range(tentativas):
+        try:
+            centro, _dx, _dy = tela.recortar_centro(tela.capturar_tela())
+            texto = erros.normalizar(tela.ler_texto(centro, escala=2))
+        except ExecucaoInterrompida:
+            raise
+        except Exception:
+            return dispensou
+        if not any(t in texto for t in _AVISOS_BENIGNOS_TROCA):
+            return dispensou
+        print("Aviso 'Busca Convenções' na Troca de empresas: clicando OK (Enter) e continuando.", flush=True)
+        salvar(tela.capturar_tela(), f"{prefixo}aviso_busca_convencoes.png")
+        interacao.pressionar_enter()
+        time.sleep(0.8)
+        dispensou = True
+    return dispensou
+
+
 def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     """Troca a empresa selecionada no Domínio via F8, buscando por
     código (seção 0.14). Assume que o modo de busca "Busca por" já está
@@ -541,6 +568,7 @@ def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     print("Abrindo 'Troca de empresas' (F8)...")
     interacao.pressionar_tecla("f8")
     time.sleep(1)
+    _dispensar_aviso_busca_convencoes(prefixo)
 
     # Título do diálogo não lê de forma confiável no OCR (seção 0.14) —
     # "Acessar" é bem mais confiável e confirma que a tela carregou.
@@ -579,6 +607,7 @@ def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     print(f"Digitando '{codigo}'...")
     interacao.digitar(str(codigo))
     time.sleep(1)
+    _dispensar_aviso_busca_convencoes(prefixo)
     salvar(tela.capturar_tela(), f"{prefixo}troca_empresa_digitado.png")
 
     # Depois de digitar, a linha já fica selecionada sozinha — não
@@ -596,6 +625,7 @@ def trocar_empresa(codigo, prefixo="", recuperar_inicio=None):
     # grid de busca de empresa por engano em vez do menu de verdade.
     for tentativa in range(1, 11):
         time.sleep(1)
+        _dispensar_aviso_busca_convencoes(prefixo, tentativas=1)
         ainda_aberta = tela.achar_texto_ou_no_centro(tela.capturar_tela(), "Acessar", escala=2)
         if ainda_aberta is None:
             break
