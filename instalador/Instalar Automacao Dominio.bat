@@ -65,7 +65,7 @@ if not errorlevel 1 (
 echo.
 echo Instalando dependencias (Python)...
 pushd "%DESTINO%"
-call "Instalar.bat"
+call "%DESTINO%\Instalar.bat"
 set "CODIGO=%errorlevel%"
 popd
 if not "%CODIGO%"=="0" (
