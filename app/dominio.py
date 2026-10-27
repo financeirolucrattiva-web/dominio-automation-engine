@@ -1400,7 +1400,7 @@ def _confirmar_conteudo_dominio(imagem=None):
     )
 
 
-def _verificar_retorno_tela_principal(acompanhamento):
+def _verificar_retorno_tela_principal(acompanhamento, tentativas=5):
     """Observa foco, cabeçalho e referência local; não envia nenhuma ação."""
     try:
         referencia = tela_principal.carregar_referencia()
@@ -1411,7 +1411,7 @@ def _verificar_retorno_tela_principal(acompanhamento):
             print("Referência local da tela principal ainda não calibrada; confira o retorno visualmente.")
             return "referencia_tela_principal_ausente"
         consecutivos = 0
-        for tentativa in range(5):
+        for tentativa in range(tentativas):
             if not interacao.janela_dominio_em_foco(acompanhamento.janela_dominio):
                 return "foco_dominio_nao_confirmado"
             imagem = tela.capturar_tela()
@@ -1422,7 +1422,7 @@ def _verificar_retorno_tela_principal(acompanhamento):
             if consecutivos >= 2:
                 print("Retorno à tela principal reconhecido pela referência local em duas capturas consecutivas.")
                 return "tela_principal_reconhecida"
-            if tentativa < 4:
+            if tentativa < tentativas - 1:
                 time.sleep(0.3)
         return "tela_principal_nao_reconhecida"
     except Exception:
@@ -1565,7 +1565,11 @@ def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
             alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
             if alt_tab is None or not alt_tab(janela):
                 return False
+        parados, ultima, fechadas = 0, None, 0
+        pular_esc = False
         for passo in range(max_esc + max_fechar + 1):
+            if pular_esc and passo < max_esc:
+                passo = max_esc  # Esc não muda mais a tela: vai direto para fechar a aba ativa
             ponto_seguro_sem_foco()
             _dispensar_erro_dde()  # o aviso do Acrobat toma o foco e atrasa/derruba a volta ao início
             if not interacao.janela_dominio_em_foco(janela):
@@ -1574,13 +1578,31 @@ def voltar_ao_inicio(janela=None, max_esc=12, max_fechar=3):
                 alt_tab = getattr(interacao, "voltar_ao_dominio_com_alt_tab", None)
                 if passo == 0 or alt_tab is None or not alt_tab(janela) or not interacao.janela_dominio_em_foco(janela):
                     return False
-            if _verificar_retorno_tela_principal(contexto) == "tela_principal_reconhecida":
+            if _verificar_retorno_tela_principal(contexto, tentativas=3) == "tela_principal_reconhecida":
                 return True
+            if passo < max_esc:
+                try:
+                    assinatura = tela.capturar_tela().convert("L").resize((48, 27)).tobytes()
+                except Exception:
+                    assinatura = None
+                if not isinstance(assinatura, bytes):
+                    assinatura = None
+                parados = parados + 1 if assinatura is not None and assinatura == ultima else 0
+                ultima = assinatura
+                if parados >= 3:
+                    # 3 Esc seguidos sem a tela mudar (observado: 12 Esc a ~6 s cada = ~100 s no
+                    # encerramento dos Livros): escala logo para fechar a aba/janela ativa.
+                    print("Esc não está mudando a tela; passando a fechar a aba ativa.", flush=True)
+                    pular_esc = True
+                    passo = max_esc
             if passo < max_esc:
                 if not interacao.pressionar_esc_no_dominio(
                         janela, vezes=1, confirmar_conteudo=_confirmar_conteudo_dominio):
                     return False
             elif passo < max_esc + max_fechar:
+                if fechadas >= max_fechar:
+                    return False  # o limite de fechamentos vale também depois do atalho
+                fechadas += 1
                 if not fechar_aba_ativa(janela):
                     return False
         return False

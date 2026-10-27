@@ -22,6 +22,9 @@ Mantenha estas pastas dentro do projeto, pois os atalhos precisam de
 | [Liberar Acesso Rede.bat](servidor/Liberar%20Acesso%20Rede.bat) | Criar regra de firewall; executar como administrador |
 | [Testar Interface na Rede.bat](servidor/Testar%20Interface%20na%20Rede.bat) | Simulação para dois PCs |
 | [Executar Dominio na Rede.bat](servidor/Executar%20Dominio%20na%20Rede.bat) | Execução real para dois PCs |
+| [Instalar Servidor Permanente.bat](servidor/Instalar%20Servidor%20Permanente.bat) | Servidor sobe sozinho no logon, sem janela, e reinicia se cair (1 vez, sem administrador) |
+| [Ver Servidor Permanente.bat](servidor/Ver%20Servidor%20Permanente.bat) | Mostra se a tarefa do servidor permanente está instalada |
+| [Remover Servidor Permanente.bat](servidor/Remover%20Servidor%20Permanente.bat) | Remove a tarefa e encerra o servidor aberto |
 
 O [guia de servidor e interface](../docs/SERVIDOR-E-INTERFACE.md)
 explica a configuração e a conexão. Os modos de execução real mantêm

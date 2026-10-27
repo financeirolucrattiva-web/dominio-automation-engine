@@ -37,6 +37,16 @@ class TestVoltarAoInicio(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_esc_que_nao_muda_a_tela_escala_cedo_para_fechar_a_aba(self):
+        from PIL import Image
+        self.tela.capturar_tela.return_value = Image.new("RGB", (96, 54), "blue")
+        self.verificar.return_value = NAO
+        fechar = Mock(return_value=True)
+        with patch.object(dominio, "fechar_aba_ativa", fechar):
+            self.assertFalse(dominio.voltar_ao_inicio(JANELA))
+        self.assertLessEqual(self.interacao.pressionar_esc_no_dominio.call_count, 4)
+        self.assertEqual(fechar.call_count, 3)  # o limite de fechamentos continua valendo
+
     def test_ja_na_tela_principal_nao_envia_nada(self):
         self.assertTrue(dominio.voltar_ao_inicio())
         self.interacao.pressionar_esc_no_dominio.assert_not_called()
