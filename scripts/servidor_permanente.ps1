@@ -1,4 +1,4 @@
-param([ValidateSet('instalar','remover','status')][string]$Acao = 'instalar')
+param([ValidateSet('instalar','remover','status','reiniciar')][string]$Acao = 'instalar', [switch]$Forcar)
 $ErrorActionPreference = 'Stop'
 $nome = 'AutomacaoDominioServidor'
 try {
@@ -9,6 +9,31 @@ try {
         $t = Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue
         if ($t) { Write-Host ("Tarefa '$nome': " + $t.State) } else { Write-Host "Servidor permanente NAO instalado." }
         exit 0
+    }
+    if ($Acao -eq 'reiniciar') {
+        # Nao reinicia no meio de uma rotina (o lote seria interrompido), salvo com -Forcar.
+        $banco = Join-Path $raiz 'data\servidor.sqlite3'
+        if ((Test-Path -LiteralPath $banco) -and -not $Forcar) {
+            $ocupado = python (Join-Path $raiz 'scripts\servidor_ocupado.py')
+            if ([int]$ocupado -gt 0) {
+                throw "Ha $ocupado tarefa(s) pendente(s) ou rodando. Espere terminar (ou use Reiniciar Servidor (forcar).bat, que interrompe o lote)."
+            }
+        }
+        $t = Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue
+        if ($t) { Stop-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue }
+        Get-CimInstance Win32_Process | Where-Object {
+            ($_.Name -match '^(cmd|python)(w)?\.exe$' -and $_.CommandLine -match 'Servidor Permanente \(loop\)|scripts\servidor\.py')
+        } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Seconds 3
+        if ($t) { Start-ScheduledTask -TaskName $nome } else { Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $vbs + '"') -WorkingDirectory $raiz }
+        for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 2
+            if (Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match 'scripts\servidor\.py' }) {
+                Write-Host 'Servidor reiniciado e no ar (sem desligar o PC). Se o painel estava aberto, atualize a pagina (Ctrl+F5).'
+                exit 0
+            }
+        }
+        throw 'O servidor nao subiu em 60 s. Veja o fim de data\servidor_permanente.log.'
     }
     if ($Acao -eq 'remover') {
         if (Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue) {

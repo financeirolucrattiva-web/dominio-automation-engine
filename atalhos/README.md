@@ -10,6 +10,8 @@ Use só estas pastas no dia a dia. O que é raro fica em `avancado`.
 | Instalar Servidor Permanente.bat | Servidor sobe sozinho no logon, sem janela, e reinicia se cair |
 | Ver Servidor Permanente.bat | Mostra se a tarefa do servidor está instalada |
 | Remover Servidor Permanente.bat | Remove a tarefa e encerra o servidor aberto |
+| Atualizar e Reiniciar Servidor.bat | Traz a versão nova e reinicia o servidor sem desligar o PC |
+| Reiniciar Servidor.bat / Reiniciar Servidor (forcar).bat | Só reinicia; o normal recusa se houver lote rodando |
 | Executar Dominio na Rede.bat | Modo manual (deixe a janela aberta) |
 
 `Servidor Oculto.vbs` e `Servidor Permanente (loop).bat` são internos da tarefa permanente.

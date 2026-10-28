@@ -18,6 +18,11 @@ USO DIARIO
 - Crie o lote (empresas + competencia FECHADA + rotinas) e acompanhe pelo painel.
 - Durante a execucao NAO mexa no mouse nem no teclado do PC do Dominio.
 
+ATUALIZAR E REINICIAR (sem desligar o PC)
+- "Atualizar e Reiniciar Servidor.bat" (pasta atalhos\servidor): traz a versao nova e reinicia o servidor.
+- "Reiniciar Servidor.bat": so reinicia. Recusa se houver lote rodando; "Reiniciar Servidor (forcar).bat" reinicia mesmo assim
+  (o lote e interrompido). Depois, no painel, aperte Ctrl+F5.
+
 CONFERIR / DESLIGAR
 - Ver Servidor Permanente.bat mostra se a tarefa esta instalada e em que estado.
 - Remover Servidor Permanente.bat tira a tarefa e encerra o servidor que estava aberto.
