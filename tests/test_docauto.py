@@ -107,6 +107,23 @@ class TestLocalizarEfd(unittest.TestCase):
             achado = modulo.ServicoExecucao._localizar_efd(SimpleNamespace(pasta_saida=raiz), tarefa, self.PEDIDO)
             return Path(achado).name if achado else None
 
+    def test_sped_fiscal_usa_as_posicoes_do_0000_da_efd_icms_ipi(self):
+        import datetime as dt
+        import app.servidor as modulo
+        with tempfile.TemporaryDirectory() as raiz:
+            (Path(raiz) / "S.txt").write_text("|0000|017|0|01082026|31082026|X|1|MT|", encoding="latin-1")
+            tarefa = {"criado": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)).isoformat()}
+            pedido = dict(self.PEDIDO, capacidade="sped_fiscal")
+            achado = modulo.ServicoExecucao._localizar_efd(SimpleNamespace(pasta_saida=raiz), tarefa, pedido)
+            self.assertEqual(Path(achado).name, "S.txt")
+            # o mesmo arquivo não vale como EFD Contribuições (posições diferentes)
+            pedido["capacidade"] = "efd_contribuicoes"
+            self.assertIsNone(modulo.ServicoExecucao._localizar_efd(SimpleNamespace(pasta_saida=raiz), tarefa, pedido))
+
+    def test_sped_fiscal_tem_destino_pelo_template_e_csv_com_nome_da_rotina(self):
+        self.assertEqual(docauto.ROTINAS["sped_fiscal"], "RECIBO_EFD_ICMS")
+        self.assertIn("RECIBO_EFD_ICMS", docauto._COMO_TIPO)
+
     def test_acha_o_unico_txt_do_periodo(self):
         self.assertEqual(self._rodar({"A.txt": "|0000|006|0|||01082026|31082026|X|1|MT|\n"}), "A.txt")
 

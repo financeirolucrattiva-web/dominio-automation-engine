@@ -20,6 +20,10 @@ from app.configuracao_lotes import ConfiguracaoLotes
 from app.formulario_resumo import MOTIVOS_PERIODO
 
 
+# Posição de DT_INI/DT_FIN no registro 0000 do TXT que o Domínio grava (campos do split por "|").
+POSICAO_PERIODO_0000 = {"efd_contribuicoes": (6, 7), "sped_fiscal": (4, 5)}
+
+
 class SessaoOcupada(ValueError):
     pass
 
@@ -593,13 +597,14 @@ class ServicoExecucao:
             inicio = desde if desde is not None else dt.datetime.fromisoformat(tarefa["criado"]).timestamp()
             esperado = (pedido["inicio"][8:] + pedido["inicio"][5:7] + pedido["inicio"][:4],
                         pedido["fim"][8:] + pedido["fim"][5:7] + pedido["fim"][:4])
+            i_ini, i_fim = POSICAO_PERIODO_0000.get(pedido.get("capacidade"), POSICAO_PERIODO_0000["efd_contribuicoes"])
             achados = []
             for candidato in Path(self.pasta_saida).glob("*.txt"):
                 if candidato.stat().st_mtime < inicio - 5:
                     continue
                 with candidato.open("r", encoding="latin-1") as f:
                     campos = f.readline().split("|")
-                if len(campos) > 7 and campos[1] == "0000" and (campos[6], campos[7]) == esperado:
+                if len(campos) > i_fim and campos[1] == "0000" and (campos[i_ini], campos[i_fim]) == esperado:
                     achados.append(candidato)
             if achados:
                 if len(achados) > 1:
@@ -767,7 +772,7 @@ class ServicoExecucao:
                     motivos_periodo = [e['evidence'] for e in self.repositorio.eventos(identificador)
                                        if e['status'] == 'falha' and e.get('evidence') in MOTIVOS_PERIODO]
                     motivo = motivos_periodo[-1] if motivos_periodo else None
-                if status == "concluida" and not arquivo and pedido['capacidade'] == 'efd_contribuicoes':
+                if status == "concluida" and not arquivo and pedido['capacidade'] in POSICAO_PERIODO_0000:
                     arquivo = self._localizar_efd(tarefa, pedido, desde=inicio_execucao)
                 if status == "concluida" and arquivo and pedido['capacidade'] != 'livros_fiscais':
                     try:

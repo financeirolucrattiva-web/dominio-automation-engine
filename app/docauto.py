@@ -22,8 +22,9 @@ ARQUIVO = Path(__file__).resolve().parent.parent / "data" / "docauto.json"
 # registro_icms (livro de apuração) usa `--tipo APURACAO_ICMS` no docauto, não `--rotina`.
 ROTINAS = {"resumo_acumulador": "resumo_acumulador", "efd_contribuicoes": "efd_contribuicoes",
            "registro_entradas": "livro_entradas", "registro_saidas": "livro_saidas",
-           "registro_icms": "APURACAO_ICMS"}
-_COMO_TIPO = {"APURACAO_ICMS"}
+           "registro_icms": "APURACAO_ICMS", "sped_fiscal": "RECIBO_EFD_ICMS"}
+_COMO_TIPO = {"APURACAO_ICMS", "RECIBO_EFD_ICMS"}
+_NOME_NO_CSV = {"sped_fiscal": "sped_fiscal"}  # o CSV traz o nome da rotina, não o id do template
 CABECALHO = ["codigo_dominio", "competencia", "rotina", "status", "arquivo", "sha256", "gerado_em"]
 _log = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def destino(codigo, competencia, tipo, config=None, executar=subprocess.run):
 def registrar_resultado(codigo, competencia, tipo, status, arquivo, config=None):
     """Acrescenta uma linha ao resultado_automacao.csv (se configurado). Devolve True se gravou."""
     config = config or configuracao()
-    rotina = ROTINAS.get(tipo)
+    rotina = _NOME_NO_CSV.get(tipo) or ROTINAS.get(tipo)
     if not config or not config.get("resultado_automacao") or not rotina:
         return False
     try:
