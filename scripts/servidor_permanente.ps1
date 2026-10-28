@@ -22,13 +22,13 @@ try {
         $t = Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue
         if ($t) { Stop-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue }
         Get-CimInstance Win32_Process | Where-Object {
-            ($_.Name -match '^(cmd|python)(w)?\.exe$' -and $_.CommandLine -match 'Servidor Permanente \(loop\)|scripts[\/]servidor\.py')
+            ($_.Name -match '^(cmd|python)(w)?\.exe$' -and $_.CommandLine -match 'Servidor Permanente \(loop\)|scripts[\\/]servidor\.py')
         } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         Start-Sleep -Seconds 3
         if ($t) { Start-ScheduledTask -TaskName $nome } else { Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $vbs + '"') -WorkingDirectory $raiz }
         for ($i = 0; $i -lt 30; $i++) {
             Start-Sleep -Seconds 2
-            if (Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match 'scripts[\/]servidor\.py' }) {
+            if (Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match 'scripts[\\/]servidor\.py' }) {
                 Write-Host 'Servidor reiniciado e no ar (sem desligar o PC). Se o painel estava aberto, atualize a pagina (Ctrl+F5).'
                 exit 0
             }
@@ -42,7 +42,7 @@ try {
         }
         # Encerra o loop e o servidor que ficaram abertos.
         Get-CimInstance Win32_Process | Where-Object {
-            ($_.Name -match '^(cmd|python)(w)?\.exe$' -and $_.CommandLine -match 'Servidor Permanente \(loop\)|scripts[\/]servidor\.py')
+            ($_.Name -match '^(cmd|python)(w)?\.exe$' -and $_.CommandLine -match 'Servidor Permanente \(loop\)|scripts[\\/]servidor\.py')
         } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         Write-Host 'Servidor permanente removido. Para abrir manualmente use Executar Dominio na Rede.bat.'
         exit 0
