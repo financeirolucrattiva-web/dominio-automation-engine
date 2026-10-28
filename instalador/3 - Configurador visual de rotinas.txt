@@ -21,6 +21,12 @@ PASSO A PASSO
    partir da propria tela reconhecida. 'Se aparecer -> tecla' responde com uma tecla (Enter, Esc...). Por padrao e
    OPCIONAL: se a tela nao aparecer em 'espera' segundos, a rotina segue. Marque 'Obrigatoria' para esperar uma tela
    que TEM que surgir e falhar se ela nao vier. O fluxo normal continua linear; condicional so onde ha variavel.
+   TROCAR DE EMPRESA e VOLTAR A TELA PRINCIPAL: em 'Adicionar passo' ha 'Trocar de empresa (codigo do parametro)'
+   e 'Voltar a tela principal'. Sao as mesmas funcoes dos lotes reais (F8 + codigo, conferindo a empresa; e fechar o
+   que estiver aberto ate a tela azul). A empresa vem do parametro 'codigo da empresa', pedido no teste. Se a troca ou
+   a volta nao se confirmarem, a rotina para ali e nao segue com a empresa errada.
+   TEMPOS: toda espera por imagem e um MAXIMO, nao um tempo fixo: a rotina segue assim que a imagem aparece (confere
+   a cada ~1 s) e so desiste depois de 'espera' segundos. 'Esperar segundos' e a unica pausa fixa.
 4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
 5. Para teclas, textos e parametros use "Adicionar passo": tecla (tab, enter, esc, setas, F8...), parametro
    (data inicial, data final, competencia, codigo da empresa), texto fixo ou espera em segundos.

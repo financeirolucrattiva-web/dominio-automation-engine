@@ -226,6 +226,55 @@ class TestExecucao(Base):
             self.c.aprovar(salva["id"])
 
 
+class TestTrocarEmpresaEVoltar(Base):
+    """Trocar de empresa e voltar à tela principal: funções dos lotes reais, empresa sempre pelo parâmetro."""
+
+    def montar(self, troca=True, volta=True):
+        chamadas = []
+        d = self.falsos.dispositivos()
+        d.trocar_empresa = lambda codigo: chamadas.append(("trocar", codigo)) or troca
+        d.voltar_inicio = lambda: chamadas.append(("voltar",)) or volta
+        return Configurador(self.pasta / "cfg3", d, pasta_falhas=self.pasta / "falhas3"), chamadas
+
+    PASSOS = [{"tipo": "trocar_empresa"}, {"tipo": "tecla", "tecla": "tab"}, {"tipo": "voltar_tela_principal"}]
+
+    def test_parametro_empresa_e_exigido_e_listado(self):
+        c, _ = self.montar()
+        salva = c.salvar("Trocar e voltar", self.PASSOS)
+        self.assertEqual(salva["parametros"], ["empresa_codigo"])
+        with self.assertRaises(ConfiguradorErro):
+            c.testar(salva["id"], {})                                  # faltou a empresa
+        with self.assertRaises(ConfiguradorErro):
+            c.testar(salva["id"], {"empresa_codigo": "7a"})
+
+    def test_executa_na_ordem_com_a_empresa_do_parametro(self):
+        c, chamadas = self.montar()
+        salva = c.salvar("Trocar e voltar", self.PASSOS)
+        resultado = c.testar(salva["id"], {"empresa_codigo": "68"})
+        self.assertTrue(resultado["ok"], resultado)
+        self.assertEqual(chamadas, [("trocar", "68"), ("voltar",)])
+        self.assertIn(("tecla", "tab"), self.falsos.acoes)
+
+    def test_falha_de_troca_ou_de_volta_para_a_rotina(self):
+        c, chamadas = self.montar(troca=False)
+        salva = c.salvar("Trocar e voltar", self.PASSOS)
+        resultado = c.testar(salva["id"], {"empresa_codigo": "68"})
+        self.assertFalse(resultado["ok"])
+        self.assertEqual(resultado["passo_falho"], 1)
+        self.assertEqual(chamadas, [("trocar", "68")])                  # nada depois da falha
+        c2, _ = self.montar(volta=False)
+        salva2 = c2.salvar("Só voltar", [{"tipo": "voltar_tela_principal"}])
+        falha = c2.testar(salva2["id"])
+        self.assertFalse(falha["ok"])
+        self.assertIn("tela principal", falha["mensagem"])
+
+    def test_sem_as_funcoes_reais_falha_com_mensagem(self):
+        salva = self.c.salvar("Sem dispositivo", [{"tipo": "voltar_tela_principal"}])   # Falsos não definem voltar_inicio
+        resultado = self.c.testar(salva["id"])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("indisponível", resultado["mensagem"])
+
+
 class TestSeAparecer(Base):
     """Condicional só para o variável: reconhece a tela pelo recorte e responde com clique ou tecla."""
 

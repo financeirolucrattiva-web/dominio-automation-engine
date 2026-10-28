@@ -24,7 +24,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PASTA = ROOT / "data" / "configurador"
 
 TIPOS_ALVO = ("clicar", "duplo_clique", "hover", "esperar_imagem")
-TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos")
+# trocar_empresa e voltar_tela_principal reaproveitam as funções já validadas nos lotes reais (F8 + código e a
+# subida até a tela azul); a empresa vem do parâmetro empresa_codigo, nunca de texto digitado no passo.
+TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos", "trocar_empresa", "voltar_tela_principal")
 TECLAS = ("tab", "enter", "esc", "home", "end", "up", "down", "left", "right", "pageup", "pagedown", "f8")
 PARAMETROS = ("inicio", "fim", "competencia", "empresa_codigo")
 # Mesma regra das rotinas por texto: o configurador é só para gerar/ler, nunca para transmitir, retificar ou excluir.
@@ -50,7 +52,8 @@ class Dispositivos:
     """Tudo que toca a tela/teclado. Os reais são montados só no servidor Windows (`reais()`)."""
 
     def __init__(self, capturar, achar_template, clicar, clicar_duplo, passar_mouse, tecla, digitar,
-                 assinatura, mudou, janela_ok, dormir=time.sleep):
+                 assinatura, mudou, janela_ok, dormir=time.sleep, trocar_empresa=None, voltar_inicio=None):
+        self.trocar_empresa, self.voltar_inicio = trocar_empresa, voltar_inicio
         self.capturar, self.achar_template = capturar, achar_template
         self.clicar, self.clicar_duplo, self.passar_mouse = clicar, clicar_duplo, passar_mouse
         self.tecla, self.digitar = tecla, digitar
@@ -63,10 +66,20 @@ class Dispositivos:
 
         def janela_ok():
             return janela is not None and interacao.janela_dominio_ou_remota_em_foco(janela)
+
+        def trocar_empresa(codigo):
+            from app import dominio
+            return dominio.trocar_empresa(str(int(codigo)), prefixo="configurador_",
+                                          recuperar_inicio=lambda: dominio.voltar_ao_inicio(janela))
+
+        def voltar_inicio():
+            from app import dominio
+            return dominio.voltar_ao_inicio(janela)
         return cls(tela.capturar_tela, lambda img, caminho: tela.achar_icone_robusto(img, str(caminho)),
                    interacao.clicar, interacao.clicar_duplo, interacao.passar_mouse,
                    interacao.pressionar_tecla, interacao.digitar,
-                   tela.assinatura_tela, tela.tela_mudou, janela_ok)
+                   tela.assinatura_tela, tela.tela_mudou, janela_ok,
+                   trocar_empresa=trocar_empresa, voltar_inicio=voltar_inicio)
 
 
 def _rotulo(numero, valor, o_que):
@@ -180,6 +193,8 @@ def validar_passos(passos, tamanho_captura):
                 if not isinstance(texto, str) or not _TEXTO_LIVRE.fullmatch(texto):
                     raise ConfiguradorErro(f"Passo {numero}: texto fixo com até 60 letras, números e pontuação simples.")
                 item["texto"] = texto
+        elif tipo in ("trocar_empresa", "voltar_tela_principal"):
+            pass  # sem campos: a empresa vem do parâmetro empresa_codigo
         else:  # esperar_segundos
             segundos = passo.get("segundos")
             if not _inteiro(segundos) or not 1 <= segundos <= 30:
@@ -207,6 +222,8 @@ def validar_parametros_teste(passos, parametros, hoje=None):
     """Só parâmetros usados pela rotina; período sempre passado e fechado (nunca a competência corrente)."""
     hoje = hoje or dt.date.today()
     usados = {p["parametro"] for p in passos if p["tipo"] == "digitar" and "parametro" in p}
+    if any(p["tipo"] == "trocar_empresa" for p in passos):
+        usados.add("empresa_codigo")
     parametros = parametros or {}
     if set(parametros) - usados:
         raise ConfiguradorErro("Parâmetro que a rotina não usa.")
@@ -326,7 +343,8 @@ class Configurador:
         teste = dados.get("ultimo_teste")
         return {"id": rotina_id, "nome": dados["nome"], "status": dados["status"],
                 "quantidade_passos": len(dados["passos"]),
-                "parametros": sorted({p["parametro"] for p in dados["passos"] if p.get("parametro")}),
+                "parametros": sorted({p["parametro"] for p in dados["passos"] if p.get("parametro")}
+                                     | ({"empresa_codigo"} if any(p["tipo"] == "trocar_empresa" for p in dados["passos"]) else set())),
                 "ultimo_teste": teste and {"ok": teste["ok"], "em": teste["em"], "passo_falho": teste.get("passo_falho")}}
 
     def listar(self):
@@ -518,6 +536,19 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 d.tecla(resposta["tecla"])
                 detalhe = f"{passo['rotulo']}: apareceu; tecla {resposta['tecla']}"
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
+        elif tipo == "trocar_empresa":
+            if d.trocar_empresa is None:
+                return falhar(passo, "Troca de empresa indisponível neste modo.")
+            if not d.trocar_empresa(parametros["empresa_codigo"]):
+                return falhar(passo, f"Não consegui trocar para a empresa {parametros['empresa_codigo']}; confira o Domínio.")
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                             "detalhe": f"empresa {parametros['empresa_codigo']} selecionada"})
+        elif tipo == "voltar_tela_principal":
+            if d.voltar_inicio is None:
+                return falhar(passo, "Volta à tela principal indisponível neste modo.")
+            if not d.voltar_inicio():
+                return falhar(passo, "Não consegui deixar o Domínio na tela principal; confira a tela.")
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": "tela principal confirmada"})
         elif tipo == "esperar_imagem":
             if procurar(passo, passo["segundos"]) is None:
                 return falhar(passo, f"'{passo['rotulo']}' não apareceu em {passo['segundos']} s.")

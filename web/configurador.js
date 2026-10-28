@@ -2,7 +2,7 @@
 // Configurador visual de rotinas: marca-se o alvo em um print da tela do Domínio (nada de texto exato por OCR).
 // Usa $, api e chave de app.js. O navegador só envia retângulos; o servidor recorta os modelos de imagem.
 const configuradorVisual=(()=>{
-  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar"};
+  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal"};
   const teclas=["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"];
   const tiposAlvo=["clicar","duplo_clique","hover","esperar_imagem"];
   const nomesParametro={inicio:"Data inicial (AAAA-MM-DD)",fim:"Data final (AAAA-MM-DD)",competencia:"Competência (AAAA-MM)",empresa_codigo:"Código da empresa"};
@@ -109,7 +109,9 @@ const configuradorVisual=(()=>{
         };
         if (passo.tipo==="esperar_imagem") campoEspera("espera até aparecer","segundos",15);
         else campoEspera("espera pelo alvo","espera",20);
-      } else if (passo.tipo==="tecla") {item.append(document.createTextNode(` ${passo.tecla}`));}
+      } else if (passo.tipo==="trocar_empresa") {item.append(document.createTextNode(" usa o parâmetro código da empresa (F8 + código, conferindo a empresa)"));}
+      else if (passo.tipo==="voltar_tela_principal") {item.append(document.createTextNode(" fecha o que estiver aberto até a tela azul"));}
+      else if (passo.tipo==="tecla") {item.append(document.createTextNode(` ${passo.tecla}`));}
       else if (passo.tipo==="digitar") {item.append(document.createTextNode(passo.parametro ? ` parâmetro: ${nomesParametro[passo.parametro]||passo.parametro}` : ` texto fixo: ${passo.texto}`));}
       else if (passo.tipo==="esperar_segundos") {item.append(document.createTextNode(` ${passo.segundos} s`));}
       const acoes=document.createElement("span"); acoes.className="acoes-passo";
@@ -151,6 +153,7 @@ const configuradorVisual=(()=>{
     let passo;
     if (tipo.startsWith("alvo_")) {escolherModo(tipo.slice(5)); if (!imagem) {mensagem("Capturando a tela para você marcar o alvo..."); capturarTela();} else mensagem("Arraste um retângulo sobre o alvo na imagem."); return;}
     if (tipo==="tecla") passo={tipo,tecla:valor};
+    else if (tipo==="trocar_empresa" || tipo==="voltar_tela_principal") passo={tipo};
     else if (tipo==="digitar_parametro") passo={tipo:"digitar",parametro:valor};
     else if (tipo==="digitar_texto") passo={tipo:"digitar",texto:valor};
     else passo={tipo:"esperar_segundos",segundos:Number(valor)};
@@ -164,7 +167,7 @@ const configuradorVisual=(()=>{
   function ajustarCampoOutro() {
     const tipo=el("cv-outro-tipo").value, campo=el("cv-outro-valor"), lista=el("cv-outro-select");
     const opcoes={tecla:["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"], digitar_parametro:Object.keys(nomesParametro)};
-    const semValor=tipo.startsWith("alvo_");
+    const semValor=tipo.startsWith("alvo_") || tipo==="trocar_empresa" || tipo==="voltar_tela_principal";
     el("cv-outro-valor").hidden=!!opcoes[tipo]||semValor; lista.hidden=!opcoes[tipo]; lista.replaceChildren();
     for (const o of opcoes[tipo]||[]) {const opcao=document.createElement("option"); opcao.value=o; opcao.textContent=tipo==="digitar_parametro"?nomesParametro[o]:o; lista.append(opcao);}
     campo.placeholder=tipo==="digitar_texto"?"Texto fixo (até 60 letras)":"Segundos (1 a 30)";
