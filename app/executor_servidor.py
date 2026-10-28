@@ -151,7 +151,10 @@ class ExecutorDominio:
                 # ("nenhuma visível"): é transição, não o operador tirando o foco. Espera até 3 s.
                 descrever = getattr(interacao, "descrever_primeiro_plano", None)
                 for _ in range(10):
-                    if not callable(descrever) or "nenhuma visível" not in str(descrever(None)):
+                    # "nenhuma visível" e as janelas do shell do Windows (XamlWindow, CoreWindow: central de
+                    # notificações, busca) são passagens rápidas de foco, não o operador trocando de programa.
+                    atual_foco = str(descrever(None)) if callable(descrever) else ""
+                    if not any(t in atual_foco for t in ("nenhuma visível", "XamlWindow", "CoreWindow")):
                         break
                     time.sleep(0.3)
                     if em_foco(janela):

@@ -983,9 +983,11 @@ def _executar_sped(item_menu, texto_confirmacao, prefixo="", acompanhamento=None
     # de um botão só, "OK" ilegível pro OCR de novo — seção 0.13) e
     # checar que ela realmente sumiu.
     print("Aguardando o resultado da geração (verificando por estado)...")
+    # SPED Fiscal (28/10/2026): o aviso "Final da exportação." apareceu e a espera ficou 399 s pulando a
+    # leitura porque a tela não mudava; leitura reforçada e releitura periódica como na EFD Contribuições.
     leitura_confirmacao = ({'escalas_adicionais':(4,), 'ocr_windows':True, 'comparacao_exata':True,
                            'rever_a_cada': 5, 'limite_segundos': 180}
-                          if acompanhamento.rotina == 'efd_contribuicoes' else {})
+                          if acompanhamento.rotina in ('efd_contribuicoes', 'sped_fiscal') else {})
     if acompanhamento.rotina == 'efd_contribuicoes':
         # Corpo completo observado em 0.21; "sucesso" isolado pode estar
         # em um aviso desconhecido. O título positivo também é "Aviso".
