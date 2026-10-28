@@ -103,7 +103,7 @@ const configuradorVisual=(()=>{
       captura=resposta.headers.get("X-Captura-Id"); const blob=await resposta.blob();
       imagem=await createImageBitmap(blob);
       const tela=el("cv-tela"); tela.width=imagem.width; tela.height=imagem.height; desenhar();
-      el("cv-area").hidden=false; mensagem("Captura pronta. Escolha a ação e arraste um retângulo sobre o alvo.");
+      el("cv-area").hidden=false; el("cv-dica").hidden=true; mensagem("Captura pronta. Ação atual: "+nomesTipo[modo]+". Arraste um retângulo sobre o alvo na imagem.");
     } catch (erro) {mensagem(erro.message,true);}
     finally {ocupado=false; el("cv-capturar").disabled=false;}
   }
@@ -111,16 +111,23 @@ const configuradorVisual=(()=>{
   function adicionarOutro() {
     const tipo=el("cv-outro-tipo").value, valor=el("cv-outro-valor").value.trim();
     let passo;
+    if (tipo.startsWith("alvo_")) {escolherModo(tipo.slice(5)); if (!imagem) {mensagem("Capturando a tela para você marcar o alvo..."); capturarTela();} else mensagem("Arraste um retângulo sobre o alvo na imagem."); return;}
     if (tipo==="tecla") passo={tipo,tecla:valor};
     else if (tipo==="digitar_parametro") passo={tipo:"digitar",parametro:valor};
     else if (tipo==="digitar_texto") passo={tipo:"digitar",texto:valor};
     else passo={tipo:"esperar_segundos",segundos:Number(valor)};
     passos.push(passo); renderizarPassos(); mensagem("Passo adicionado.");
   }
+  function escolherModo(novo) {
+    modo=novo;
+    for (const b of document.querySelectorAll("#cv-modos button")) b.classList.toggle("secundario",b.dataset.modo!==novo);
+    if (!imagem) mensagem("Escolha a ação e capture a tela do Domínio (botão acima); depois arraste sobre o alvo.");
+  }
   function ajustarCampoOutro() {
     const tipo=el("cv-outro-tipo").value, campo=el("cv-outro-valor"), lista=el("cv-outro-select");
     const opcoes={tecla:["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"], digitar_parametro:Object.keys(nomesParametro)};
-    el("cv-outro-valor").hidden=!!opcoes[tipo]; lista.hidden=!opcoes[tipo]; lista.replaceChildren();
+    const semValor=tipo.startsWith("alvo_");
+    el("cv-outro-valor").hidden=!!opcoes[tipo]||semValor; lista.hidden=!opcoes[tipo]; lista.replaceChildren();
     for (const o of opcoes[tipo]||[]) {const opcao=document.createElement("option"); opcao.value=o; opcao.textContent=tipo==="digitar_parametro"?nomesParametro[o]:o; lista.append(opcao);}
     campo.placeholder=tipo==="digitar_texto"?"Texto fixo (até 60 letras)":"Segundos (1 a 30)";
   }
@@ -205,7 +212,7 @@ const configuradorVisual=(()=>{
     Object.assign(fasesLogin,{captura_configurador_pronta:"Captura do configurador pronta",teste_configurador_ok:"Teste da rotina concluído"});
     Object.assign(motivosLogin,{configurador_recusado:"O configurador recusou a operação; confira os dados e tente de novo.",teste_configurador_falhou:"O teste parou em um passo; veja o resultado no configurador.",dominio_fora_de_foco:"O Domínio não está em foco no servidor."});
     el("cv-capturar").addEventListener("click",capturarTela);
-    for (const botao of document.querySelectorAll("#cv-modos button")) botao.addEventListener("click",()=>{modo=botao.dataset.modo; for (const b of document.querySelectorAll("#cv-modos button")) b.classList.toggle("secundario",b!==botao);});
+    for (const botao of document.querySelectorAll("#cv-modos button")) botao.addEventListener("click",()=>escolherModo(botao.dataset.modo));
     const tela=el("cv-tela");
     tela.addEventListener("mousedown",e=>{if (!imagem) return; const p=ponto(e); arrasto={...p,largura:0,altura:0,origem:p};});
     tela.addEventListener("mousemove",e=>{if (!arrasto) return; Object.assign(arrasto,retangulo(arrasto.origem,ponto(e))); desenhar();});
