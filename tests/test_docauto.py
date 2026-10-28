@@ -25,6 +25,25 @@ class TestDocauto(unittest.TestCase):
         self.assertIsNone(docauto.destino(70, "2026-08", "resumo_acumulador", self.CFG, saida(0, caminho="x", existe=False)))
         self.assertIsNone(docauto.destino(70, "2026-08", "resumo_acumulador", self.CFG, saida(2)))
 
+    def test_txt_vai_para_a_subpasta_do_tipo_quando_ela_existe(self):
+        with tempfile.TemporaryDirectory() as raiz:
+            decl = Path(raiz) / "DECLARAÇÕES"
+            for nome in ("SPED_FISCAL", "SPED_CONTRIBUIÇÕES", "DCTFWEB", "REINF"):
+                (decl / nome).mkdir(parents=True)
+            ok = saida(caminho=str(decl), existe=True)
+            self.assertEqual(docauto.destino(68, "2026-09", "sped_fiscal", self.CFG, ok), decl / "SPED_FISCAL")
+            self.assertEqual(docauto.destino(68, "2026-09", "efd_contribuicoes", self.CFG, ok),
+                             decl / "SPED_CONTRIBUIÇÕES")
+            # sem subpasta própria (ou ambígua) fica na pasta que o docauto indicou
+            vazia = Path(raiz) / "outra"
+            vazia.mkdir()
+            self.assertEqual(docauto.destino(68, "2026-09", "sped_fiscal", self.CFG,
+                                             saida(caminho=str(vazia), existe=True)), vazia)
+            (decl / "SPED FISCAL 2").mkdir()
+            self.assertEqual(docauto.destino(68, "2026-09", "sped_fiscal", self.CFG, ok), decl)
+            # outros tipos não mudam
+            self.assertEqual(docauto.destino(68, "2026-09", "resumo_acumulador", self.CFG, ok), decl)
+
     def test_comando_usa_rotina_do_contrato_e_nunca_levanta(self):
         chamadas = []
 

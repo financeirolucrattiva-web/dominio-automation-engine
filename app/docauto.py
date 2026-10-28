@@ -17,6 +17,7 @@ import logging
 import os
 from pathlib import Path
 import subprocess
+import unicodedata
 
 ARQUIVO = Path(__file__).resolve().parent.parent / "data" / "docauto.json"
 # registro_icms (livro de apuração) usa `--tipo APURACAO_ICMS` no docauto, não `--rotina`.
@@ -25,6 +26,8 @@ ROTINAS = {"resumo_acumulador": "resumo_acumulador", "efd_contribuicoes": "efd_c
            "registro_icms": "APURACAO_ICMS", "sped_fiscal": "RECIBO_EFD_ICMS"}
 _COMO_TIPO = {"APURACAO_ICMS", "RECIBO_EFD_ICMS"}
 _NOME_NO_CSV = {"sped_fiscal": "sped_fiscal"}  # o CSV traz o nome da rotina, não o id do template
+# Subpasta de DECLARAÇÕES onde cada TXT vai (nome reconhecido por palavras; ex.: SPED_FISCAL, SPED_CONTRIBUIÇÕES).
+_SUBPASTA_PALAVRAS = {"efd_contribuicoes": ("SPED", "CONTRIBUI"), "sped_fiscal": ("SPED", "FISCAL")}
 CABECALHO = ["codigo_dominio", "competencia", "rotina", "status", "arquivo", "sha256", "gerado_em"]
 _log = logging.getLogger(__name__)
 
@@ -35,6 +38,24 @@ def configuracao(arquivo=None):
     except (OSError, ValueError):
         return None
     return dados if isinstance(dados, dict) and dados.get("python") else None
+
+
+def _normalizar(nome):
+    sem_acento = "".join(c for c in unicodedata.normalize("NFKD", str(nome)) if not unicodedata.combining(c))
+    return " ".join("".join(c if c.isalnum() else " " for c in sem_acento.upper()).split())
+
+
+def _subpasta_do_tipo(pasta, tipo):
+    """Desce para a subpasta própria do tipo (SPED_FISCAL, SPED_CONTRIBUIÇÕES...) se existir exatamente uma."""
+    palavras = _SUBPASTA_PALAVRAS.get(tipo)
+    if not palavras:
+        return pasta
+    try:
+        achadas = [p for p in Path(pasta).iterdir()
+                   if p.is_dir() and all(w in _normalizar(p.name) for w in palavras)]
+    except OSError:
+        return pasta
+    return achadas[0] if len(achadas) == 1 else pasta
 
 
 def destino(codigo, competencia, tipo, config=None, executar=subprocess.run):
@@ -53,7 +74,7 @@ def destino(codigo, competencia, tipo, config=None, executar=subprocess.run):
         if r.returncode != 0 or not dados.get("existe") or not dados.get("caminho"):
             _log.warning("docauto sem destino utilizável (rotina %s, saída %s)", rotina, r.returncode)
             return None
-        return Path(dados["caminho"])
+        return _subpasta_do_tipo(Path(dados["caminho"]), tipo)
     except Exception as erro:  # nunca derruba a rotina
         _log.warning("docauto indisponível (%s)", type(erro).__name__)
         return None
