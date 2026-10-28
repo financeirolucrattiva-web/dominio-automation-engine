@@ -52,8 +52,9 @@ class Dispositivos:
     """Tudo que toca a tela/teclado. Os reais são montados só no servidor Windows (`reais()`)."""
 
     def __init__(self, capturar, achar_template, clicar, clicar_duplo, passar_mouse, tecla, digitar,
-                 assinatura, mudou, janela_ok, dormir=time.sleep, trocar_empresa=None, voltar_inicio=None):
-        self.trocar_empresa, self.voltar_inicio = trocar_empresa, voltar_inicio
+                 assinatura, mudou, janela_ok, dormir=time.sleep, trocar_empresa=None, voltar_inicio=None,
+                 empresa_atual=None):
+        self.trocar_empresa, self.voltar_inicio, self.empresa_atual = trocar_empresa, voltar_inicio, empresa_atual
         self.capturar, self.achar_template = capturar, achar_template
         self.clicar, self.clicar_duplo, self.passar_mouse = clicar, clicar_duplo, passar_mouse
         self.tecla, self.digitar = tecla, digitar
@@ -75,11 +76,16 @@ class Dispositivos:
         def voltar_inicio():
             from app import dominio
             return dominio.voltar_ao_inicio(janela)
+
+        def empresa_atual():
+            """Código da empresa no cabeçalho do Domínio, ou None se não der para ler (tela fora da principal)."""
+            lida = tela.ler_empresa_selecionada(tela.capturar_tela())
+            return str(lida[1]) if lida is not None and str(lida[1]).isdigit() else None
         return cls(tela.capturar_tela, lambda img, caminho: tela.achar_icone_robusto(img, str(caminho)),
                    interacao.clicar, interacao.clicar_duplo, interacao.passar_mouse,
                    interacao.pressionar_tecla, interacao.digitar,
                    tela.assinatura_tela, tela.tela_mudou, janela_ok,
-                   trocar_empresa=trocar_empresa, voltar_inicio=voltar_inicio)
+                   trocar_empresa=trocar_empresa, voltar_inicio=voltar_inicio, empresa_atual=empresa_atual)
 
 
 def _rotulo(numero, valor, o_que):
@@ -539,10 +545,20 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
         elif tipo == "trocar_empresa":
             if d.trocar_empresa is None:
                 return falhar(passo, "Troca de empresa indisponível neste modo.")
-            if not d.trocar_empresa(parametros["empresa_codigo"]):
-                return falhar(passo, f"Não consegui trocar para a empresa {parametros['empresa_codigo']}; confira o Domínio.")
+            alvo = parametros["empresa_codigo"]
+            atual = d.empresa_atual() if d.empresa_atual is not None else None
+            if atual is not None and int(atual) == int(alvo):
+                # Igual às rotinas normais: já está na empresa certa, não repete o F8.
+                registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                                 "detalhe": f"já estava na empresa {alvo}; troca pulada"})
+                continue
+            if not d.trocar_empresa(alvo):
+                return falhar(passo, f"Não consegui trocar para a empresa {alvo}; confira o Domínio.")
+            depois = d.empresa_atual() if d.empresa_atual is not None else None
+            if depois is not None and int(depois) != int(alvo):
+                return falhar(passo, f"Depois da troca o Domínio mostra a empresa {depois}, não a {alvo}. Parei.")
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
-                             "detalhe": f"empresa {parametros['empresa_codigo']} selecionada"})
+                             "detalhe": f"empresa {alvo} selecionada"})
         elif tipo == "voltar_tela_principal":
             if d.voltar_inicio is None:
                 return falhar(passo, "Volta à tela principal indisponível neste modo.")

@@ -234,7 +234,8 @@ class TestTrocarEmpresaEVoltar(Base):
         d = self.falsos.dispositivos()
         d.trocar_empresa = lambda codigo: chamadas.append(("trocar", codigo)) or troca
         d.voltar_inicio = lambda: chamadas.append(("voltar",)) or volta
-        return Configurador(self.pasta / "cfg3", d, pasta_falhas=self.pasta / "falhas3"), chamadas
+        self.n = getattr(self, "n", 0) + 1
+        return Configurador(self.pasta / f"cfg3_{self.n}", d, pasta_falhas=self.pasta / "falhas3"), chamadas
 
     PASSOS = [{"tipo": "trocar_empresa"}, {"tipo": "tecla", "tecla": "tab"}, {"tipo": "voltar_tela_principal"}]
 
@@ -254,6 +255,36 @@ class TestTrocarEmpresaEVoltar(Base):
         self.assertTrue(resultado["ok"], resultado)
         self.assertEqual(chamadas, [("trocar", "68"), ("voltar",)])
         self.assertIn(("tecla", "tab"), self.falsos.acoes)
+
+    def test_pula_a_troca_se_ja_esta_na_empresa_certa(self):
+        c, chamadas = self.montar()
+        c._dispositivos.empresa_atual = lambda: "68"
+        salva = c.salvar("Só trocar", [{"tipo": "trocar_empresa"}])
+        resultado = c.testar(salva["id"], {"empresa_codigo": "68"})
+        self.assertTrue(resultado["ok"])
+        self.assertEqual(chamadas, [])                                   # nenhum F8
+        self.assertIn("troca pulada", resultado["passos"][0]["detalhe"])
+        # código com zeros à esquerda também conta como a mesma empresa
+        resultado = c.testar(salva["id"], {"empresa_codigo": "068"})
+        self.assertEqual(chamadas, [])
+
+    def test_troca_quando_a_empresa_atual_e_outra_ou_ilegivel_e_confere_depois(self):
+        for lida in ("12", None):
+            with self.subTest(lida=lida):
+                c, chamadas = self.montar()
+                leituras = iter([lida, "68"])                       # antes da troca e depois dela
+                c._dispositivos.empresa_atual = lambda: next(leituras)
+                salva = c.salvar(f"Só trocar {lida}", [{"tipo": "trocar_empresa"}])
+                self.assertTrue(c.testar(salva["id"], {"empresa_codigo": "68"})["ok"])
+                self.assertEqual(chamadas, [("trocar", "68")])
+        # depois da troca o cabeçalho mostra outra empresa: a rotina para
+        c, chamadas = self.montar()
+        leituras = iter(["12", "12"])
+        c._dispositivos.empresa_atual = lambda: next(leituras)
+        salva = c.salvar("Só trocar", [{"tipo": "trocar_empresa"}])
+        resultado = c.testar(salva["id"], {"empresa_codigo": "68"})
+        self.assertFalse(resultado["ok"])
+        self.assertIn("mostra a empresa 12", resultado["mensagem"])
 
     def test_falha_de_troca_ou_de_volta_para_a_rotina(self):
         c, chamadas = self.montar(troca=False)

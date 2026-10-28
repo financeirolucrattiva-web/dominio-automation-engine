@@ -24,7 +24,8 @@ PASSO A PASSO
    TROCAR DE EMPRESA e VOLTAR A TELA PRINCIPAL: em 'Adicionar passo' ha 'Trocar de empresa (codigo do parametro)'
    e 'Voltar a tela principal'. Sao as mesmas funcoes dos lotes reais (F8 + codigo, conferindo a empresa; e fechar o
    que estiver aberto ate a tela azul). A empresa vem do parametro 'codigo da empresa', pedido no teste. Se a troca ou
-   a volta nao se confirmarem, a rotina para ali e nao segue com a empresa errada.
+   a volta nao se confirmarem, a rotina para ali e nao segue com a empresa errada. Se o Dominio JA estiver na empresa
+   pedida (lida no cabecalho), a troca e PULADA, como nas rotinas normais; depois de trocar, a empresa e conferida de novo.
    TEMPOS: toda espera por imagem e um MAXIMO, nao um tempo fixo: a rotina segue assim que a imagem aparece (confere
    a cada ~1 s) e so desiste depois de 'espera' segundos. 'Esperar segundos' e a unica pausa fixa.
 4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
