@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PASTA = ROOT / "data" / "configurador"
 
 TIPOS_ALVO = ("clicar", "duplo_clique", "hover", "esperar_imagem")
-TIPOS = TIPOS_ALVO + ("tecla", "digitar", "esperar_segundos")
+TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos")
 TECLAS = ("tab", "enter", "esc", "home", "end", "up", "down", "left", "right", "pageup", "pagedown", "f8")
 PARAMETROS = ("inicio", "fim", "competencia", "empresa_codigo")
 # Mesma regra das rotinas por texto: o configurador é só para gerar/ler, nunca para transmitir, retificar ou excluir.
@@ -69,6 +69,27 @@ class Dispositivos:
                    tela.assinatura_tela, tela.tela_mudou, janela_ok)
 
 
+def _rotulo(numero, valor, o_que):
+    if not isinstance(valor, str) or not 3 <= len(valor.strip()) <= 80 or any(ord(c) < 32 for c in valor):
+        raise ConfiguradorErro(f"Passo {numero}: descreva {o_que} em poucas palavras (3 a 80 letras).")
+    if _PROIBIDAS.search(_sem_acento(valor)):
+        raise ConfiguradorErro(f"Passo {numero}: o configurador não automatiza transmitir, retificar, excluir ou enviar.")
+    return valor.strip()
+
+
+def _retangulo(numero, dados, tamanho, minimo, maximo):
+    if not isinstance(dados, dict):
+        raise ConfiguradorErro(f"Passo {numero}: marque um retângulo na imagem.")
+    x, y, largura, altura = (dados.get(k) for k in ("x", "y", "largura", "altura"))
+    if not all(_inteiro(v) for v in (x, y, largura, altura)):
+        raise ConfiguradorErro(f"Passo {numero}: marque um retângulo na imagem.")
+    if not (minimo <= largura <= maximo[0] and minimo <= altura <= maximo[1]):
+        raise ConfiguradorErro(f"Passo {numero}: o retângulo deve ter entre {minimo}x{minimo} e {maximo[0]}x{maximo[1]} pixels.")
+    if x < 0 or y < 0 or x + largura > tamanho[0] or y + altura > tamanho[1]:
+        raise ConfiguradorErro(f"Passo {numero}: o retângulo sai da imagem.")
+    return {"x": x, "y": y, "largura": largura, "altura": altura}
+
+
 def validar_passos(passos, tamanho_captura):
     """Valida e normaliza. `tamanho_captura(captura_id)` devolve (largura, altura) ou None se não existir."""
     if not isinstance(passos, list) or not 1 <= len(passos) <= 80:
@@ -79,7 +100,39 @@ def validar_passos(passos, tamanho_captura):
             raise ConfiguradorErro(f"Passo {numero}: escolha uma ação da lista.")
         tipo = passo["tipo"]
         item = {"indice": numero, "tipo": tipo}
-        if tipo in TIPOS_ALVO:
+        if tipo == "se_aparecer":
+            # Condicional só para o que é variável (aviso que às vezes aparece): reconhece a TELA pelo recorte e
+            # responde com um clique (posição relativa ao recorte, então vale mesmo que a janela apareça noutro
+            # lugar) ou com uma tecla. Por padrão é opcional: se não aparecer, a rotina segue.
+            item["rotulo"] = _rotulo(numero, passo.get("rotulo"), "a tela que pode aparecer")
+            captura = passo.get("captura_id")
+            if not isinstance(captura, str) or not _ID.fullmatch(captura):
+                raise ConfiguradorErro(f"Passo {numero}: capture a tela e marque a tela esperada na imagem.")
+            tamanho = tamanho_captura(captura)
+            if tamanho is None:
+                raise ConfiguradorErro(f"Passo {numero}: a captura não existe mais; capture a tela de novo.")
+            item["captura_id"] = captura
+            item.update(_retangulo(numero, passo, tamanho, 16, (900, 700)))
+            resposta = passo.get("resposta")
+            if not isinstance(resposta, dict) or resposta.get("tipo") not in ("clicar", "tecla"):
+                raise ConfiguradorErro(f"Passo {numero}: escolha a resposta: clicar em um botão da tela ou apertar uma tecla.")
+            if resposta["tipo"] == "tecla":
+                if resposta.get("tecla") not in TECLAS:
+                    raise ConfiguradorErro(f"Passo {numero}: tecla não permitida.")
+                item["resposta"] = {"tipo": "tecla", "tecla": resposta["tecla"]}
+            else:
+                alvo = _retangulo(numero, resposta, tamanho, 8, (600, 400))
+                item["resposta"] = {"tipo": "clicar", **alvo, "rotulo": _rotulo(numero, resposta.get("rotulo"), "o botão a clicar")}
+                item["deslocamento"] = [alvo["x"] + alvo["largura"] // 2 - (item["x"] + item["largura"] // 2),
+                                        alvo["y"] + alvo["altura"] // 2 - (item["y"] + item["altura"] // 2)]
+            espera = passo.get("espera", 10)
+            if not _inteiro(espera) or not 1 <= espera <= 120:
+                raise ConfiguradorErro(f"Passo {numero}: a espera pela tela vai de 1 a 120 segundos.")
+            obrigatorio = passo.get("obrigatorio", False)
+            if not isinstance(obrigatorio, bool):
+                raise ConfiguradorErro(f"Passo {numero}: obrigatório deve ser sim ou não.")
+            item.update(espera=espera, obrigatorio=obrigatorio)
+        elif tipo in TIPOS_ALVO:
             rotulo = passo.get("rotulo")
             if (not isinstance(rotulo, str) or not 3 <= len(rotulo.strip()) <= 80
                     or any(ord(c) < 32 for c in rotulo)):
@@ -290,7 +343,8 @@ class Configurador:
 
     def obter(self, rotina_id):
         dados = self._ler(rotina_id)
-        passos = [{k: v for k, v in p.items() if k != "modelo"} | {"tem_modelo": "modelo" in p} for p in dados["passos"]]
+        passos = [{k: v for k, v in p.items() if k not in ("modelo", "modelo_alvo")}
+                  | {"tem_modelo": "modelo" in p, "tem_modelo_alvo": "modelo_alvo" in p} for p in dados["passos"]]
         return {**self._resumo(rotina_id, dados), "passos": passos, "resultado_teste": dados.get("ultimo_teste")}
 
     def salvar(self, nome, passos, rotina_id=None):
@@ -310,15 +364,22 @@ class Configurador:
             pasta = self._pasta_rotina(rotina_id)
             pasta.mkdir(parents=True, exist_ok=True)
             for item in limpos:
-                if item["tipo"] in TIPOS_ALVO:
+                if item["tipo"] in TIPOS_ALVO or item["tipo"] == "se_aparecer":
                     with Image.open(self._arquivo_captura(item["captura_id"])) as captura:
-                        recorte = captura.convert("RGB").crop((item["x"], item["y"], item["x"] + item["largura"],
-                                                               item["y"] + item["altura"]))
-                    nome_modelo = f"passo_{item['indice']:02d}.png"
-                    recorte.save(pasta / nome_modelo, format="PNG")
-                    item["modelo"] = nome_modelo
+                        captura = captura.convert("RGB")
+                        recorte = captura.crop((item["x"], item["y"], item["x"] + item["largura"], item["y"] + item["altura"]))
+                        nome_modelo = f"passo_{item['indice']:02d}.png"
+                        recorte.save(pasta / nome_modelo, format="PNG")
+                        item["modelo"] = nome_modelo
+                        resposta = item.get("resposta")
+                        if resposta and resposta["tipo"] == "clicar":
+                            botao = captura.crop((resposta["x"], resposta["y"], resposta["x"] + resposta["largura"],
+                                                  resposta["y"] + resposta["altura"]))
+                            botao.save(pasta / f"passo_{item['indice']:02d}_alvo.png", format="PNG")
+                            item["modelo_alvo"] = f"passo_{item['indice']:02d}_alvo.png"
+            guardados = {p.get("modelo") for p in limpos} | {p.get("modelo_alvo") for p in limpos}
             for sobra in pasta.glob("passo_*.png"):
-                if sobra.name not in {p.get("modelo") for p in limpos}:
+                if sobra.name not in guardados:
                     sobra.unlink(missing_ok=True)
             dados = {"nome": nome, "passos": limpos, "status": "rascunho", "criada_em": dt.datetime.now().isoformat(timespec="seconds")}
             self._gravar(rotina_id, dados)
@@ -330,11 +391,13 @@ class Configurador:
         self._ler(rotina_id)
         shutil.rmtree(pasta, ignore_errors=True)
 
-    def modelo(self, rotina_id, indice):
+    def modelo(self, rotina_id, indice, parte="modelo"):
         dados = self._ler(rotina_id)
+        if parte not in ("modelo", "modelo_alvo"):
+            return None
         for passo in dados["passos"]:
-            if passo["indice"] == indice and "modelo" in passo:
-                caminho = self._pasta_rotina(rotina_id) / passo["modelo"]
+            if passo["indice"] == indice and parte in passo:
+                caminho = self._pasta_rotina(rotina_id) / passo[parte]
                 if caminho.is_file() and not caminho.is_symlink():
                     return caminho.read_bytes()
         return None
@@ -434,6 +497,26 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                     detalhe += " (a tela não mudou depois da ação)"
                 elif not esperar_estavel():
                     detalhe += " (a tela continuou mudando; seguindo assim mesmo)"
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
+        elif tipo == "se_aparecer":
+            posicao = procurar(passo, passo["espera"])
+            if posicao is None:
+                if passo["obrigatorio"]:
+                    return falhar(passo, f"A tela '{passo['rotulo']}' não apareceu em {passo['espera']} s.")
+                registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                                 "detalhe": f"{passo['rotulo']}: não apareceu; seguindo"})
+                continue
+            resposta = passo["resposta"]
+            if resposta["tipo"] == "clicar":
+                dx, dy = passo["deslocamento"]
+                antes = d.assinatura(d.capturar())
+                d.clicar(posicao[0] + dx, posicao[1] + dy)
+                esperar_mudanca(antes)
+                esperar_estavel()
+                detalhe = f"{passo['rotulo']}: apareceu; cliquei em '{resposta['rotulo']}'"
+            else:
+                d.tecla(resposta["tecla"])
+                detalhe = f"{passo['rotulo']}: apareceu; tecla {resposta['tecla']}"
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
         elif tipo == "esperar_imagem":
             if procurar(passo, passo["segundos"]) is None:

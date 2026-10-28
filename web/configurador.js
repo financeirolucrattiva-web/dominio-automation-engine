@@ -2,10 +2,11 @@
 // Configurador visual de rotinas: marca-se o alvo em um print da tela do Domínio (nada de texto exato por OCR).
 // Usa $, api e chave de app.js. O navegador só envia retângulos; o servidor recorta os modelos de imagem.
 const configuradorVisual=(()=>{
-  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar"};
+  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar"};
+  const teclas=["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"];
   const tiposAlvo=["clicar","duplo_clique","hover","esperar_imagem"];
   const nomesParametro={inicio:"Data inicial (AAAA-MM-DD)",fim:"Data final (AAAA-MM-DD)",competencia:"Competência (AAAA-MM)",empresa_codigo:"Código da empresa"};
-  let passos=[], rotinaId=null, captura=null, imagem=null, modo="clicar", arrasto=null, ocupado=false;
+  let passos=[], rotinaId=null, captura=null, imagem=null, modo="clicar", arrasto=null, ocupado=false, condicaoPendente=null;
   const el=id=>$(id);
 
   // A política de segurança da página só aceita imagens "self" e "data:", então o blob vira data URL.
@@ -38,6 +39,7 @@ const configuradorVisual=(()=>{
       if (passo.captura_id!==captura || passo.largura===undefined) continue;
       contexto.strokeStyle="#168066"; contexto.strokeRect(passo.x,passo.y,passo.largura,passo.altura);
     }
+    if (condicaoPendente) {contexto.strokeStyle="#e67e22"; contexto.strokeRect(condicaoPendente.x,condicaoPendente.y,condicaoPendente.largura,condicaoPendente.altura);}
     if (arrasto) {contexto.strokeStyle="#c0392b"; contexto.strokeRect(arrasto.x,arrasto.y,arrasto.largura,arrasto.altura);}
   }
   function ponto(evento) {
@@ -51,7 +53,25 @@ const configuradorVisual=(()=>{
     const c=document.createElement("canvas"); c.width=Math.min(r.largura,240); c.height=Math.round(r.altura*c.width/r.largura);
     c.getContext("2d").drawImage(imagem,r.x,r.y,r.largura,r.altura,0,0,c.width,c.height); return c.toDataURL("image/png");
   }
+  function marcarSeAparecer(r) {
+    const tecla=modo==="se_aparecer_tecla";
+    if (!condicaoPendente) {
+      if (r.largura<16 || r.altura<16) {mensagem("Arraste sobre a TELA que pode aparecer (pelo menos 16x16 pixels): um pedaço característico dela, como o título e o texto.", true); return;}
+      condicaoPendente={...r, previa:recortePrevia(r)};
+      if (!tecla) {mensagem("Tela marcada (laranja). Agora arraste sobre o botão a clicar, nesta mesma imagem (ex.: o OK)."); desenhar(); return;}
+    }
+    const base={tipo:"se_aparecer", rotulo:"", captura_id:captura, x:condicaoPendente.x, y:condicaoPendente.y, largura:condicaoPendente.largura, altura:condicaoPendente.altura, previa:condicaoPendente.previa, espera:10, obrigatorio:false};
+    if (tecla) base.resposta={tipo:"tecla", tecla:"enter"};
+    else {
+      if (r.largura<8 || r.altura<8) {mensagem("Arraste um retângulo de pelo menos 8x8 pixels sobre o botão.", true); return;}
+      base.resposta={tipo:"clicar", x:r.x, y:r.y, largura:r.largura, altura:r.altura, rotulo:""}; base.previaAlvo=recortePrevia(r);
+    }
+    condicaoPendente=null; passos.push(base); desenhar();
+    mensagem("Condição criada. Descreva a tela e o botão na lista de passos. Por padrão ela é opcional: se não aparecer, a rotina segue."); renderizarPassos();
+    const campos=document.querySelectorAll("#cv-passos .rotulo-passo"); campos[campos.length-(tecla?1:2)]?.focus();
+  }
   function marcar(r) {
+    if (modo.startsWith("se_aparecer")) return marcarSeAparecer(r);
     if (r.largura<8 || r.altura<8) {mensagem("Arraste um retângulo de pelo menos 8x8 pixels sobre o alvo.", true); return;}
     const passo={tipo:modo, rotulo:"", captura_id:captura, ...r, previa:recortePrevia(r)};
     if (modo==="esperar_imagem") passo.segundos=15;
@@ -64,7 +84,22 @@ const configuradorVisual=(()=>{
     passos.forEach((passo,i)=>{
       const item=document.createElement("li"); item.className="passo-visual";
       const titulo=document.createElement("strong"); titulo.textContent=nomesTipo[passo.tipo]||passo.tipo; item.append(titulo);
-      if (tiposAlvo.includes(passo.tipo)) {
+      if (passo.tipo==="se_aparecer") {
+        if (passo.previa) {const m=document.createElement("img"); m.src=passo.previa; m.alt="Tela esperada"; m.className="miniatura"; item.append(m);}
+        const rotulo=document.createElement("input"); rotulo.className="rotulo-passo"; rotulo.maxLength=80; rotulo.placeholder="Qual tela é esta? (ex.: aviso Outros dados)"; rotulo.value=passo.rotulo||"";
+        rotulo.addEventListener("input",()=>{passo.rotulo=rotulo.value;}); item.append(rotulo);
+        if (passo.resposta.tipo==="clicar") {
+          item.append(document.createTextNode(" → clicar em "));
+          if (passo.previaAlvo) {const m=document.createElement("img"); m.src=passo.previaAlvo; m.alt="Botão"; m.className="miniatura"; item.append(m);}
+          const r=document.createElement("input"); r.className="rotulo-passo"; r.maxLength=80; r.placeholder="Qual botão? (ex.: Sim)"; r.value=passo.resposta.rotulo||""; r.addEventListener("input",()=>{passo.resposta.rotulo=r.value;}); item.append(r);
+        } else {
+          item.append(document.createTextNode(" → tecla "));
+          const sel=document.createElement("select"); for (const t of teclas) {const o=document.createElement("option"); o.value=t; o.textContent=t; sel.append(o);} sel.value=passo.resposta.tecla; sel.addEventListener("change",()=>{passo.resposta.tecla=sel.value;}); item.append(sel);
+        }
+        const obrig=document.createElement("label"); obrig.className="confirmacao"; const caixa=document.createElement("input"); caixa.type="checkbox"; caixa.checked=!!passo.obrigatorio; caixa.addEventListener("change",()=>{passo.obrigatorio=caixa.checked;});
+        const texto=document.createElement("span"); texto.textContent="Obrigatória (falha se não aparecer)"; obrig.append(caixa,texto); item.append(obrig);
+        const s=document.createElement("input"); s.type="number"; s.min=1; s.max=120; s.value=passo.espera||10; s.className="espera-passo"; s.title="segundos esperando a tela"; s.addEventListener("input",()=>{passo.espera=Number(s.value);}); item.append(document.createTextNode("espera: "),s,document.createTextNode(" s"));
+      } else if (tiposAlvo.includes(passo.tipo)) {
         if (passo.previa) {const miniatura=document.createElement("img"); miniatura.src=passo.previa; miniatura.alt="Alvo marcado"; miniatura.className="miniatura"; item.append(miniatura);}
         const rotulo=document.createElement("input"); rotulo.className="rotulo-passo"; rotulo.maxLength=80; rotulo.placeholder="Descreva o alvo (ex.: botão OK do relatório)"; rotulo.value=passo.rotulo||"";
         rotulo.addEventListener("input",()=>{passo.rotulo=rotulo.value;}); item.append(rotulo);
@@ -91,7 +126,7 @@ const configuradorVisual=(()=>{
   function corpoRotina() {
     return {nome:el("cv-nome").value, passos:passos.map(p=>{
       const limpo={tipo:p.tipo};
-      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","espera","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
+      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","espera","obrigatorio","resposta","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
       return limpo;
     })};
   }
@@ -122,7 +157,7 @@ const configuradorVisual=(()=>{
     passos.push(passo); renderizarPassos(); mensagem("Passo adicionado.");
   }
   function escolherModo(novo) {
-    modo=novo;
+    modo=novo; condicaoPendente=null; desenhar();
     for (const b of document.querySelectorAll("#cv-modos button")) b.classList.toggle("secundario",b.dataset.modo!==novo);
     if (!imagem) mensagem("Escolha a ação e capture a tela do Domínio (botão acima); depois arraste sobre o alvo.");
   }
@@ -150,7 +185,9 @@ const configuradorVisual=(()=>{
       rotinaId=rotina.id; el("cv-nome").value=rotina.nome;
       passos=await Promise.all(rotina.passos.map(async p=>{
         const passo={...p}; delete passo.indice; delete passo.tem_modelo; delete passo.modelo;
+        delete passo.tem_modelo_alvo; delete passo.deslocamento;
         if (p.tem_modelo) {try {const r=await pedido(`configurador/rotinas/${id}/modelo/${p.indice}`); passo.previa=await blobParaDados(await r.blob());} catch {}}
+        if (p.tem_modelo_alvo) {try {const r=await pedido(`configurador/rotinas/${id}/modelo/${p.indice}?parte=alvo`); passo.previaAlvo=await blobParaDados(await r.blob());} catch {}}
         return passo;
       }));
       renderizarPassos(); montarTeste(rotina);

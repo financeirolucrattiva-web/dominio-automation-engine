@@ -226,6 +226,69 @@ class TestExecucao(Base):
             self.c.aprovar(salva["id"])
 
 
+class TestSeAparecer(Base):
+    """Condicional só para o variável: reconhece a tela pelo recorte e responde com clique ou tecla."""
+
+    def condicional(self, **extra):
+        base = {"tipo": "se_aparecer", "rotulo": "Aviso outros dados", "captura_id": self.captura,
+                "x": 200, "y": 100, "largura": 100, "altura": 40,          # a tela esperada (o quadrado azul)
+                "resposta": {"tipo": "clicar", "x": 50, "y": 40, "largura": 100, "altura": 40, "rotulo": "botão Sim"}}
+        base.update(extra)
+        return base
+
+    def test_validacao(self):
+        ok = validar_passos([self.condicional()], self.c._tamanho_captura)[0]
+        self.assertEqual(ok["deslocamento"], [-150, -60])           # centro do botão menos centro da tela
+        self.assertFalse(ok["obrigatorio"])
+        self.assertEqual(ok["espera"], 10)
+        validar_passos([self.condicional(resposta={"tipo": "tecla", "tecla": "enter"})], self.c._tamanho_captura)
+        ruins = [
+            self.condicional(resposta=None),
+            self.condicional(resposta={"tipo": "tecla", "tecla": "delete"}),
+            self.condicional(resposta={"tipo": "clicar", "x": 50, "y": 40, "largura": 100, "altura": 40, "rotulo": "Transmitir"}),
+            self.condicional(resposta={"tipo": "clicar", "x": 50, "y": 40, "largura": 100, "altura": 40}),  # sem rótulo
+            self.condicional(rotulo="Excluir dados"),
+            self.condicional(largura=5),
+            self.condicional(espera=0),
+            self.condicional(obrigatorio="sim"),
+        ]
+        for ruim in ruins:
+            with self.subTest(ruim=ruim), self.assertRaises(ConfiguradorErro):
+                validar_passos([ruim], self.c._tamanho_captura)
+
+    def test_salva_o_recorte_da_tela_e_o_do_botao(self):
+        salva = self.c.salvar("Com aviso", [self.condicional()])
+        self.assertIsNotNone(self.c.modelo(salva["id"], 1))
+        self.assertIsNotNone(self.c.modelo(salva["id"], 1, "modelo_alvo"))
+        self.assertTrue(salva["passos"][0]["tem_modelo_alvo"])
+
+    def test_se_aparecer_clica_no_botao_relativo_a_tela_onde_ela_surgiu(self):
+        # a tela esperada (centro 250,120 na captura) surgiu deslocada: casou em (600, 400)
+        self.falsos.achados = {"passo_01.png": (600, 400)}
+        salva = self.c.salvar("Com aviso", [self.condicional()])
+        self.assertTrue(self.c.testar(salva["id"])["ok"])
+        self.assertIn(("clicar", 600 - 150, 400 - 60), self.falsos.acoes)
+
+    def test_opcional_segue_se_nao_aparecer_e_obrigatorio_falha(self):
+        self.falsos.achados = {}
+        opcional = self.c.salvar("Opcional", [self.condicional(espera=2), {"tipo": "tecla", "tecla": "enter"}])
+        resultado = self.c.testar(opcional["id"])
+        self.assertTrue(resultado["ok"])
+        self.assertIn("não apareceu; seguindo", resultado["passos"][0]["detalhe"])
+        self.assertIn(("tecla", "enter"), self.falsos.acoes)          # o fluxo seguiu
+        self.assertNotIn("clicar", [a[0] for a in self.falsos.acoes])
+        obrigatorio = self.c.salvar("Obrigatório", [self.condicional(espera=2, obrigatorio=True)])
+        falha = self.c.testar(obrigatorio["id"])
+        self.assertFalse(falha["ok"])
+        self.assertIn("não apareceu em 2 s", falha["mensagem"])
+
+    def test_resposta_por_tecla(self):
+        self.falsos.achados = {"passo_01.png": (250, 120)}
+        salva = self.c.salvar("Tecla", [self.condicional(resposta={"tipo": "tecla", "tecla": "esc"})])
+        self.assertTrue(self.c.testar(salva["id"])["ok"])
+        self.assertIn(("tecla", "esc"), self.falsos.acoes)
+
+
 @unittest.skipUnless(WEB_DISPONIVEL, "Componentes opcionais: requirements-dev-servidor.txt")
 class TestApi(Base):
     def setUp(self):

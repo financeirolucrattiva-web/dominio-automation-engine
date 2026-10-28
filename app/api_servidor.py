@@ -429,10 +429,10 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         return {"excluida": True}
 
     @app.get("/api/configurador/rotinas/{identificador}/modelo/{indice}", dependencies=[Depends(autorizar)])
-    def configurador_modelo(identificador: str, indice: int):
+    def configurador_modelo(identificador: str, indice: int, parte: str = "modelo"):
         c, erro = configurador()
         try:
-            imagem = c.modelo(identificador, indice)
+            imagem = c.modelo(identificador, indice, "modelo_alvo" if parte == "alvo" else "modelo")
         except erro:
             imagem = None
         if imagem is None:

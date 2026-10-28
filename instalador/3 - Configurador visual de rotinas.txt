@@ -15,6 +15,12 @@ PASSO A PASSO
    ajuste de 1 a 120 no passo) e so falha se ele nao aparecer nesse tempo. Depois da acao, espera a tela mudar e
    assentar (parar de mudar) antes do proximo passo. Para telas muito lentas (relatorio demorando), use o passo
    'Esperar imagem' marcando o que aparece quando termina (ate 120 s).
+   SE APARECER (so para o que e VARIAVEL): para um aviso que as vezes surge (ex.: 'Outros dados nao digitados',
+   aviso do Acrobat), use 'Se aparecer -> clicar': arraste sobre a TELA/aviso (um pedaco caracteristico: titulo e
+   texto) e depois sobre o BOTAO a clicar nela (ex.: Sim/OK). O clique vale onde a janela surgir, porque e medido a
+   partir da propria tela reconhecida. 'Se aparecer -> tecla' responde com uma tecla (Enter, Esc...). Por padrao e
+   OPCIONAL: se a tela nao aparecer em 'espera' segundos, a rotina segue. Marque 'Obrigatoria' para esperar uma tela
+   que TEM que surgir e falhar se ela nao vier. O fluxo normal continua linear; condicional so onde ha variavel.
 4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
 5. Para teclas, textos e parametros use "Adicionar passo": tecla (tab, enter, esc, setas, F8...), parametro
    (data inicial, data final, competencia, codigo da empresa), texto fixo ou espera em segundos.
@@ -38,5 +44,5 @@ O QUE ESTA PRONTO E O QUE FALTA
   com imagens reais do Dominio).
 - Ainda nao: colocar uma rotina aprovada no LOTE de varias empresas e guardar o arquivo gerado na pasta da empresa
   pelo docauto. Por enquanto a rotina aprovada roda como teste supervisionado, uma por vez.
-- Tratamento automatico de avisos que aparecem as vezes (passo "se aparecer esta imagem, clique aqui").
+- Avisos variaveis ja tem o passo 'Se aparecer'; falta so uma biblioteca de avisos comuns reaproveitavel entre rotinas.
 - Troca automatica de empresa dentro da rotina.
