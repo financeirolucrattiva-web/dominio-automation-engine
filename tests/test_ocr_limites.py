@@ -34,6 +34,20 @@ class TestOCRLimites(unittest.TestCase):
         self.assertTrue(leitor._atual['fim'].wait(.5))
         self.assertEqual(leitor.executar(lambda im,lang:'novo',None,'pt',limite=.5),'novo')
 
+    def test_todas_as_leituras_usam_a_mesma_thread_de_longa_vida(self):
+        # Criar/encerrar uma thread (CoInitialize/CoUninitialize) por leitura derrubou o servidor com
+        # violação de acesso depois de um tempo limite; uma thread só, mesmo depois do estouro.
+        leitor=LeitorNativoLimitado(); liberar=threading.Event(); nomes=[]
+        self.addCleanup(liberar.set)
+        def ler(imagem,lang):
+            nomes.append(threading.get_ident()); liberar.wait(.2) if len(nomes)==1 else None; return 'ok'
+        with self.assertRaises(OCRTempoLimite):leitor.executar(ler,None,'pt',limite=.03)
+        self.assertTrue(leitor._atual['fim'].wait(1))
+        self.assertEqual(leitor.executar(ler,None,'pt',limite=1),'ok')
+        self.assertEqual(leitor.executar(ler,None,'pt',limite=1),'ok')
+        self.assertEqual(len(set(nomes)),1)
+        self.assertNotEqual(nomes[0],threading.get_ident())
+
     def test_cancelamento_interrompe_espera_sem_nova_leitura(self):
         leitor=LeitorNativoLimitado(); liberar=threading.Event(); controle=ControleExecucao()
         self.addCleanup(liberar.set)
