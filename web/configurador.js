@@ -68,9 +68,12 @@ const configuradorVisual=(()=>{
         if (passo.previa) {const miniatura=document.createElement("img"); miniatura.src=passo.previa; miniatura.alt="Alvo marcado"; miniatura.className="miniatura"; item.append(miniatura);}
         const rotulo=document.createElement("input"); rotulo.className="rotulo-passo"; rotulo.maxLength=80; rotulo.placeholder="Descreva o alvo (ex.: botão OK do relatório)"; rotulo.value=passo.rotulo||"";
         rotulo.addEventListener("input",()=>{passo.rotulo=rotulo.value;}); item.append(rotulo);
-        if (passo.tipo==="esperar_imagem") {
-          const s=document.createElement("input"); s.type="number"; s.min=1; s.max=60; s.value=passo.segundos||15; s.title="segundos de espera"; s.addEventListener("input",()=>{passo.segundos=Number(s.value);}); item.append(s,document.createTextNode(" s"));
-        }
+        const campoEspera=(rotuloEspera, chaveEspera, padrao)=>{
+          const s=document.createElement("input"); s.type="number"; s.min=1; s.max=120; s.value=passo[chaveEspera]||padrao; s.title=rotuloEspera; s.className="espera-passo"; passo[chaveEspera]=Number(s.value);
+          s.addEventListener("input",()=>{passo[chaveEspera]=Number(s.value);}); item.append(document.createTextNode(rotuloEspera+": "),s,document.createTextNode(" s"));
+        };
+        if (passo.tipo==="esperar_imagem") campoEspera("espera até aparecer","segundos",15);
+        else campoEspera("espera pelo alvo","espera",20);
       } else if (passo.tipo==="tecla") {item.append(document.createTextNode(` ${passo.tecla}`));}
       else if (passo.tipo==="digitar") {item.append(document.createTextNode(passo.parametro ? ` parâmetro: ${nomesParametro[passo.parametro]||passo.parametro}` : ` texto fixo: ${passo.texto}`));}
       else if (passo.tipo==="esperar_segundos") {item.append(document.createTextNode(` ${passo.segundos} s`));}
@@ -88,7 +91,7 @@ const configuradorVisual=(()=>{
   function corpoRotina() {
     return {nome:el("cv-nome").value, passos:passos.map(p=>{
       const limpo={tipo:p.tipo};
-      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
+      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","espera","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
       return limpo;
     })};
   }

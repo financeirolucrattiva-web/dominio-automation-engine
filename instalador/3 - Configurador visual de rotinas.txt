@@ -11,6 +11,10 @@ PASSO A PASSO
 2. Clique em "Capturar tela do Dominio". A imagem do PC do servidor aparece no painel.
 3. Escolha a acao ("Clicar", "Duplo clique", "Passar o mouse" ou "Esperar imagem") e ARRASTE um retangulo sobre o
    alvo na imagem. Pegue so o botao/icone, de preferencia algo que nao muda (nome de empresa e data mudam: evite).
+   ESPERA: antes de cada clique/mouse, a rotina procura o alvo na tela por ate 'espera pelo alvo' segundos (padrao 20,
+   ajuste de 1 a 120 no passo) e so falha se ele nao aparecer nesse tempo. Depois da acao, espera a tela mudar e
+   assentar (parar de mudar) antes do proximo passo. Para telas muito lentas (relatorio demorando), use o passo
+   'Esperar imagem' marcando o que aparece quando termina (ate 120 s).
 4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
 5. Para teclas, textos e parametros use "Adicionar passo": tecla (tab, enter, esc, setas, F8...), parametro
    (data inicial, data final, competencia, codigo da empresa), texto fixo ou espera em segundos.

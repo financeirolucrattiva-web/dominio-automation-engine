@@ -103,9 +103,14 @@ def validar_passos(passos, tamanho_captura):
             item.update(captura_id=captura, x=x, y=y, largura=largura, altura=altura)
             if tipo == "esperar_imagem":
                 segundos = passo.get("segundos", 15)
-                if not _inteiro(segundos) or not 1 <= segundos <= 60:
-                    raise ConfiguradorErro(f"Passo {numero}: a espera pela imagem vai de 1 a 60 segundos.")
+                if not _inteiro(segundos) or not 1 <= segundos <= 120:
+                    raise ConfiguradorErro(f"Passo {numero}: a espera pela imagem vai de 1 a 120 segundos.")
                 item["segundos"] = segundos
+            else:
+                espera = passo.get("espera", 20)
+                if not _inteiro(espera) or not 1 <= espera <= 120:
+                    raise ConfiguradorErro(f"Passo {numero}: a espera pelo alvo vai de 1 a 120 segundos.")
+                item["espera"] = espera
         elif tipo == "tecla":
             if passo.get("tecla") not in TECLAS:
                 raise ConfiguradorErro(f"Passo {numero}: tecla não permitida.")
@@ -375,6 +380,18 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 return True
         return False
 
+    def esperar_estavel(tentativas=30):
+        """Espera a tela parar de mudar (duas leituras seguidas iguais): o GO-Global repinta devagar."""
+        anterior, estaveis = d.assinatura(d.capturar()), 0
+        for _ in range(tentativas):
+            d.dormir(0.5)
+            atual = d.assinatura(d.capturar())
+            estaveis = 0 if d.mudou(anterior, atual) else estaveis + 1
+            if estaveis >= 2:
+                return True
+            anterior = atual
+        return False
+
     def procurar(passo, tempo):
         modelo = Path(pasta_rotina) / passo["modelo"]
         tentativas = int(tempo) + 1
@@ -405,14 +422,18 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
             return falhar(passo, "O Domínio saiu do foco; nada foi enviado neste passo.")
         tipo = passo["tipo"]
         if tipo in ("clicar", "duplo_clique", "hover"):
-            posicao = procurar(passo, 8)
+            posicao = procurar(passo, passo.get("espera", 20))
             if posicao is None:
-                return falhar(passo, f"Não achei '{passo['rotulo']}' na tela.")
+                return falhar(passo, f"Não achei '{passo['rotulo']}' na tela em {passo.get('espera', 20)} s.")
             antes = d.assinatura(d.capturar())
             {"clicar": d.clicar, "duplo_clique": d.clicar_duplo, "hover": d.passar_mouse}[tipo](*posicao)
             detalhe = f"{passo['rotulo']}: ok"
-            if tipo != "hover" and not esperar_mudanca(antes):
-                detalhe += " (a tela não mudou depois da ação)"
+            if tipo != "hover":
+                mudou = esperar_mudanca(antes)
+                if not mudou:
+                    detalhe += " (a tela não mudou depois da ação)"
+                elif not esperar_estavel():
+                    detalhe += " (a tela continuou mudando; seguindo assim mesmo)"
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
         elif tipo == "esperar_imagem":
             if procurar(passo, passo["segundos"]) is None:

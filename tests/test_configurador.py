@@ -178,6 +178,32 @@ class TestExecucao(Base):
         self.assertEqual(len(list((self.pasta / "falhas").glob("configurador_*_passo_03.png"))), 1)
         self.assertEqual(self.c.obter(salva["id"])["status"], "rascunho")
 
+    def test_espera_o_alvo_aparecer_e_a_tela_assentar_antes_de_seguir(self):
+        achados = [None, None, None, (100, 60)]  # só aparece na 4ª leitura
+        self.falsos.achados = {}
+        d = self.falsos.dispositivos()
+        d.achar_template = lambda img, caminho: achados.pop(0) if achados else (100, 60)
+        c = Configurador(self.pasta / "cfg2", d, pasta_falhas=self.pasta / "falhas2")
+        captura = c.capturar()
+        salva = c.salvar("Espera", [dict(self.passo("clicar"), captura_id=captura, espera=5)])
+        self.assertTrue(c.testar(salva["id"])["ok"])
+        dormidas = [a for a in self.falsos.acoes if a[0] == "dormir"]
+        self.assertGreaterEqual(len([s for s in dormidas if s[1] == 1]), 3)      # esperou o alvo (3 tentativas)
+        self.assertIn(("clicar", 100, 60), self.falsos.acoes)
+
+    def test_desiste_do_alvo_so_depois_do_tempo_configurado(self):
+        self.falsos.achados = {}
+        salva = self.c.salvar("Nunca", [dict(self.passo("clicar"), espera=3)])
+        resultado = self.c.testar(salva["id"])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("em 3 s", resultado["mensagem"])
+        self.assertEqual(len([a for a in self.falsos.acoes if a == ("dormir", 1)]), 3)
+
+    def test_espera_invalida_e_recusada(self):
+        for ruim in (0, 121, "5"):
+            with self.subTest(espera=ruim), self.assertRaises(ConfiguradorErro):
+                validar_passos([self.passo("clicar", espera=ruim)], self.c._tamanho_captura)
+
     def test_foco_perdido_no_meio_nao_envia_nada(self):
         self.falsos.achados = {"passo_01.png": (100, 60)}
         salva = self.c.salvar("Só clique", [self.passo("clicar")])
