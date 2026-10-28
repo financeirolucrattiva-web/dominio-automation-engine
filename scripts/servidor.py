@@ -78,7 +78,7 @@ def main(argv=None):
     except OSError:
         print("Não foi possível acessar data/servidor_chave.txt. Confira as permissões da pasta data e do arquivo.")
         return 1
-    executor, modo, login = None, "consulta", None
+    executor, modo, login, configurador = None, "consulta", None, None
     if args.simular:
         executor, modo = simular, "simulacao"
     elif args.executar:
@@ -86,9 +86,11 @@ def main(argv=None):
         from app.login_windows import LoginWindows
         executor, modo = ExecutorDominio(), "windows"
         login = LoginWindows()
+        from app.configurador import Configurador
+        configurador = Configurador()
     nome_banco = "servidor_simulado.sqlite3" if args.simular else "servidor.sqlite3"
     try:
-        servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo, login=login)
+        servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo, login=login, configurador=configurador)
         servico.repositorio.configuracao.preparar_piloto()
         app = criar_app(servico, chave)
         print(f"Modo do servidor: {modo}. Porta {args.porta}.")

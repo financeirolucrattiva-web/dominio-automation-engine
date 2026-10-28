@@ -70,6 +70,17 @@ class PedidoRotina(BaseModel):
     passos: list[PassoRotina] = Field(min_length=1, max_length=80)
 
 
+class PedidoConfiguradorRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    nome: StrictStr = Field(min_length=1, max_length=100)
+    passos: list[dict] = Field(min_length=1, max_length=80)
+
+
+class PedidoConfiguradorTeste(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    parametros: dict[StrictStr, StrictStr] = Field(default_factory=dict, max_length=4)
+
+
 class PedidoRegime(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: StrictStr | None = None
@@ -354,6 +365,103 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         if relatorio is None:
             raise HTTPException(404, 'Lote não encontrado.')
         return relatorio
+
+    def configurador():
+        from app.configurador import ConfiguradorErro
+        if servico.configurador is None:
+            raise HTTPException(503, "O configurador requer o executor Windows.")
+        return servico.configurador, ConfiguradorErro
+
+    @app.post("/api/configurador/captura", status_code=202, dependencies=[Depends(autorizar)])
+    def configurador_capturar():
+        configurador()
+        try:
+            return servico.solicitar_sessao("configurador_capturar")
+        except SessaoOcupada:
+            raise HTTPException(409, "Aguarde a execução ou o login terminar para capturar.") from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, "O configurador requer o executor Windows.") from None
+
+    @app.get("/api/configurador/captura", dependencies=[Depends(autorizar)])
+    def configurador_captura(captura_id: str | None = None):
+        c, _ = configurador()
+        achada = c.obter_captura(captura_id)
+        if achada is None:
+            raise HTTPException(404, "Nenhuma captura disponível; capture a tela do Domínio.")
+        return Response(achada[1], media_type="image/png", headers={"X-Captura-Id": achada[0]})
+
+    @app.get("/api/configurador/rotinas", dependencies=[Depends(autorizar)])
+    def configurador_listar():
+        c, _ = configurador()
+        return c.listar()
+
+    @app.get("/api/configurador/rotinas/{identificador}", dependencies=[Depends(autorizar)])
+    def configurador_obter(identificador: str):
+        c, erro = configurador()
+        try:
+            return c.obter(identificador)
+        except erro:
+            raise HTTPException(404, "Rotina não encontrada.") from None
+
+    @app.post("/api/configurador/rotinas", status_code=201, dependencies=[Depends(autorizar)])
+    def configurador_criar(pedido: PedidoConfiguradorRotina):
+        c, erro = configurador()
+        try:
+            return c.salvar(pedido.nome, pedido.passos)
+        except erro as motivo:
+            raise HTTPException(422, str(motivo)) from None
+
+    @app.put("/api/configurador/rotinas/{identificador}", dependencies=[Depends(autorizar)])
+    def configurador_atualizar(identificador: str, pedido: PedidoConfiguradorRotina):
+        c, erro = configurador()
+        try:
+            return c.salvar(pedido.nome, pedido.passos, identificador)
+        except erro as motivo:
+            raise HTTPException(422, str(motivo)) from None
+
+    @app.delete("/api/configurador/rotinas/{identificador}", dependencies=[Depends(autorizar)])
+    def configurador_excluir(identificador: str):
+        c, erro = configurador()
+        try:
+            c.excluir(identificador)
+        except erro:
+            raise HTTPException(404, "Rotina não encontrada.") from None
+        return {"excluida": True}
+
+    @app.get("/api/configurador/rotinas/{identificador}/modelo/{indice}", dependencies=[Depends(autorizar)])
+    def configurador_modelo(identificador: str, indice: int):
+        c, erro = configurador()
+        try:
+            imagem = c.modelo(identificador, indice)
+        except erro:
+            imagem = None
+        if imagem is None:
+            raise HTTPException(404, "Modelo de imagem não encontrado.")
+        return Response(imagem, media_type="image/png")
+
+    @app.post("/api/configurador/rotinas/{identificador}/testar", status_code=202, dependencies=[Depends(autorizar)])
+    def configurador_testar(identificador: str, pedido: PedidoConfiguradorTeste):
+        from app.configurador import validar_parametros_teste
+        c, erro = configurador()
+        try:
+            dados = c.obter(identificador)
+            validar_parametros_teste(dados["passos"], pedido.parametros)
+        except erro as motivo:
+            raise HTTPException(422, str(motivo)) from None
+        try:
+            return servico.solicitar_sessao("configurador_testar", {"rotina_id": identificador, "parametros": pedido.parametros})
+        except SessaoOcupada:
+            raise HTTPException(409, "Aguarde a sessão ficar disponível.") from None
+        except PrecondicaoRecusada:
+            raise HTTPException(503, "O configurador requer o executor Windows.") from None
+
+    @app.post("/api/configurador/rotinas/{identificador}/aprovar", dependencies=[Depends(autorizar)])
+    def configurador_aprovar(identificador: str):
+        c, erro = configurador()
+        try:
+            return c.aprovar(identificador)
+        except erro as motivo:
+            raise HTTPException(422, str(motivo)) from None
 
     @app.get("/api/rotinas", dependencies=[Depends(autorizar)])
     def rotinas_listar():

@@ -92,7 +92,7 @@ const fasesLogin={nao_iniciado:"Login não iniciado",na_fila:"Aguardando a açã
 const motivosLogin={navegador_indisponivel:"Instale Edge ou Chrome no servidor.",destino_nao_permitido:"A página mudou para um endereço que não está configurado.",tela_login_nao_reconhecida:"A tela esperada não foi reconhecida. Confira a etapa indicada e a sessão do servidor.",campos_login_nao_confirmados:"Os campos do login Fiscal não foram reconhecidos com segurança.",janela_login_nao_confirmada:"Não reconheci uma janela do cliente Domínio em foco.",calibracao_nao_confirmada:"Deixe a tela principal azul, maximizada e sem menus, e use Calibrar tela principal.",fechamento_nao_confirmado:"Uma janela não confirmou o fechamento. O RPA não iniciou outro ciclo.",codigo_expirado:"O código não foi informado no prazo. Inicie uma nova tentativa.",login_nao_confirmado:"O acesso não foi confirmado. A rotina fiscal não será iniciada automaticamente.",login_cancelado:"A tentativa foi cancelada."};
 function atualizarLogin() {
   const login=estadoServidor?.login, permitido=!!chave && navigator.onLine && login?.disponivel;
-  const ativo=login && !["nao_iniciado","tela_principal_confirmada","calibracao_confirmada","captura_pronta","livros_conferidos","falha","cancelado"].includes(login.estado);
+  const ativo=login && !["nao_iniciado","tela_principal_confirmada","calibracao_confirmada","captura_pronta","livros_conferidos","captura_configurador_pronta","teste_configurador_ok","falha","cancelado"].includes(login.estado);
   $("entrar-dominio").disabled=!permitido || configurando || !!estadoServidor?.ocupado;
   $("reiniciar-ciclo").disabled=!permitido || configurando || !!ativo;
   $("cancelar-login").hidden=!permitido || !ativo; $("cancelar-login").disabled=configurando;

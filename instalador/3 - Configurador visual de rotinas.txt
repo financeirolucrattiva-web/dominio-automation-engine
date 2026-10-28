@@ -1,0 +1,38 @@
+CONFIGURADOR VISUAL DE ROTINAS
+==============================
+Para criar uma rotina nova sem programar: voce marca, em um print da tela do Dominio, onde clicar, passar o mouse
+ou esperar uma imagem. O alvo e a IMAGEM do botao/menu/icone, nao um texto exato lido por OCR.
+
+ONDE FICA
+Painel (https://<IP do PC do Dominio>:8765) > "Configurador visual de rotinas".
+
+PASSO A PASSO
+1. Deixe o Dominio, no PC do servidor, na tela que voce quer marcar (ex.: tela azul principal).
+2. Clique em "Capturar tela do Dominio". A imagem do PC do servidor aparece no painel.
+3. Escolha a acao ("Clicar", "Duplo clique", "Passar o mouse" ou "Esperar imagem") e ARRASTE um retangulo sobre o
+   alvo na imagem. Pegue so o botao/icone, de preferencia algo que nao muda (nome de empresa e data mudam: evite).
+4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
+5. Para teclas, textos e parametros use "Adicionar passo": tecla (tab, enter, esc, setas, F8...), parametro
+   (data inicial, data final, competencia, codigo da empresa), texto fixo ou espera em segundos.
+6. De um nome e clique "Salvar rascunho".
+7. Se for preciso marcar outra tela, o Dominio avanca ate ela (fazendo a acao na mao) e voce captura de novo.
+   Cada passo guarda a captura de onde foi marcado.
+8. TESTAR: deixe o Dominio na tela de partida, preencha os parametros pedidos (periodo sempre de um mes JA fechado)
+   e clique "Testar agora". Acompanhe o Dominio e NAO mexa no mouse nem no teclado dele. O resultado mostra cada
+   passo (certo/errado). Se um alvo nao for achado, a rotina para ali e guarda a tela do problema em capturas\.
+9. APROVAR: so rotina testada com sucesso, na versao atual dos passos, pode ser aprovada. Editar volta a rascunho.
+
+REGRAS DE SEGURANCA (nao tem como burlar pelo painel)
+- Nunca transmitir, retificar, excluir ou enviar: a descricao do alvo com essas palavras e recusada.
+- Teclas limitadas a uma lista segura (sem Delete, sem Alt+F4).
+- Parametro de periodo so aceita mes passado e fechado; nunca a competencia corrente.
+- O navegador so envia retangulos; o servidor recorta as imagens da captura que ele mesmo guardou.
+- Se o Dominio sair do foco, a rotina para e nao envia nada.
+
+O QUE ESTA PRONTO E O QUE FALTA
+- Pronto: capturar, marcar, salvar, testar e aprovar pelo painel (testado em navegador real com tela simulada e
+  com imagens reais do Dominio).
+- Ainda nao: colocar uma rotina aprovada no LOTE de varias empresas e guardar o arquivo gerado na pasta da empresa
+  pelo docauto. Por enquanto a rotina aprovada roda como teste supervisionado, uma por vez.
+- Tratamento automatico de avisos que aparecem as vezes (passo "se aparecer esta imagem, clique aqui").
+- Troca automatica de empresa dentro da rotina.

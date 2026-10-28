@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/app.js" defer></script>
   <script src="/static/lotes.js" defer></script>
+  <script src="/static/configurador.js" defer></script>
   <title>Domínio · Automação Fiscal</title>
 </head>
 <body>
@@ -156,6 +157,30 @@
           <div id="rotina-passos"></div><button id="adicionar-passo" type="button" class="secundario">Adicionar passo</button><button id="salvar-rotina" type="submit">Salvar rascunho no servidor</button>
         </form><p id="rotina-aviso" class="discreto" role="status"></p>
         <div class="tabela-scroll"><table><thead><tr><th>Rotina configurada</th><th>Situação</th><th>Passos</th></tr></thead><tbody id="rotinas-configuradas"></tbody></table></div>
+      </details></section>
+      <section class="bloco configuracao"><details id="config-visual"><summary>Configurador visual de rotinas</summary>
+        <p class="discreto">Crie uma rotina marcando os alvos em um print da tela do Domínio: clicar, duplo clique, passar o mouse, esperar uma imagem, teclas, textos e parâmetros. O alvo é a imagem, não um texto exato. O configurador só gera e lê relatórios: não transmite, retifica nem exclui.</p>
+        <p id="cv-aviso" class="resultado" role="status"></p>
+        <div class="controle"><button id="cv-capturar" type="button">Capturar tela do Domínio</button><span class="discreto">Deixe o Domínio na tela que quer marcar. A captura vem do PC do servidor.</span></div>
+        <div id="cv-area" hidden>
+          <div id="cv-modos" class="controle"><span class="discreto">Ao arrastar sobre a imagem:</span><button type="button" data-modo="clicar">Clicar</button><button type="button" class="secundario" data-modo="duplo_clique">Duplo clique</button><button type="button" class="secundario" data-modo="hover">Passar o mouse</button><button type="button" class="secundario" data-modo="esperar_imagem">Esperar imagem</button></div>
+          <div class="cv-moldura"><canvas id="cv-tela" aria-label="Captura da tela do Domínio"></canvas></div>
+        </div>
+        <h3>Passos da rotina</h3>
+        <p id="cv-vazio" class="discreto">Nenhum passo ainda. Capture a tela e arraste um retângulo sobre o alvo, ou adicione uma tecla, texto ou espera abaixo.</p>
+        <ol id="cv-passos" class="sequencia"></ol>
+        <div class="controle"><select id="cv-outro-tipo" aria-label="Outro tipo de passo"><option value="tecla">Tecla</option><option value="digitar_parametro">Digitar parâmetro</option><option value="digitar_texto">Digitar texto fixo</option><option value="esperar_segundos">Esperar segundos</option></select><select id="cv-outro-select" aria-label="Valor"></select><input id="cv-outro-valor" maxlength="60" hidden><button id="cv-adicionar" type="button" class="secundario">Adicionar passo</button></div>
+        <div class="controle cv-salvar"><input id="cv-nome" maxlength="100" placeholder="Nome da rotina" aria-label="Nome da rotina"><button id="cv-salvar" type="button">Salvar rascunho</button><button id="cv-novo" type="button" class="secundario">Nova rotina</button></div>
+        <div id="cv-teste" hidden>
+          <h3>Testar e aprovar</h3>
+          <p class="discreto">O teste roda no PC do Domínio, uma vez, com você olhando. Deixe o Domínio na tela de partida da rotina e não mexa no mouse nem no teclado dele. Só uma rotina testada pode ser aprovada.</p>
+          <div id="cv-parametros" class="datas"></div>
+          <div class="controle"><button id="cv-testar" type="button">Testar agora</button><button id="cv-aprovar" type="button" class="secundario" disabled>Aprovar rotina</button></div>
+          <div id="cv-resultado"></div>
+        </div>
+        <h3>Rotinas do configurador</h3>
+        <p id="cv-sem-rotinas" class="discreto" hidden>Nenhuma rotina criada ainda.</p>
+        <div class="tabela-scroll"><table><thead><tr><th>Rotina</th><th>Situação</th><th>Passos</th><th></th></tr></thead><tbody id="cv-lista"></tbody></table></div>
       </details></section>
       <section class="bloco historico"><details id="historico-painel"><summary>Histórico no servidor</summary><div class="tabela-scroll"><table><thead><tr><th>Data</th><th>Rotina</th><th>Empresa</th><th>Resultado</th><th></th></tr></thead><tbody id="historico"></tbody></table></div><p id="vazio" class="discreto">As execuções aparecerão aqui.</p></details></section>
     </div>

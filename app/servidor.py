@@ -376,7 +376,7 @@ class RepositorioTarefas:
 class ServicoExecucao:
     """Um único worker; novas tarefas são recusadas enquanto a sessão ocupa."""
 
-    def __init__(self, repositorio, executor=None, modo="consulta", login=None, pasta_saida=None):
+    def __init__(self, repositorio, executor=None, modo="consulta", login=None, pasta_saida=None, configurador=None):
         self.repositorio, self.executor, self.modo = repositorio, executor, modo
         self.pasta_saida = Path(pasta_saida or Path(__file__).resolve().parent.parent / "saida").resolve()
         self._acordar = threading.Event()
@@ -386,6 +386,7 @@ class ServicoExecucao:
         self._controle = None
         self._tarefa_atual = None
         self.login = login
+        self.configurador = configurador
         self.sessao_login = SessaoLogin()
         self._operacao = None
         self._operacao_ativa = False
@@ -413,7 +414,7 @@ class ServicoExecucao:
         self._acordar.set()
         with self._controle_lock:
             self.sessao_login.cancelar()
-            if self._operacao and self._operacao[1] is not None:
+            if self._operacao and hasattr(self._operacao[1], "limpar"):
                 self._operacao[1].limpar()
             self._operacao = None
             if self._controle is not None:
@@ -449,18 +450,21 @@ class ServicoExecucao:
             self._acordar.set()
             return self.estado_login()
 
-    def solicitar_sessao(self, acao):
-        if acao not in ("calibrar", "capturar", "revisar_livros"):
+    def solicitar_sessao(self, acao, dados=None):
+        if acao not in ("calibrar", "capturar", "revisar_livros", "configurador_capturar", "configurador_testar"):
             raise ValueError("Operação inválida.")
         with self._controle_lock:
-            if self.login is None or not self.disponivel:
+            if acao.startswith("configurador_"):
+                if self.configurador is None or not self.disponivel:
+                    raise PrecondicaoRecusada("configurador_indisponivel")
+            elif self.login is None or not self.disponivel:
                 raise PrecondicaoRecusada("login_indisponivel")
             if acao == 'revisar_livros' and not callable(getattr(self.login, 'revisar_livros', None)):
                 raise PrecondicaoRecusada('diagnostico_livros_indisponivel')
             if self._ocupado():
                 raise SessaoOcupada("A sessão está ocupada.")
             self.sessao_login.iniciar()
-            self._operacao = (acao, None)
+            self._operacao = (acao, dados)
             self._acordar.set()
             return self.estado_login()
 
@@ -536,6 +540,13 @@ class ServicoExecucao:
             elif acao == 'revisar_livros':
                 resultado = self.login.revisar_livros(self.sessao_login)
                 self.sessao_login.concluir_livros(resultado)
+            elif acao == "configurador_capturar":
+                self.configurador.capturar(self.sessao_login)
+                self.sessao_login.fase("captura_configurador_pronta")
+            elif acao == "configurador_testar":
+                resultado = self.configurador.testar(credenciais["rotina_id"], credenciais["parametros"], self.sessao_login)
+                self.sessao_login.fase("teste_configurador_ok" if resultado["ok"] else "falha",
+                                       None if resultado["ok"] else "teste_configurador_falhou")
             else:
                 if acao == "reiniciar":
                     self.login.reiniciar(self.sessao_login)
@@ -547,11 +558,16 @@ class ServicoExecucao:
                        "formulario_livros_nao_reconhecido"}
             motivo = str(erro) if str(erro) in motivos else "login_nao_confirmado"
             self.sessao_login.fase("cancelado" if motivo == "login_cancelado" else "falha", motivo)
-        except Exception:
+        except Exception as erro:
             # Exceções de navegador podem conter senhas em traces; não registrar.
-            self.sessao_login.fase("falha", "diagnostico_livros_nao_confirmado" if acao == 'revisar_livros' else "login_nao_confirmado")
+            if acao.startswith("configurador_"):
+                from app.configurador import ConfiguradorErro
+                motivo = str(erro) if isinstance(erro, ConfiguradorErro) and str(erro) == "dominio_fora_de_foco" else "configurador_recusado"
+                self.sessao_login.fase("falha", motivo)
+            else:
+                self.sessao_login.fase("falha", "diagnostico_livros_nao_confirmado" if acao == 'revisar_livros' else "login_nao_confirmado")
         finally:
-            if credenciais is not None:
+            if hasattr(credenciais, "limpar"):
                 credenciais.limpar()
             with self._controle_lock:
                 self._operacao_ativa = False
