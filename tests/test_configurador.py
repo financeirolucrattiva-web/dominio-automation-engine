@@ -191,6 +191,24 @@ class TestExecucao(Base):
         self.assertGreaterEqual(len([s for s in dormidas if s[1] == 1]), 3)      # esperou o alvo (3 tentativas)
         self.assertIn(("clicar", 100, 60), self.falsos.acoes)
 
+    def test_clica_assim_que_o_alvo_aparece_sem_esperar_o_tempo_todo(self):
+        self.falsos.achados = {"passo_01.png": (100, 60)}
+        salva = self.c.salvar("Rápido", [dict(self.passo("clicar"), espera=60)])
+        self.assertTrue(self.c.testar(salva["id"])["ok"])
+        self.assertEqual([a for a in self.falsos.acoes if a == ("dormir", 1)], [])   # nenhuma espera de 1 s: achou na hora
+        self.assertIn(("clicar", 100, 60), self.falsos.acoes)
+
+    def test_so_clica_quando_o_alvo_se_repete_no_mesmo_lugar(self):
+        # quadro "meio desenhado": aparece uma vez, some, depois fica firme (a leitura seguinte confirma)
+        leituras = iter([(100, 60), None, (100, 60), (101, 61)])
+        d = self.falsos.dispositivos()
+        d.achar_template = lambda img, caminho: next(leituras, (101, 61))
+        c = Configurador(self.pasta / "cfg4", d, pasta_falhas=self.pasta / "falhas4")
+        captura = c.capturar()
+        salva = c.salvar("Firme", [dict(self.passo("clicar"), captura_id=captura, espera=5)])
+        self.assertTrue(c.testar(salva["id"])["ok"])
+        self.assertEqual([a for a in self.falsos.acoes if a[0] == "clicar"], [("clicar", 101, 61)])
+
     def test_desiste_do_alvo_so_depois_do_tempo_configurado(self):
         self.falsos.achados = {}
         salva = self.c.salvar("Nunca", [dict(self.passo("clicar"), espera=3)])

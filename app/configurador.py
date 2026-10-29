@@ -485,7 +485,12 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
         for numero in range(tentativas):
             posicao = d.achar_template(d.capturar(), modelo)
             if posicao is not None:
-                return posicao
+                # Segue assim que aparece, mas só depois de ver o alvo parado no mesmo lugar numa segunda leitura
+                # (o GO-Global pinta aos poucos: um quadro "meio desenhado" não deve receber o clique).
+                d.dormir(0.4)
+                confirmada = d.achar_template(d.capturar(), modelo)
+                if confirmada is not None and abs(confirmada[0] - posicao[0]) <= 4 and abs(confirmada[1] - posicao[1]) <= 4:
+                    return confirmada
             if numero < tentativas - 1:
                 d.dormir(1)
                 if sessao is not None:

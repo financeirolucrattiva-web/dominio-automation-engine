@@ -26,6 +26,8 @@ PASSO A PASSO
    que estiver aberto ate a tela azul). A empresa vem do parametro 'codigo da empresa', pedido no teste. Se a troca ou
    a volta nao se confirmarem, a rotina para ali e nao segue com a empresa errada. Se o Dominio JA estiver na empresa
    pedida (lida no cabecalho), a troca e PULADA, como nas rotinas normais; depois de trocar, a empresa e conferida de novo.
+   CLIQUE ANTECIPADO: se o alvo aparecer antes do tempo, a rotina age NA HORA (nao espera o tempo todo); so confere
+   uma segunda leitura 0,4 s depois, com o alvo no mesmo lugar, para nao clicar num quadro ainda sendo desenhado.
    TEMPOS: toda espera por imagem e um MAXIMO, nao um tempo fixo: a rotina segue assim que a imagem aparece (confere
    a cada ~1 s) e so desiste depois de 'espera' segundos. 'Esperar segundos' e a unica pausa fixa.
 4. Na lista de passos, descreva o alvo em poucas palavras (ex.: "botao OK do relatorio"). Reordene com as setas.
