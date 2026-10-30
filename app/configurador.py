@@ -409,6 +409,69 @@ class Configurador:
             self._gravar(rotina_id, dados)
         return self.obter(rotina_id)
 
+    # ---- pedidos ao Claude (VS Code) ------------------------------------------------------------------------------
+    # Caixa de pedidos por arquivo: o painel grava o pedido com o contexto da rotina (passos, último teste), e o
+    # Claude, na sessão do VS Code, lê (scripts/pedidos_configurador.py), corrige e escreve a resposta no mesmo
+    # arquivo, que o painel mostra. Nada sai do PC: só texto digitado, descrições e o resultado do teste.
+    def _pasta_pedidos(self):
+        return self.pasta / "pedidos"
+
+    def pedir(self, texto, rotina_id=None):
+        if not isinstance(texto, str) or not 5 <= len(texto.strip()) <= 2000 or any(ord(c) < 32 and c not in "\n\t" for c in texto):
+            raise ConfiguradorErro("Escreva o pedido com 5 a 2000 caracteres.")
+        contexto = None
+        nome = None
+        if rotina_id is not None:
+            dados = self._ler(rotina_id)
+            nome, teste = dados["nome"], dados.get("ultimo_teste")
+            contexto = {"status": dados["status"], "passos": [{k: v for k, v in p.items() if k not in ("modelo", "modelo_alvo")}
+                                                              for p in dados["passos"]],
+                        "ultimo_teste": teste and {"ok": teste["ok"], "em": teste["em"], "passo_falho": teste.get("passo_falho"),
+                                                   "passos": teste.get("passos")}}
+        pedido_id = uuid.uuid4().hex
+        pasta = self._pasta_pedidos()
+        pasta.mkdir(parents=True, exist_ok=True)
+        registro = {"id": pedido_id, "criado_em": dt.datetime.now().isoformat(timespec="seconds"), "rotina_id": rotina_id,
+                    "rotina_nome": nome, "texto": texto.strip(), "status": "pendente", "resposta": None, "contexto": contexto}
+        (pasta / f"{pedido_id}.json").write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+        return self._resumo_pedido(registro)
+
+    @staticmethod
+    def _resumo_pedido(registro):
+        return {k: registro.get(k) for k in ("id", "criado_em", "rotina_id", "rotina_nome", "texto", "status", "resposta", "respondido_em")}
+
+    def _ler_pedido(self, pedido_id):
+        if not isinstance(pedido_id, str) or not _ID.fullmatch(pedido_id):
+            raise ConfiguradorErro("Pedido não encontrado.")
+        arquivo = self._pasta_pedidos() / f"{pedido_id}.json"
+        try:
+            return json.loads(arquivo.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise ConfiguradorErro("Pedido não encontrado.") from None
+
+    def listar_pedidos(self):
+        pasta = self._pasta_pedidos()
+        if not pasta.is_dir():
+            return []
+        registros = []
+        for arquivo in pasta.glob("*.json"):
+            try:
+                registros.append(self._resumo_pedido(json.loads(arquivo.read_text(encoding="utf-8"))))
+            except (OSError, ValueError):
+                continue
+        return sorted(registros, key=lambda r: r["criado_em"], reverse=True)[:50]
+
+    def obter_pedido(self, pedido_id):
+        return self._ler_pedido(pedido_id)
+
+    def responder_pedido(self, pedido_id, resposta):
+        registro = self._ler_pedido(pedido_id)
+        if not isinstance(resposta, str) or not 1 <= len(resposta.strip()) <= 4000:
+            raise ConfiguradorErro("Escreva a resposta com até 4000 caracteres.")
+        registro.update(status="atendido", resposta=resposta.strip(), respondido_em=dt.datetime.now().isoformat(timespec="seconds"))
+        (self._pasta_pedidos() / f"{pedido_id}.json").write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+        return self._resumo_pedido(registro)
+
     def excluir(self, rotina_id):
         import shutil
         pasta = self._pasta_rotina(rotina_id)

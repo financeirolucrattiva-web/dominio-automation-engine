@@ -41,6 +41,13 @@ PASSO A PASSO
    passo (certo/errado). Se um alvo nao for achado, a rotina para ali e guarda a tela do problema em capturas\.
 9. APROVAR: so rotina testada com sucesso, na versao atual dos passos, pode ser aprovada. Editar volta a rascunho.
 
+PEDIR AJUSTE AO CLAUDE (no proprio painel)
+- Em 'Pedir ajuste ao Claude', descreva o que nao funcionou ou o que quer mudar na rotina aberta (ou um pedido geral).
+- O pedido leva junto os passos e o resultado do ultimo teste e fica na fila (data\configurador\pedidos).
+- No VS Code do servidor, peca ao Claude: 'veja os pedidos do configurador' (ou use /pedidos-configurador). Ele le a fila,
+  corrige com base no teste/print, publica a atualizacao e responde; a resposta aparece na lista do painel.
+- O Claude so age quando alguem abre a conversa no VS Code: nao e um chat em tempo real. Nada sai do PC.
+
 REGRAS DE SEGURANCA (nao tem como burlar pelo painel)
 - Nunca transmitir, retificar, excluir ou enviar: a descricao do alvo com essas palavras e recusada.
 - Teclas limitadas a uma lista segura (sem Delete, sem Alt+F4).

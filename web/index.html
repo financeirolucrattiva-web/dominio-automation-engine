@@ -177,6 +177,11 @@
           <div class="controle"><button id="cv-testar" type="button">Testar agora</button><button id="cv-aprovar" type="button" class="secundario" disabled>Aprovar rotina</button></div>
           <div id="cv-resultado"></div>
         </div>
+        <h3>Pedir ajuste ao Claude</h3>
+        <p class="discreto">Algo não funcionou ou quer mudar a rotina aberta? Descreva aqui. O pedido leva junto os passos e o resultado do último teste, e fica na fila para o Claude (no VS Code do servidor) corrigir. A resposta aparece nesta lista. Nada sai do PC.</p>
+        <textarea id="cv-pedido" rows="3" maxlength="2000" placeholder="Ex.: o passo 3 não achou o botão OK; adicionar a troca de empresa no início e voltar à tela principal no fim" aria-label="Pedido ao Claude"></textarea>
+        <div class="controle"><button id="cv-pedir" type="button">Enviar pedido</button></div>
+        <div class="tabela-scroll"><table><thead><tr><th>Pedido</th><th>Rotina</th><th>Situação</th></tr></thead><tbody id="cv-pedidos"></tbody></table></div>
         <h3>Rotinas do configurador</h3>
         <p id="cv-sem-rotinas" class="discreto" hidden>Nenhuma rotina criada ainda.</p>
         <div class="tabela-scroll"><table><thead><tr><th>Rotina</th><th>Situação</th><th>Passos</th><th></th></tr></thead><tbody id="cv-lista"></tbody></table></div>

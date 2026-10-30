@@ -16,3 +16,8 @@ Regras que não têm exceção:
 - Nunca automatizar transmissão/retificação/exclusão, só geração/leitura.
 - Nunca afirmar sucesso de uma automação sem log real de execução
   contra o Domínio.
+
+Configurador visual de rotinas (painel): pedidos de ajuste feitos pela equipe ficam na fila
+`data/configurador/pedidos`. Para atende-los use o comando `/pedidos-configurador` (ou
+`python scripts/pedidos_configurador.py listar`): ler pedido + passos + ultimo teste, corrigir com evidencia,
+testar, publicar e responder pelo proprio script (a resposta aparece no painel).

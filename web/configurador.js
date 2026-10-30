@@ -231,6 +231,24 @@ const configuradorVisual=(()=>{
     catch (erro) {mensagem(erro.message,true);}
   }
 
+  async function carregarPedidos() {
+    const corpo=el("cv-pedidos"); corpo.replaceChildren();
+    try {
+      for (const p of await json("configurador/pedidos")) {
+        const linha=document.createElement("tr");
+        const texto=document.createElement("td"); texto.textContent=p.texto; linha.append(texto);
+        const rotina=document.createElement("td"); rotina.textContent=p.rotina_nome||"(geral)"; linha.append(rotina);
+        const situacao=document.createElement("td"); situacao.textContent=p.status==="atendido" ? "Respondido: "+p.resposta : "Aguardando o Claude"; situacao.style.whiteSpace="normal"; linha.append(situacao);
+        corpo.append(linha);
+      }
+    } catch (erro) {mensagem(erro.message,true);}
+  }
+  async function pedir() {
+    const texto=el("cv-pedido").value.trim();
+    if (texto.length<5) {mensagem("Descreva o pedido com pelo menos 5 caracteres.",true); return;}
+    try {await enviar("POST","configurador/pedidos",{texto,rotina_id:rotinaId}); el("cv-pedido").value=""; mensagem("Pedido enviado. Peça ao Claude, no VS Code, para ver os pedidos do configurador."); await carregarPedidos();}
+    catch (erro) {mensagem(erro.message,true);}
+  }
   async function carregarLista() {
     const corpo=el("cv-lista"); corpo.replaceChildren();
     try {
@@ -264,7 +282,8 @@ const configuradorVisual=(()=>{
     el("cv-adicionar").addEventListener("click",()=>{const t=el("cv-outro-tipo").value; if (t==="tecla"||t==="digitar_parametro") el("cv-outro-valor").value=el("cv-outro-select").value; adicionarOutro();});
     el("cv-salvar").addEventListener("click",salvar); el("cv-novo").addEventListener("click",novo);
     el("cv-testar").addEventListener("click",testar); el("cv-aprovar").addEventListener("click",aprovar);
-    el("config-visual").addEventListener("toggle",()=>{if (el("config-visual").open) carregarLista();});
+    el("cv-pedir").addEventListener("click",pedir);
+    el("config-visual").addEventListener("toggle",()=>{if (el("config-visual").open) {carregarLista(); carregarPedidos();}});
     renderizarPassos();
   }
   iniciar();

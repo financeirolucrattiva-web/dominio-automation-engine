@@ -244,6 +244,37 @@ class TestExecucao(Base):
             self.c.aprovar(salva["id"])
 
 
+class TestPedidosAoClaude(Base):
+    def test_pedido_leva_o_contexto_da_rotina_e_a_resposta_volta(self):
+        self.falsos.achados = {}
+        salva = self.c.salvar("Com falha", [self.passo("clicar", espera=2)])
+        self.c.testar(salva["id"])                                        # falha: o alvo não aparece
+        pedido = self.c.pedir("O passo 1 não achou o botão; aumentar a espera", salva["id"])
+        self.assertEqual((pedido["status"], pedido["rotina_nome"]), ("pendente", "Com falha"))
+        completo = self.c.obter_pedido(pedido["id"])
+        self.assertFalse(completo["contexto"]["ultimo_teste"]["ok"])
+        self.assertEqual(completo["contexto"]["ultimo_teste"]["passo_falho"], 1)
+        self.assertEqual(len(completo["contexto"]["passos"]), 1)
+        self.assertNotIn("modelo", completo["contexto"]["passos"][0])
+        self.c.responder_pedido(pedido["id"], "Espera aumentada para 30 s; teste de novo.")
+        listado = self.c.listar_pedidos()[0]
+        self.assertEqual((listado["status"], listado["resposta"]), ("atendido", "Espera aumentada para 30 s; teste de novo."))
+        self.assertNotIn("contexto", listado)                            # a lista não traz o contexto pesado
+
+    def test_pedido_geral_e_validacoes(self):
+        geral = self.c.pedir("Quero uma rotina nova para o relatório X")
+        self.assertIsNone(geral["rotina_id"])
+        for ruim in ("", "abc", "x" * 2001, "tem\x00controle"):
+            with self.subTest(texto=ruim[:10]), self.assertRaises(ConfiguradorErro):
+                self.c.pedir(ruim)
+        with self.assertRaises(ConfiguradorErro):
+            self.c.pedir("Pedido para rotina que não existe", "0" * 32)
+        with self.assertRaises(ConfiguradorErro):
+            self.c.obter_pedido("../../x")
+        with self.assertRaises(ConfiguradorErro):
+            self.c.responder_pedido(geral["id"], "")
+
+
 class TestTrocarEmpresaEVoltar(Base):
     """Trocar de empresa e voltar à tela principal: funções dos lotes reais, empresa sempre pelo parâmetro."""
 
@@ -445,6 +476,17 @@ class TestApi(Base):
         self.assertEqual(aprovada.json()["status"], "aprovada")
         self.assertEqual(len(self.client.get("/api/configurador/rotinas", headers=self.h).json()), 1)
         self.assertEqual(self.client.delete(f"/api/configurador/rotinas/{rid}", headers=self.h).status_code, 200)
+
+    def test_pedidos_pela_api(self):
+        self.assertEqual(self.client.post("/api/configurador/pedidos", json={"texto": "teste de pedido"}).status_code, 401)
+        r = self.client.post("/api/configurador/pedidos", headers=self.h, json={"texto": "Trocar a espera do passo 2"})
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertEqual(self.client.post("/api/configurador/pedidos", headers=self.h, json={"texto": "abc"}).status_code, 422)
+        self.assertEqual(self.client.post("/api/configurador/pedidos", headers=self.h,
+                                          json={"texto": "pedido para rotina inexistente", "rotina_id": "0" * 32}).status_code, 422)
+        lista = self.client.get("/api/configurador/pedidos", headers=self.h).json()
+        self.assertEqual([p["status"] for p in lista], ["pendente"])
+        self.assertNotIn("contexto", lista[0])
 
     def test_regras_de_seguranca_valem_na_api(self):
         captura_id = self.c.capturar()

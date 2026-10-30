@@ -76,6 +76,12 @@ class PedidoConfiguradorRotina(BaseModel):
     passos: list[dict] = Field(min_length=1, max_length=80)
 
 
+class PedidoAoClaude(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: StrictStr = Field(min_length=5, max_length=2000)
+    rotina_id: StrictStr | None = Field(default=None, max_length=40)
+
+
 class PedidoConfiguradorTeste(BaseModel):
     model_config = ConfigDict(extra="forbid")
     parametros: dict[StrictStr, StrictStr] = Field(default_factory=dict, max_length=4)
@@ -389,6 +395,19 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
         if achada is None:
             raise HTTPException(404, "Nenhuma captura disponível; capture a tela do Domínio.")
         return Response(achada[1], media_type="image/png", headers={"X-Captura-Id": achada[0]})
+
+    @app.post("/api/configurador/pedidos", status_code=201, dependencies=[Depends(autorizar)])
+    def configurador_pedir(pedido: PedidoAoClaude):
+        c, erro = configurador()
+        try:
+            return c.pedir(pedido.texto, pedido.rotina_id)
+        except erro as motivo:
+            raise HTTPException(422, str(motivo)) from None
+
+    @app.get("/api/configurador/pedidos", dependencies=[Depends(autorizar)])
+    def configurador_pedidos():
+        c, _ = configurador()
+        return c.listar_pedidos()
 
     @app.get("/api/configurador/rotinas", dependencies=[Depends(autorizar)])
     def configurador_listar():
