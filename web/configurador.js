@@ -2,7 +2,7 @@
 // Configurador visual de rotinas: marca-se o alvo em um print da tela do Domínio (nada de texto exato por OCR).
 // Usa $, api e chave de app.js. O navegador só envia retângulos; o servidor recorta os modelos de imagem.
 const configuradorVisual=(()=>{
-  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal",escolher_pasta_saida:"Escolher pasta de saída",guardar_pdf:"Guardar PDF"};
+  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",uma_das:"Esperar um de vários caminhos",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal",escolher_pasta_saida:"Escolher pasta de saída",guardar_pdf:"Guardar PDF"};
   const teclas=["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"];
   const tiposAlvo=["clicar","duplo_clique","hover","esperar_imagem"];
   const nomesParametro={inicio:"Data inicial (AAAA-MM-DD)",fim:"Data final (AAAA-MM-DD)",competencia:"Competência (AAAA-MM)",empresa_codigo:"Código da empresa"};
@@ -84,7 +84,19 @@ const configuradorVisual=(()=>{
     passos.forEach((passo,i)=>{
       const item=document.createElement("li"); item.className="passo-visual";
       const titulo=document.createElement("strong"); titulo.textContent=nomesTipo[passo.tipo]||passo.tipo; item.append(titulo);
-      if (passo.tipo==="se_aparecer") {
+      if (passo.tipo==="uma_das") {
+        const rotulo=document.createElement("input"); rotulo.className="rotulo-passo"; rotulo.maxLength=80; rotulo.value=passo.rotulo||""; rotulo.addEventListener("input",()=>{passo.rotulo=rotulo.value;}); item.append(rotulo);
+        for (const opcao of passo.opcoes||[]) {
+          const bloco=document.createElement("div"); bloco.className="caminho-visual";
+          if (opcao.previa) {const m=document.createElement("img"); m.src=opcao.previa; m.alt="Tela do caminho"; m.className="miniatura"; bloco.append(m);}
+          const r=document.createElement("input"); r.className="rotulo-passo"; r.maxLength=80; r.value=opcao.rotulo||""; r.addEventListener("input",()=>{opcao.rotulo=r.value;}); bloco.append(r);
+          bloco.append(document.createTextNode(opcao.resposta.tipo==="clicar" ? ` → clicar em '${opcao.resposta.rotulo}'` : ` → tecla ${opcao.resposta.tecla}`));
+          item.append(bloco);
+        }
+        const obrig=document.createElement("label"); obrig.className="confirmacao"; const caixa=document.createElement("input"); caixa.type="checkbox"; caixa.checked=passo.obrigatorio!==false; caixa.addEventListener("change",()=>{passo.obrigatorio=caixa.checked;});
+        const texto=document.createElement("span"); texto.textContent="Obrigatório (falha se nenhuma aparecer)"; obrig.append(caixa,texto); item.append(obrig);
+        const s=document.createElement("input"); s.type="number"; s.min=1; s.max=120; s.value=passo.espera||60; s.className="espera-passo"; s.addEventListener("input",()=>{passo.espera=Number(s.value);}); item.append(document.createTextNode("espera: "),s,document.createTextNode(" s"));
+      } else if (passo.tipo==="se_aparecer") {
         if (passo.previa) {const m=document.createElement("img"); m.src=passo.previa; m.alt="Tela esperada"; m.className="miniatura"; item.append(m);}
         const rotulo=document.createElement("input"); rotulo.className="rotulo-passo"; rotulo.maxLength=80; rotulo.placeholder="Qual tela é esta? (ex.: aviso Outros dados)"; rotulo.value=passo.rotulo||"";
         rotulo.addEventListener("input",()=>{passo.rotulo=rotulo.value;}); item.append(rotulo);
@@ -110,7 +122,12 @@ const configuradorVisual=(()=>{
         if (passo.tipo==="esperar_imagem") campoEspera("espera até aparecer","segundos",15);
         else campoEspera("espera pelo alvo","espera",20);
       } else if (passo.tipo==="trocar_empresa") {item.append(document.createTextNode(" usa o parâmetro código da empresa (F8 + código, conferindo a empresa)"));}
-      else if (passo.tipo==="escolher_pasta_saida") {item.append(document.createTextNode(" navega no diálogo 'Procurar Pasta' até a pasta saida do servidor (como nos Livros Fiscais)"));}
+      else if (passo.tipo==="escolher_pasta_saida") {
+        item.append(document.createTextNode(" navega no diálogo 'Procurar Pasta' até a pasta saida do servidor (como nos Livros Fiscais)"));
+        const op=document.createElement("label"); op.className="confirmacao"; const cx=document.createElement("input"); cx.type="checkbox"; cx.checked=!!passo.opcional; cx.addEventListener("change",()=>{passo.opcional=cx.checked;});
+        const tx=document.createElement("span"); tx.textContent="Opcional (pula se o diálogo não aparecer)"; op.append(cx,tx); item.append(op);
+        const s=document.createElement("input"); s.type="number"; s.min=1; s.max=120; s.value=passo.espera||45; s.className="espera-passo"; s.addEventListener("input",()=>{passo.espera=Number(s.value);}); item.append(document.createTextNode("espera: "),s,document.createTextNode(" s"));
+      }
       else if (passo.tipo==="guardar_pdf") {item.append(document.createTextNode(` espera o PDF novo na saída e o guarda na pasta da empresa (${passo.documento}); usa empresa e período do teste`));}
       else if (passo.tipo==="voltar_tela_principal") {item.append(document.createTextNode(" fecha o que estiver aberto até a tela azul"));}
       else if (passo.tipo==="tecla") {item.append(document.createTextNode(` ${passo.tecla}`));}
@@ -130,7 +147,7 @@ const configuradorVisual=(()=>{
   function corpoRotina() {
     return {nome:el("cv-nome").value, passos:passos.map(p=>{
       const limpo={tipo:p.tipo};
-      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","espera","obrigatorio","resposta","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
+      for (const campo of ["rotulo","captura_id","x","y","largura","altura","segundos","espera","obrigatorio","opcional","opcoes","resposta","tecla","parametro","texto"]) if (p[campo]!==undefined && p[campo]!=="") limpo[campo]=p[campo];
       return limpo;
     })};
   }
@@ -193,6 +210,10 @@ const configuradorVisual=(()=>{
         const passo={...p}; delete passo.indice; delete passo.tem_modelo; delete passo.modelo;
         delete passo.tem_modelo_alvo; delete passo.deslocamento;
         if (p.tem_modelo) {try {const r=await pedido(`configurador/rotinas/${id}/modelo/${p.indice}`); passo.previa=await blobParaDados(await r.blob());} catch {}}
+        if (p.tipo==="uma_das") {
+          passo.opcoes=await Promise.all(p.opcoes.map(async(o,n)=>{const copia={...o}; delete copia.tem_modelo; delete copia.tem_modelo_alvo; delete copia.deslocamento;
+            if (o.tem_modelo) {try {const r=await pedido(`configurador/rotinas/${id}/modelo/${p.indice}?parte=op${n+1}`); copia.previa=await blobParaDados(await r.blob());} catch {}} return copia;}));
+        }
         if (p.tem_modelo_alvo) {try {const r=await pedido(`configurador/rotinas/${id}/modelo/${p.indice}?parte=alvo`); passo.previaAlvo=await blobParaDados(await r.blob());} catch {}}
         return passo;
       }));

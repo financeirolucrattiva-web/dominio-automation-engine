@@ -29,7 +29,7 @@ PASTA = ROOT / "data" / "configurador"
 TIPOS_ALVO = ("clicar", "duplo_clique", "hover", "esperar_imagem")
 # trocar_empresa e voltar_tela_principal reaproveitam as funções já validadas nos lotes reais (F8 + código e a
 # subida até a tela azul); a empresa vem do parâmetro empresa_codigo, nunca de texto digitado no passo.
-TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos", "trocar_empresa", "voltar_tela_principal",
+TIPOS = TIPOS_ALVO + ("se_aparecer", "uma_das", "tecla", "digitar", "esperar_segundos", "trocar_empresa", "voltar_tela_principal",
                       "escolher_pasta_saida", "guardar_pdf")
 # Documentos que "guardar_pdf" sabe encaminhar: o nome é a rotina do docauto (pasta e subpasta da empresa).
 DOCUMENTOS_PDF = ("efd_reinf", "resumo_acumulador")
@@ -84,15 +84,16 @@ class Dispositivos:
             from app import dominio
             return dominio.voltar_ao_inicio(janela)
 
-        def escolher_pasta_saida():
-            """Mesmo fluxo dos Livros Fiscais: aguarda o diálogo 'Procurar Pasta' e navega até a pasta saida/ do servidor."""
+        def escolher_pasta_saida(espera=45):
+            """Mesmo fluxo dos Livros Fiscais: aguarda o diálogo 'Procurar Pasta' e navega até a pasta saida/ do servidor.
+            None = o diálogo não apareceu; False = apareceu mas a pasta não foi confirmada."""
             from app import dominio, seletor_pasta
-            for _ in range(45):
+            for _ in range(int(espera)):
                 if tela.achar_texto_ou_no_centro(tela.capturar_tela(), "Procurar Pasta", escala=4) is not None:
                     break
                 time.sleep(1)
             else:
-                return False
+                return None
             (ROOT / "saida").mkdir(exist_ok=True)
             try:
                 seletor_pasta.selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(ROOT / "saida"), tela.capturar_tela,
@@ -150,6 +151,21 @@ def _retangulo(numero, dados, tamanho, minimo, maximo):
     return {"x": x, "y": y, "largura": largura, "altura": altura}
 
 
+def _resposta(numero, resposta, tamanho, condicao):
+    """Valida a resposta de um caminho (clique relativo à tela reconhecida, ou tecla)."""
+    if not isinstance(resposta, dict) or resposta.get("tipo") not in ("clicar", "tecla"):
+        raise ConfiguradorErro(f"Passo {numero}: escolha a resposta: clicar em um botão da tela ou apertar uma tecla.")
+    if resposta["tipo"] == "tecla":
+        if resposta.get("tecla") not in TECLAS:
+            raise ConfiguradorErro(f"Passo {numero}: tecla não permitida.")
+        return {"tipo": "tecla", "tecla": resposta["tecla"]}, None
+    alvo = _retangulo(numero, resposta, tamanho, 8, (600, 400))
+    limpa = {"tipo": "clicar", **alvo, "rotulo": _rotulo(numero, resposta.get("rotulo"), "o botão a clicar")}
+    deslocamento = [alvo["x"] + alvo["largura"] // 2 - (condicao["x"] + condicao["largura"] // 2),
+                    alvo["y"] + alvo["altura"] // 2 - (condicao["y"] + condicao["altura"] // 2)]
+    return limpa, deslocamento
+
+
 def validar_passos(passos, tamanho_captura):
     """Valida e normaliza. `tamanho_captura(captura_id)` devolve (largura, altura) ou None se não existir."""
     if not isinstance(passos, list) or not 1 <= len(passos) <= 80:
@@ -192,6 +208,37 @@ def validar_passos(passos, tamanho_captura):
             if not isinstance(obrigatorio, bool):
                 raise ConfiguradorErro(f"Passo {numero}: obrigatório deve ser sim ou não.")
             item.update(espera=espera, obrigatorio=obrigatorio)
+        elif tipo == "uma_das":
+            # "Quando esta tela aparecer é um caminho; quando aquela aparecer é outro": espera por QUALQUER uma das
+            # telas e responde conforme a que surgiu.
+            item["rotulo"] = _rotulo(numero, passo.get("rotulo"), "este ponto da rotina")
+            opcoes = passo.get("opcoes")
+            if not isinstance(opcoes, list) or not 2 <= len(opcoes) <= 4:
+                raise ConfiguradorErro(f"Passo {numero}: informe de 2 a 4 caminhos possíveis.")
+            limpas = []
+            for n, opcao in enumerate(opcoes, 1):
+                if not isinstance(opcao, dict):
+                    raise ConfiguradorErro(f"Passo {numero}, caminho {n}: dados inválidos.")
+                captura = opcao.get("captura_id")
+                if not isinstance(captura, str) or not _ID.fullmatch(captura):
+                    raise ConfiguradorErro(f"Passo {numero}, caminho {n}: capture a tela e marque a tela esperada.")
+                tamanho = tamanho_captura(captura)
+                if tamanho is None:
+                    raise ConfiguradorErro(f"Passo {numero}, caminho {n}: a captura não existe mais; capture a tela de novo.")
+                condicao = _retangulo(numero, opcao, tamanho, 16, (900, 700))
+                resposta, deslocamento = _resposta(numero, opcao.get("resposta"), tamanho, condicao)
+                limpa = {"rotulo": _rotulo(numero, opcao.get("rotulo"), f"a tela do caminho {n}"), "captura_id": captura,
+                         **condicao, "resposta": resposta}
+                if deslocamento is not None:
+                    limpa["deslocamento"] = deslocamento
+                limpas.append(limpa)
+            espera = passo.get("espera", 60)
+            if not _inteiro(espera) or not 1 <= espera <= 120:
+                raise ConfiguradorErro(f"Passo {numero}: a espera vai de 1 a 120 segundos.")
+            obrigatorio = passo.get("obrigatorio", True)
+            if not isinstance(obrigatorio, bool):
+                raise ConfiguradorErro(f"Passo {numero}: obrigatório deve ser sim ou não.")
+            item.update(opcoes=limpas, espera=espera, obrigatorio=obrigatorio)
         elif tipo in TIPOS_ALVO:
             rotulo = passo.get("rotulo")
             if (not isinstance(rotulo, str) or not 3 <= len(rotulo.strip()) <= 80
@@ -240,8 +287,17 @@ def validar_passos(passos, tamanho_captura):
                 if not isinstance(texto, str) or not _TEXTO_LIVRE.fullmatch(texto):
                     raise ConfiguradorErro(f"Passo {numero}: texto fixo com até 60 letras, números e pontuação simples.")
                 item["texto"] = texto
-        elif tipo in ("trocar_empresa", "voltar_tela_principal", "escolher_pasta_saida"):
-            pass  # sem campos: a empresa vem do parâmetro empresa_codigo; a pasta é sempre a saida/ do servidor
+        elif tipo in ("trocar_empresa", "voltar_tela_principal"):
+            pass  # sem campos: a empresa vem do parâmetro empresa_codigo
+        elif tipo == "escolher_pasta_saida":
+            # A pasta é sempre a saida/ do servidor. Opcional: em alguns relatórios o Domínio não abre este diálogo.
+            espera = passo.get("espera", 45)
+            if not _inteiro(espera) or not 1 <= espera <= 120:
+                raise ConfiguradorErro(f"Passo {numero}: a espera pelo diálogo vai de 1 a 120 segundos.")
+            opcional = passo.get("opcional", False)
+            if not isinstance(opcional, bool):
+                raise ConfiguradorErro(f"Passo {numero}: opcional deve ser sim ou não.")
+            item.update(espera=espera, opcional=opcional)
         elif tipo == "guardar_pdf":
             if passo.get("documento") not in DOCUMENTOS_PDF:
                 raise ConfiguradorErro(f"Passo {numero}: escolha o documento: {', '.join(DOCUMENTOS_PDF)}.")
@@ -442,8 +498,11 @@ class Configurador:
 
     def obter(self, rotina_id):
         dados = self._ler(rotina_id)
-        passos = [{k: v for k, v in p.items() if k not in ("modelo", "modelo_alvo")}
-                  | {"tem_modelo": "modelo" in p, "tem_modelo_alvo": "modelo_alvo" in p} for p in dados["passos"]]
+        passos = [{k: v for k, v in p.items() if k not in ("modelo", "modelo_alvo", "opcoes")}
+                  | {"tem_modelo": "modelo" in p, "tem_modelo_alvo": "modelo_alvo" in p}
+                  | ({"opcoes": [{k: v for k, v in o.items() if k not in ("modelo", "modelo_alvo")}
+                                 | {"tem_modelo": "modelo" in o, "tem_modelo_alvo": "modelo_alvo" in o} for o in p["opcoes"]]}
+                     if "opcoes" in p else {}) for p in dados["passos"]]
         return {**self._resumo(rotina_id, dados), "passos": passos, "resultado_teste": dados.get("ultimo_teste")}
 
     def salvar(self, nome, passos, rotina_id=None):
@@ -476,7 +535,21 @@ class Configurador:
                                                   resposta["y"] + resposta["altura"]))
                             botao.save(pasta / f"passo_{item['indice']:02d}_alvo.png", format="PNG")
                             item["modelo_alvo"] = f"passo_{item['indice']:02d}_alvo.png"
-            guardados = {p.get("modelo") for p in limpos} | {p.get("modelo_alvo") for p in limpos}
+            for item in limpos:
+                for n, opcao in enumerate(item.get("opcoes", []), 1):
+                    with Image.open(self._arquivo_captura(opcao["captura_id"])) as captura:
+                        captura = captura.convert("RGB")
+                        captura.crop((opcao["x"], opcao["y"], opcao["x"] + opcao["largura"], opcao["y"] + opcao["altura"])).save(
+                            pasta / f"passo_{item['indice']:02d}_op{n}.png", format="PNG")
+                        opcao["modelo"] = f"passo_{item['indice']:02d}_op{n}.png"
+                        resposta = opcao["resposta"]
+                        if resposta["tipo"] == "clicar":
+                            captura.crop((resposta["x"], resposta["y"], resposta["x"] + resposta["largura"],
+                                          resposta["y"] + resposta["altura"])).save(
+                                pasta / f"passo_{item['indice']:02d}_op{n}_alvo.png", format="PNG")
+                            opcao["modelo_alvo"] = f"passo_{item['indice']:02d}_op{n}_alvo.png"
+            guardados = ({p.get("modelo") for p in limpos} | {p.get("modelo_alvo") for p in limpos}
+                         | {o.get(k) for p in limpos for o in p.get("opcoes", []) for k in ("modelo", "modelo_alvo")})
             for sobra in pasta.glob("passo_*.png"):
                 if sobra.name not in guardados:
                     sobra.unlink(missing_ok=True)
@@ -555,11 +628,20 @@ class Configurador:
 
     def modelo(self, rotina_id, indice, parte="modelo"):
         dados = self._ler(rotina_id)
-        if parte not in ("modelo", "modelo_alvo"):
+        achado = re.fullmatch(r"op([1-4])(_alvo)?", parte)
+        if parte not in ("modelo", "modelo_alvo") and achado is None:
             return None
         for passo in dados["passos"]:
-            if passo["indice"] == indice and parte in passo:
-                caminho = self._pasta_rotina(rotina_id) / passo[parte]
+            if passo["indice"] != indice:
+                continue
+            if achado is not None:
+                numero = int(achado.group(1))
+                fonte = passo.get("opcoes", [])[numero - 1] if numero <= len(passo.get("opcoes", [])) else {}
+                chave = "modelo_alvo" if achado.group(2) else "modelo"
+            else:
+                fonte, chave = passo, parte
+            if chave in fonte:
+                caminho = self._pasta_rotina(rotina_id) / fonte[chave]
                 if caminho.is_file() and not caminho.is_symlink():
                     return caminho.read_bytes()
         return None
@@ -729,6 +811,45 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 elif not esperar_estavel():
                     detalhe += " (a tela continuou mudando; seguindo assim mesmo)"
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
+        elif tipo == "uma_das":
+            achado = None
+            for numero in range(passo["espera"] + 1):
+                imagem = d.capturar()
+                for opcao in passo["opcoes"]:
+                    posicao = d.achar_template(imagem, Path(pasta_rotina) / opcao["modelo"])
+                    if posicao is None:
+                        continue
+                    d.dormir(0.4)  # mesma confirmação por segunda leitura no mesmo lugar
+                    confirmada = d.achar_template(d.capturar(), Path(pasta_rotina) / opcao["modelo"])
+                    if confirmada is not None and abs(confirmada[0] - posicao[0]) <= 4 and abs(confirmada[1] - posicao[1]) <= 4:
+                        achado = (opcao, confirmada)
+                        break
+                if achado is not None:
+                    break
+                if numero < passo["espera"]:
+                    d.dormir(1)
+                    if sessao is not None:
+                        sessao.verificar()
+            if achado is None:
+                if passo["obrigatorio"]:
+                    return falhar(passo, f"Nenhuma das telas esperadas apareceu em {passo['espera']} s ("
+                                         + "; ".join(o["rotulo"] for o in passo["opcoes"]) + ").")
+                registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                                 "detalhe": f"{passo['rotulo']}: nenhuma tela apareceu; seguindo"})
+                return None
+            opcao, posicao = achado
+            resposta = opcao["resposta"]
+            if resposta["tipo"] == "clicar":
+                dx, dy = opcao["deslocamento"]
+                antes = d.assinatura(d.capturar())
+                d.clicar(posicao[0] + dx, posicao[1] + dy)
+                esperar_mudanca(antes)
+                esperar_estavel()
+                detalhe = f"{passo['rotulo']}: caminho '{opcao['rotulo']}'; cliquei em '{resposta['rotulo']}'"
+            else:
+                d.tecla(resposta["tecla"])
+                detalhe = f"{passo['rotulo']}: caminho '{opcao['rotulo']}'; tecla {resposta['tecla']}"
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": detalhe})
         elif tipo == "se_aparecer":
             posicao = procurar(passo, passo["espera"])
             if posicao is None:
@@ -769,9 +890,16 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
         elif tipo == "escolher_pasta_saida":
             if d.escolher_pasta_saida is None:
                 return falhar(passo, "Escolha de pasta indisponível neste modo.")
-            if not d.escolher_pasta_saida():
+            resposta_pasta = d.escolher_pasta_saida(passo.get("espera", 45))
+            if resposta_pasta is None:  # o diálogo não apareceu
+                if not passo.get("opcional", False):
+                    return falhar(passo, "O diálogo 'Procurar Pasta' não apareceu; confira a tela.")
+                registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                                 "detalhe": "diálogo 'Procurar Pasta' não apareceu; passo pulado (outro caminho)"})
+            elif not resposta_pasta:
                 return falhar(passo, "Não consegui escolher a pasta de saída no diálogo 'Procurar Pasta'; confira a tela.")
-            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": "pasta de saída do servidor selecionada"})
+            else:
+                registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": "pasta de saída do servidor selecionada"})
         elif tipo == "guardar_pdf":
             if d.pdfs_saida is None or d.publicar_pdf is None:
                 return falhar(passo, "Guardar PDF indisponível neste modo.")

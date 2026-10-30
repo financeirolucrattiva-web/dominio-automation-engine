@@ -248,7 +248,7 @@ class TestExecucao(Base):
 class TestErrosEEspera(Base):
     def test_erro_inesperado_de_dispositivo_vira_falha_do_passo_com_o_nome_do_erro(self):
         d = self.falsos.dispositivos()
-        d.escolher_pasta_saida = lambda: (_ for _ in ()).throw(RuntimeError("OCR nativo ainda ocupado"))
+        d.escolher_pasta_saida = lambda *a: (_ for _ in ()).throw(RuntimeError("OCR nativo ainda ocupado"))
         c = Configurador(self.pasta / "cfg6", d, pasta_falhas=self.pasta / "falhas6")
         salva = c.salvar("Erro", [{"tipo": "tecla", "tecla": "tab"}, {"tipo": "escolher_pasta_saida"}])
         resultado = c.testar(salva["id"])
@@ -275,6 +275,75 @@ class TestErrosEEspera(Base):
         self.assertTrue(resultado["ok"])
         self.assertGreaterEqual(leituras["n"], 7)                       # 4 mudanças + 3 leituras iguais
         self.assertNotIn("não assentou", resultado["passos"][0]["detalhe"])
+
+
+class TestUmaDas(Base):
+    """'Quando esta tela aparecer é um caminho, quando aquela aparecer é outro' (ex.: menu de PDF x diálogo Salvar em PDF)."""
+
+    def opcao(self, rotulo, x, resposta):
+        return {"rotulo": rotulo, "captura_id": self.captura, "x": x, "y": 100, "largura": 100, "altura": 40, "resposta": resposta}
+
+    def passo_uma_das(self, **extra):
+        base = {"tipo": "uma_das", "rotulo": "Tela depois do PDF", "espera": 3, "opcoes": [
+            self.opcao("Menu gerar", 200, {"tipo": "clicar", "x": 50, "y": 40, "largura": 100, "altura": 40, "rotulo": "Gerar em unico arquivo"}),
+            self.opcao("Dialogo Salvar em PDF", 150, {"tipo": "clicar", "x": 250, "y": 100, "largura": 40, "altura": 20, "rotulo": "Save"})]}
+        base.update(extra)
+        return base
+
+    def test_validacao(self):
+        ok = validar_passos([self.passo_uma_das()], self.c._tamanho_captura)[0]
+        self.assertEqual(len(ok["opcoes"]), 2)
+        self.assertTrue(ok["obrigatorio"])
+        ruins = [self.passo_uma_das(opcoes=[self.passo_uma_das()["opcoes"][0]]),                     # só 1 caminho
+                 self.passo_uma_das(opcoes=self.passo_uma_das()["opcoes"] * 3),                       # mais de 4? 6
+                 self.passo_uma_das(espera=0),
+                 self.passo_uma_das(rotulo="Transmitir"),
+                 self.passo_uma_das(opcoes=[dict(self.passo_uma_das()["opcoes"][0], rotulo="Excluir"), self.passo_uma_das()["opcoes"][1]]),
+                 self.passo_uma_das(opcoes=[dict(self.passo_uma_das()["opcoes"][0], resposta={"tipo": "tecla", "tecla": "delete"}),
+                                            self.passo_uma_das()["opcoes"][1]])]
+        for ruim in ruins:
+            with self.subTest(ruim=str(ruim)[:60]), self.assertRaises(ConfiguradorErro):
+                validar_passos([ruim], self.c._tamanho_captura)
+
+    def test_segue_o_caminho_da_tela_que_aparecer(self):
+        salva = self.c.salvar("Dois caminhos", [self.passo_uma_das()])
+        self.assertIsNotNone(self.c.modelo(salva["id"], 1, "op1"))
+        self.assertIsNotNone(self.c.modelo(salva["id"], 1, "op2_alvo"))
+        # só a tela 2 (diálogo) aparece: clica no Save relativo a ela (centro 200,120 -> alvo 270,110)
+        self.falsos.achados = {"passo_01_op2.png": (500, 300)}
+        resultado = self.c.testar(salva["id"])
+        self.assertTrue(resultado["ok"], resultado)
+        self.assertIn(("clicar", 500 + 70, 300 - 10), self.falsos.acoes)
+        self.assertIn("Dialogo Salvar em PDF", resultado["passos"][0]["detalhe"])
+        # só a tela 1 (menu) aparece
+        self.falsos.acoes.clear()
+        self.falsos.achados = {"passo_01_op1.png": (400, 200)}
+        self.assertTrue(self.c.testar(salva["id"])["ok"])
+        self.assertIn(("clicar", 400 - 150, 200 - 60 + 0), self.falsos.acoes)   # centro da tela (250,120) -> botão (100,60)
+
+    def test_nenhuma_tela_obrigatoria_falha_e_opcional_segue(self):
+        self.falsos.achados = {}
+        obrigatoria = self.c.salvar("Obrigatória", [self.passo_uma_das()])
+        falha = self.c.testar(obrigatoria["id"])
+        self.assertFalse(falha["ok"])
+        self.assertIn("Nenhuma das telas esperadas", falha["mensagem"])
+        opcional = self.c.salvar("Opcional", [self.passo_uma_das(obrigatorio=False), {"tipo": "tecla", "tecla": "tab"}])
+        resultado = self.c.testar(opcional["id"])
+        self.assertTrue(resultado["ok"])
+        self.assertIn("seguindo", resultado["passos"][0]["detalhe"])
+
+    def test_escolher_pasta_opcional_pula_quando_o_dialogo_nao_aparece(self):
+        d = self.falsos.dispositivos()
+        d.escolher_pasta_saida = lambda espera: None
+        c = Configurador(self.pasta / "cfg8", d, pasta_falhas=self.pasta / "falhas8")
+        pulo = c.salvar("Pasta opcional", [{"tipo": "escolher_pasta_saida", "opcional": True, "espera": 5}])
+        resultado = c.testar(pulo["id"])
+        self.assertTrue(resultado["ok"])
+        self.assertIn("passo pulado", resultado["passos"][0]["detalhe"])
+        obrig = c.salvar("Pasta obrigatória", [{"tipo": "escolher_pasta_saida"}])
+        falha = c.testar(obrig["id"])
+        self.assertFalse(falha["ok"])
+        self.assertIn("não apareceu", falha["mensagem"])
 
 
 class TestLote(Base):
@@ -412,7 +481,7 @@ class TestGuardarPdf(Base):
     def montar(self, rodadas, escolher=True, publicar_ok=True):
         publicados, leituras = [], iter(rodadas)
         d = self.falsos.dispositivos()
-        d.escolher_pasta_saida = lambda: escolher
+        d.escolher_pasta_saida = lambda *a: escolher
         d.pdfs_saida = lambda: next(leituras, rodadas[-1])
         d.publicar_pdf = lambda nome, doc, cod, ini, fim: (publicados.append((nome, doc, cod, ini, fim)), f"X/{cod}_{nome}")[1] if publicar_ok else None
         self.n = getattr(self, "n", 0) + 1

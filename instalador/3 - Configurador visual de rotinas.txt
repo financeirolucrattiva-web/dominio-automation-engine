@@ -31,6 +31,10 @@ PASSO A PASSO
    (espera o PDF novo ficar estavel na saida e o move para a pasta da empresa pelo docauto, registrando no CSV).
    Usa empresa e periodo (parametros). Limite atual: confere que o arquivo e novo e estavel, mas NAO le o conteudo
    do PDF (tipo/periodo/CNPJ) como os Livros fazem.
+   CAMINHOS DIFERENTES ('Esperar um de varios caminhos'): quando o Dominio pode mostrar telas diferentes conforme o caso
+   (ex.: no REINF, uns relatorios abrem o menu 'Gerar em unico arquivo PDF' e outros o dialogo 'Salvar em PDF'), o passo
+   espera QUALQUER uma das telas e responde conforme a que surgir (clicar num botao dela ou apertar uma tecla).
+   'Escolher pasta de saida' pode ser marcado OPCIONAL: se o dialogo 'Procurar Pasta' nao aparecer, o passo e pulado.
    CLIQUE ANTECIPADO: se o alvo aparecer antes do tempo, a rotina age NA HORA (nao espera o tempo todo); so confere
    uma segunda leitura 0,4 s depois, com o alvo no mesmo lugar, para nao clicar num quadro ainda sendo desenhado.
    TEMPOS: toda espera por imagem e um MAXIMO, nao um tempo fixo: a rotina segue assim que a imagem aparece (confere

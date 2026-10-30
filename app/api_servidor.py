@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 import hmac
+import re
 from pathlib import Path
 import secrets
 
@@ -452,7 +453,7 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
     def configurador_modelo(identificador: str, indice: int, parte: str = "modelo"):
         c, erro = configurador()
         try:
-            imagem = c.modelo(identificador, indice, "modelo_alvo" if parte == "alvo" else "modelo")
+            imagem = c.modelo(identificador, indice, parte if re.fullmatch(r"op[1-4](_alvo)?", parte) else ("modelo_alvo" if parte == "alvo" else "modelo"))
         except erro:
             imagem = None
         if imagem is None:
