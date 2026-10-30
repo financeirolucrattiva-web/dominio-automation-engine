@@ -276,6 +276,32 @@ class TestErrosEEspera(Base):
         self.assertNotIn("não assentou", resultado["passos"][0]["detalhe"])
 
 
+class TestRecuperacaoEDatas(Base):
+    def test_datas_chegam_ao_docauto_em_formato_canonico(self):
+        from app.configurador import _canonicos
+        self.assertEqual(_canonicos({"inicio": "20260901", "fim": "2026-09-30", "empresa_codigo": "11"}),
+                         {"inicio": "2026-09-01", "fim": "2026-09-30", "empresa_codigo": "11"})
+        self.assertEqual(_canonicos({"competencia": "2026-09"})["competencia"], "2026-09")
+
+    def test_apos_falha_o_dominio_volta_a_tela_principal(self):
+        voltas = []
+        d = self.falsos.dispositivos()
+        d.voltar_inicio = lambda: voltas.append(1) or True
+        self.falsos.achados = {}
+        c = Configurador(self.pasta / "cfg7", d, pasta_falhas=self.pasta / "falhas7")
+        captura = c.capturar()
+        salva = c.salvar("Falha", [dict(self.passo("clicar"), captura_id=captura, espera=1)])
+        resultado = c.testar(salva["id"])
+        self.assertFalse(resultado["ok"])
+        self.assertEqual(voltas, [1])
+        self.assertIn("Voltei à tela principal", resultado["mensagem"])
+        # se o Domínio saiu do foco, não tenta voltar (não age sobre outra janela)
+        self.falsos.foco = False
+        voltas.clear()
+        self.assertFalse(c.testar(salva["id"])["ok"])
+        self.assertEqual(voltas, [])
+
+
 class TestGuardarPdf(Base):
     """Escolher a pasta de saída (como nos Livros) e guardar o PDF novo na pasta da empresa (docauto)."""
 
@@ -435,7 +461,7 @@ class TestTrocarEmpresaEVoltar(Base):
         resultado = c.testar(salva["id"], {"empresa_codigo": "68"})
         self.assertFalse(resultado["ok"])
         self.assertEqual(resultado["passo_falho"], 1)
-        self.assertEqual(chamadas, [("trocar", "68")])                  # nada depois da falha
+        self.assertEqual(chamadas, [("trocar", "68"), ("voltar",)])   # só a recuperação depois da falha
         c2, _ = self.montar(volta=False)
         salva2 = c2.salvar("Só voltar", [{"tipo": "voltar_tela_principal"}])
         falha = c2.testar(salva2["id"])

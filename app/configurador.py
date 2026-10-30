@@ -273,6 +273,17 @@ def _formatar_parametro(nome, valor):
     return valor
 
 
+def _canonicos(parametros):
+    """Datas em AAAA-MM-DD e competência em AAAA-MM, para o docauto (que exige esse formato)."""
+    canon = dict(parametros or {})
+    for nome in ("inicio", "fim"):
+        if nome in canon:
+            canon[nome] = dt.date.fromisoformat(canon[nome]).isoformat()
+    if "competencia" in canon:
+        canon["competencia"] = dt.date.fromisoformat(canon["competencia"] + "-01").isoformat()[:7]
+    return canon
+
+
 def validar_parametros_teste(passos, parametros, hoje=None):
     """Só parâmetros usados pela rotina; período sempre passado e fechado (nunca a competência corrente)."""
     hoje = hoje or dt.date.today()
@@ -549,7 +560,8 @@ class Configurador:
         valores = validar_parametros_teste(dados["passos"], parametros, hoje)
         dispositivos = self._dispositivos or Dispositivos.reais()
         resultado = executar_passos(dados["passos"], self._pasta_rotina(rotina_id), valores, dispositivos,
-                                    sessao=sessao, pasta_falhas=self.pasta_falhas, rotina_id=rotina_id, brutos=parametros)
+                                    sessao=sessao, pasta_falhas=self.pasta_falhas, rotina_id=rotina_id,
+                                    brutos=_canonicos(parametros))
         with _LOCK:
             atual = self._ler(rotina_id)
             if self._assinatura(atual) == self._assinatura(dados):
@@ -624,6 +636,13 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 d.capturar().save(Path(pasta_falhas) / f"configurador_{rotina_id[:8]}_passo_{passo['indice']:02d}.png")
             except Exception:
                 pass
+        # Como nas rotinas normais, depois de uma falha o Domínio volta à tela azul (a menos que tenha saído do foco).
+        if d.voltar_inicio is not None and "saiu do foco" not in detalhe:
+            try:
+                detalhe += " Voltei à tela principal." if d.voltar_inicio() else " Não consegui voltar à tela principal; confira a tela."
+            except Exception:
+                detalhe += " Não consegui voltar à tela principal; confira a tela."
+            registro[-1]["detalhe"] = detalhe
         return {"ok": False, "passo_falho": passo["indice"], "mensagem": detalhe, "passos": registro}
 
     def executar_um(passo):
