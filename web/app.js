@@ -7,7 +7,22 @@ const nomesEtapas = {navegar_menu:"Navegar pelo menu", preencher_periodo:"Preenc
 Object.assign(nomesEtapas,{executar_passos:"Executar passos da rotina"});
 const estados = {inicio:"Em andamento", confirmado:"Confirmado", acao_executada:"Ação enviada", resultado_nao_verificado:"Não verificado", inconclusivo:"Inconclusivo", falha:"Falhou", concluido:"Concluído pela rotina"};
 let rotinaCadastroAtual=null;
-const etapasVisual = ["executar_passos","encerrar"];
+const rotinasVisuais = {}, tiposVisuais = {clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal",escolher_pasta_saida:"Escolher pasta de saída",guardar_pdf:"Guardar PDF"};
+function nomeEtapaVisual(capacidade, etapa) {
+  const achado=/^passo_(\d+)$/.exec(etapa);
+  if (!achado) return nomesEtapas[etapa] || etapa;
+  const numero=Number(achado[1]), passo=rotinasVisuais[capacidade]?.passos?.[numero-1];
+  return `Passo ${numero}` + (passo ? `: ${tiposVisuais[passo.tipo]||passo.tipo}${passo.rotulo ? " — "+passo.rotulo : ""}` : "");
+}
+function etapasVisual(capacidade, linhas) {
+  const detalhe=rotinasVisuais[capacidade];
+  if (detalhe===undefined) {
+    rotinasVisuais[capacidade]=null;  // busca uma vez; aparece na próxima atualização
+    api(`configurador/rotinas/${capacidade.slice(7)}`).then(d=>{rotinasVisuais[capacidade]=d;}).catch(()=>{delete rotinasVisuais[capacidade];});
+  }
+  const passos=detalhe ? detalhe.passos.map((_, i)=>`passo_${String(i+1).padStart(2,"0")}`) : [...linhas.keys()].filter(e=>e.startsWith("passo_")).sort();
+  return [...passos, "encerrar"];
+}
 const etapasGeracao = ["navegar_menu","preencher_periodo","identificar_formulario","gerar_documento","encerrar"];
 const etapasLivros = ["validar_dados","identificar_empresa","abrir_livros","preencher_periodo","gerar_previa","exportar_pdf","conferir_pdf","encerrar"];
 const motivos = {nome_arquivo_nao_confirmado:"O nome ou destino final do arquivo não foi confirmado; confira a saída e o log no servidor.",calibracao_indisponivel:"Calibre a tela principal no servidor.", dominio_fora_de_foco:"Deixe o Domínio visível na sessão do servidor.", tela_principal_nao_confirmada:"Confira a tela principal do Domínio no servidor.", empresa_nao_confirmada:"A empresa no servidor não corresponde ao código solicitado.", periodo_nao_confirmado:"Confira o período solicitado.", servidor_reiniciado:"O servidor reiniciou; confira o Domínio antes de uma nova execução.", erro_execucao_consulte_servidor:"Consulte o log local do servidor.", resultado_ou_retorno_nao_confirmado:"O resultado ou retorno não foi confirmado; confira o servidor.", executor_requer_windows:"O executor precisa de uma sessão Windows.", precondicao_nao_confirmada:"Confira as condições da sessão do servidor."};
@@ -239,11 +254,11 @@ async function acompanhar() {
   $("tarefa-detalhe").textContent=`${nome} · Empresa ${tarefa.pedido.empresa_codigo} · ${data(tarefa.pedido.inicio)} a ${data(tarefa.pedido.fim)}${tentativa ? ` · Tentativa ${tentativa}` : ""}`;
   const retorno=[...linhas.values()].some(ev=>["encerrar","recuperar_interface"].includes(ev.step) && ev.status==="confirmado" && ev.evidence==="tela_principal_reconhecida");
   $("retorno").textContent=`Retorno à tela principal: ${retorno ? "confirmado" : "não confirmado"}.`;
-  const etapas=tarefa.pedido.capacidade==="resumo_acumulador" ? etapasLivros.map(e=>e==="abrir_livros" ? "abrir_resumo" : e) : tarefa.pedido.capacidade.startsWith("registro_") || tarefa.pedido.capacidade==="livros_fiscais" ? etapasLivros : tarefa.pedido.capacidade.startsWith("visual_") ? etapasVisual : etapasGeracao;
+  const etapas=tarefa.pedido.capacidade==="resumo_acumulador" ? etapasLivros.map(e=>e==="abrir_livros" ? "abrir_resumo" : e) : tarefa.pedido.capacidade.startsWith("registro_") || tarefa.pedido.capacidade==="livros_fiscais" ? etapasLivros : tarefa.pedido.capacidade.startsWith("visual_") ? etapasVisual(tarefa.pedido.capacidade, linhas) : etapasGeracao;
   $("progresso").max=etapas.length; $("progresso").value=etapas.filter(etapa=>linhas.get(etapa)?.status==="confirmado").length;
   $("estados").replaceChildren();
   for (const etapa of [...etapas,...["recuperar_interface","fim"].filter(e=>linhas.has(e))]) {
-    const ev=linhas.get(etapa), linha=document.createElement("tr"); celula(linha,nomesEtapas[etapa]); celula(linha,ev ? estados[ev.status] : "Aguardando").className=ev?.status || "";
+    const ev=linhas.get(etapa), linha=document.createElement("tr"); celula(linha,tarefa.pedido.capacidade.startsWith("visual_") ? nomeEtapaVisual(tarefa.pedido.capacidade,etapa) : nomesEtapas[etapa]); celula(linha,ev ? estados[ev.status] : "Aguardando").className=ev?.status || "";
     celula(linha,ev ? `${ev.elapsed_seconds.toFixed(1)} s` : "—"); $("estados").append(linha);
   }
   const artefatos=tarefa.artefatos || [];

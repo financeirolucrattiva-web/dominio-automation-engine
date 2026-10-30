@@ -1,15 +1,55 @@
 """Modelo de apresentação dos eventos reais; não escolhe ou executa ações."""
 
 import math
+import re
 
-NOMES_ROTINAS = {
+_PASSO = re.compile(r"^passo_(\d{2})$")
+
+
+class _NomesRotinas(dict):
+    """Rotinas fixas + rotinas aprovadas do configurador (`rotina_visual` nos eventos, `visual_<id>` na capacidade)."""
+
+    def _visual(self, chave):
+        return isinstance(chave, str) and (chave == "rotina_visual" or re.fullmatch(r"visual_[0-9a-f]{32}", chave) is not None)
+
+    def __contains__(self, chave):
+        return dict.__contains__(self, chave) or self._visual(chave)
+
+    def __missing__(self, chave):
+        if not self._visual(chave):
+            raise KeyError(chave)
+        try:
+            from app import capacidades
+            return capacidades.obter_capacidade(chave).nome
+        except Exception:
+            return "Rotina do configurador"
+
+    def get(self, chave, padrao=None):
+        return self[chave] if chave in self else padrao
+
+
+class _NomesEtapas(dict):
+    def __contains__(self, chave):
+        return dict.__contains__(self, chave) or (isinstance(chave, str) and _PASSO.match(chave) is not None)
+
+    def __missing__(self, chave):
+        achado = _PASSO.match(chave) if isinstance(chave, str) else None
+        if achado is None:
+            raise KeyError(chave)
+        return f"Passo {int(achado.group(1))}"
+
+    def get(self, chave, padrao=None):
+        return self[chave] if chave in self else padrao
+
+
+NOMES_ROTINAS = _NomesRotinas({
     "sped_fiscal": "SPED Fiscal", "efd_contribuicoes": "Demonstrativo EFD Contribuições",
     "registro_saidas": "Registro de Saídas", "registro_entradas": "Registro de Entradas",
     "resumo_acumulador": "Resumo por Acumulador",
     "livros_fiscais": "Livros Fiscais — Entradas, Saídas e ICMS",
     "geracao_fiscal": "Geração fiscal",
-}
-NOMES_ETAPAS = {
+})
+NOMES_ETAPAS = _NomesEtapas({
     "validar_dados": "Validar dados", "identificar_empresa": "Identificar empresa",
     "abrir_livros": "Abrir Livros Fiscais", "preencher_periodo": "Preencher período",
     "abrir_resumo": "Abrir Resumo por Acumulador",
@@ -18,7 +58,7 @@ NOMES_ETAPAS = {
     "navegar_menu": "Navegar pelo menu", "identificar_formulario": "Identificar formulário",
     "gerar_documento": "Gerar documento", "recuperar_interface": "Recuperar interface",
     "fim": "Resultado da rotina",
-}
+})
 NOMES_STATUS = {
     "inicio": "Em andamento", "confirmado": "Confirmado",
     "acao_executada": "Ação enviada", "resultado_nao_verificado": "Não verificado",
@@ -76,8 +116,11 @@ class EstadoPainel:
             self.limpar()
             self.execution_id, self.tentativa = execucao, tentativa
             self.rotina = NOMES_ROTINAS[rotina]
-            self.etapas = (tuple("abrir_resumo" if e == "abrir_livros" else e for e in ETAPAS_LIVROS)
+            self.etapas = (() if rotina == "rotina_visual" else
+                           tuple("abrir_resumo" if e == "abrir_livros" else e for e in ETAPAS_LIVROS)
                            if rotina == "resumo_acumulador" else ETAPAS_LIVROS if rotina.startswith("registro_") or rotina == "livros_fiscais" else ETAPAS_GERACAO)
+        if rotina == "rotina_visual" and etapa not in self.etapas and etapa not in ("fim", "recuperar_interface"):
+            self.etapas += (etapa,)  # passos aparecem na ordem em que chegam; "encerrar" vem por último
         self.etapa = NOMES_ETAPAS[etapa]
         self.linhas[etapa] = (NOMES_STATUS[status], f"{segundos:.1f} s", status)
         evidencia = evento.get("evidence")

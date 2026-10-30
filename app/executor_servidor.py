@@ -29,21 +29,33 @@ class ExecutorDominio:
         """Roda uma rotina APROVADA do configurador como tarefa/lote, com eventos e retorno à tela azul."""
         from app import dominio, estados
         from app.configurador import Configurador, ConfiguradorErro
-        acompanhamento = estados.AcompanhamentoRotina("rotina_visual")
-        acompanhamento.janela_dominio = janela
-        acompanhamento.iniciar("executar_passos")
+        configurador = Configurador()
+        rotina_id = pedido["capacidade"][len("visual_"):]
         try:
-            resultado = Configurador().executar_aprovada(pedido["capacidade"][len("visual_"):], pedido["empresa_codigo"],
-                                                         pedido["inicio"], pedido["fim"])
+            total = len(configurador.obter(rotina_id)["passos"])
+        except ConfiguradorErro as erro:
+            print(f"Rotina visual indisponível: {erro}", flush=True)
+            return False
+        acompanhamento = estados.AcompanhamentoRotina("rotina_visual", passos=total)
+        acompanhamento.janela_dominio = janela
+
+        def progresso(momento, indice):
+            if momento == "inicio":
+                acompanhamento.iniciar(f"passo_{indice:02d}")
+            else:
+                acompanhamento.confirmar("passo_visual_confirmado")
+        try:
+            resultado = configurador.executar_aprovada(rotina_id, pedido["empresa_codigo"], pedido["inicio"], pedido["fim"],
+                                                       progresso=progresso)
         except ConfiguradorErro as erro:
             print(f"Rotina visual recusada: {erro}", flush=True)
-            acompanhamento.concluir(False, "retorno_falha")
+            if acompanhamento.etapa is not None:
+                acompanhamento.concluir(False, "retorno_falha")
             return False
         if not resultado["ok"]:
             print(f"Rotina visual parou no passo {resultado['passo_falho']}: {resultado['mensagem']}", flush=True)
             acompanhamento.concluir(False, "retorno_falha")
             return False
-        acompanhamento.confirmar("passos_visuais_concluidos")
         acompanhamento.iniciar("encerrar")
         if dominio._verificar_retorno_tela_principal(acompanhamento) != "tela_principal_reconhecida":
             if not (self._voltar_ao_inicio(janela)

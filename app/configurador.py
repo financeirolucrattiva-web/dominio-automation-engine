@@ -615,7 +615,7 @@ class Configurador:
                 pendencias=(), status="integrada"))
         return resultado
 
-    def executar_aprovada(self, rotina_id, empresa_codigo, inicio, fim, sessao=None):
+    def executar_aprovada(self, rotina_id, empresa_codigo, inicio, fim, sessao=None, progresso=None):
         """Executa uma rotina APROVADA (da versão testada) para uma empresa e uma competência passada e fechada."""
         dados = self._ler(rotina_id)
         teste = dados.get("ultimo_teste")
@@ -637,7 +637,8 @@ class Configurador:
         valores = validar_parametros_teste(dados["passos"], brutos)
         dispositivos = self._dispositivos or Dispositivos.reais()
         return executar_passos(dados["passos"], self._pasta_rotina(rotina_id), valores, dispositivos, sessao=sessao,
-                               pasta_falhas=self.pasta_falhas, rotina_id=rotina_id, brutos=_canonicos(brutos))
+                               pasta_falhas=self.pasta_falhas, rotina_id=rotina_id, brutos=_canonicos(brutos),
+                               progresso=progresso)
 
     def aprovar(self, rotina_id):
         with _LOCK:
@@ -651,7 +652,7 @@ class Configurador:
 
 
 def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None, pasta_falhas=None, rotina_id="rotina",
-                    brutos=None):
+                    brutos=None, progresso=None):
     """Toca os passos na ordem. Para no primeiro que falhar e devolve o que aconteceu em cada um."""
     registro, d = [], dispositivos
     brutos = brutos or {}
@@ -832,6 +833,8 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
             sessao.verificar()
         if not d.janela_ok():
             return falhar(passo, "O Domínio saiu do foco; nada foi enviado neste passo.")
+        if progresso is not None:
+            progresso("inicio", passo["indice"])
         try:
             resposta = executar_um(passo)
         except Exception as erro:  # noqa: BLE001 - erro de dispositivo vira falha visível do passo
@@ -841,4 +844,6 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
             return falhar(passo, f"Erro inesperado no passo ({type(erro).__name__}): {str(erro)[:150]}")
         if resposta is not None:
             return resposta
+        if progresso is not None:
+            progresso("ok", passo["indice"])
     return {"ok": True, "passo_falho": None, "mensagem": "Todos os passos foram executados.", "passos": registro}

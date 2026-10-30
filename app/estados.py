@@ -70,7 +70,7 @@ class AcompanhamentoRotina:
         "referencia_tela_principal_ausente", "referencia_tela_principal_invalida",
         "item_menu_reconhecido", "formulario_e_botoes_reconhecidos",
         "aviso_resultado_reconhecido", "fechamento_solicitado",
-        "formulario_resumo_reconhecido", "previa_resumo_reconhecida", "passos_visuais_concluidos",
+        "formulario_resumo_reconhecido", "previa_resumo_reconhecida", "passo_visual_confirmado",
     }
     CONFIRMACOES = dict(zip(ETAPAS, (
         "datas_validas", "cabecalho_nome_codigo_lidos", "titulo_livros_fiscais_lido",
@@ -85,12 +85,14 @@ class AcompanhamentoRotina:
         "encerrar": "fechamento_solicitado",
     }
 
-    def __init__(self, rotina, pasta_logs=None):
+    def __init__(self, rotina, pasta_logs=None, passos=None):
         if rotina not in ("registro_saidas", "registro_entradas", "livros_fiscais", "resumo_acumulador", "sped_fiscal", "efd_contribuicoes", "geracao_fiscal", "rotina_visual"):
             raise ValueError("Rotina sem acompanhamento configurado.")
         self.rotina = rotina
         if rotina == "rotina_visual":
-            self.CONFIRMACOES = {"executar_passos": "passos_visuais_concluidos", "encerrar": "fechamento_solicitado"}
+            # Uma etapa por passo da rotina (passo_01...), mais o encerramento com retorno à tela azul.
+            self.CONFIRMACOES = {f"passo_{i:02d}": "passo_visual_confirmado" for i in range(1, int(passos or 1) + 1)}
+            self.CONFIRMACOES["encerrar"] = "fechamento_solicitado"
             self.ETAPAS = tuple(self.CONFIRMACOES)
         if rotina in ("sped_fiscal", "efd_contribuicoes", "geracao_fiscal"):
             self.CONFIRMACOES = self.FLUXO_GERACAO.copy()

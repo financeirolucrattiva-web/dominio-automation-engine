@@ -327,27 +327,52 @@ class TestLote(Base):
         with self.assertRaises(ConfiguradorErro):                                                  # período corrente recusado
             self.c.executar_aprovada(self.salva["id"], "68", "2099-01-01", "2099-01-31")
 
-    def test_executor_gera_eventos_e_so_conclui_com_tela_azul(self):
+    def test_executor_gera_eventos_que_o_painel_reconhece_um_por_passo(self):
+        # Regressão: eventos de rotina desconhecida eram descartados pelo painel -> "resultado não confirmado".
         from unittest import mock
-        from app import executor_servidor
+        from app import estados, executor_servidor, painel
         self.aprovar()
         pedido = {"capacidade": f"visual_{self.salva['id']}", "empresa_codigo": "68", "inicio": "2026-09-01", "fim": "2026-09-30"}
         executor = executor_servidor.ExecutorDominio()
         executor._voltar_ao_inicio = lambda janela: True
         eventos = []
-        with mock.patch("app.configurador.Configurador", lambda: self.c), \
-             mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_reconhecida"), \
-             mock.patch("app.estados.AcompanhamentoRotina._registrar", lambda s, e, st, ev=None: eventos.append((e, st, ev))):
+        with mock.patch("app.configurador.Configurador", lambda: self.c),              mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_reconhecida"),              mock.patch("app.estados.perfil.instalar"),              estados.observar_eventos(eventos.append):
             self.assertTrue(executor._gerar_visual(pedido, {"hwnd": 1}))
-        self.assertIn(("fim", "concluido", "rotina_concluida"), eventos)
-        # sem tela azul confirmada, falha de encerramento: não conclui
+        modelo = painel.EstadoPainel()
+        for evento in eventos:
+            self.assertTrue(modelo.receber(evento), evento)
+        self.assertEqual(modelo.retorno, "Tela principal confirmada")
+        self.assertEqual(modelo.linhas["fim"][2], "concluido")
+        self.assertEqual(modelo.etapas, ("passo_01", "passo_02", "encerrar"))        # um por passo da rotina
+        self.assertEqual([n for _, n, *_ in modelo.linhas_tabela()][:2], ["Passo 1", "Passo 2"])
+        self.assertTrue(all(modelo.linhas[e][2] == "confirmado" for e in modelo.etapas))
+        # relatório do lote consulta o nome da rotina pela capacidade
+        self.assertIn("Rotina de lote", painel.NOMES_ROTINAS[pedido["capacidade"]])
+        # sem tela azul confirmada: falha de encerramento, nunca "concluído"
         eventos.clear()
-        with mock.patch("app.configurador.Configurador", lambda: self.c), \
-             mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_nao_reconhecida"), \
-             mock.patch("app.estados.AcompanhamentoRotina._registrar", lambda s, e, st, ev=None: eventos.append((e, st, ev))):
-            executor._voltar_ao_inicio = lambda janela: False
+        executor._voltar_ao_inicio = lambda janela: False
+        with mock.patch("app.configurador.Configurador", lambda: self.c),              mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_nao_reconhecida"),              estados.observar_eventos(eventos.append):
             self.assertFalse(executor._gerar_visual(pedido, {"hwnd": 1}))
-        self.assertNotIn(("fim", "concluido", "rotina_concluida"), eventos)
+        modelo = painel.EstadoPainel()
+        for evento in eventos:
+            modelo.receber(evento)
+        self.assertNotEqual(modelo.retorno, "Tela principal confirmada")
+
+    def test_falha_no_meio_registra_o_passo_que_falhou(self):
+        from unittest import mock
+        from app import estados, executor_servidor, painel
+        self.aprovar()
+        self.falsos.achados = {}                                       # o alvo do passo 1 some
+        pedido = {"capacidade": f"visual_{self.salva['id']}", "empresa_codigo": "68", "inicio": "2026-09-01", "fim": "2026-09-30"}
+        executor = executor_servidor.ExecutorDominio()
+        eventos = []
+        with mock.patch("app.configurador.Configurador", lambda: self.c),              mock.patch("app.estados.perfil.instalar"), estados.observar_eventos(eventos.append):
+            self.assertFalse(executor._gerar_visual(pedido, {"hwnd": 1}))
+        modelo = painel.EstadoPainel()
+        for evento in eventos:
+            modelo.receber(evento)
+        self.assertEqual(modelo.linhas["passo_01"][2], "falha")
+        self.assertEqual(modelo.linhas["fim"][2], "falha")
 
     def test_nao_ha_retentativa_automatica_para_rotina_visual(self):
         from app import retentativa
