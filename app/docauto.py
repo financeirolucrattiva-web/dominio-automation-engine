@@ -23,11 +23,11 @@ ARQUIVO = Path(__file__).resolve().parent.parent / "data" / "docauto.json"
 # registro_icms (livro de apuração) usa `--tipo APURACAO_ICMS` no docauto, não `--rotina`.
 ROTINAS = {"resumo_acumulador": "resumo_acumulador", "efd_contribuicoes": "efd_contribuicoes",
            "registro_entradas": "livro_entradas", "registro_saidas": "livro_saidas",
-           "registro_icms": "APURACAO_ICMS", "sped_fiscal": "RECIBO_EFD_ICMS"}
-_COMO_TIPO = {"APURACAO_ICMS", "RECIBO_EFD_ICMS"}
-_NOME_NO_CSV = {"sped_fiscal": "sped_fiscal"}  # o CSV traz o nome da rotina, não o id do template
+           "registro_icms": "APURACAO_ICMS", "sped_fiscal": "RECIBO_EFD_ICMS", "efd_reinf": "REINF"}
+_COMO_TIPO = {"APURACAO_ICMS", "RECIBO_EFD_ICMS", "REINF"}
+_NOME_NO_CSV = {"sped_fiscal": "sped_fiscal", "efd_reinf": "efd_reinf"}  # o CSV traz o nome da rotina, não o id do template
 # Subpasta de DECLARAÇÕES onde cada TXT vai (nome reconhecido por palavras; ex.: SPED_FISCAL, SPED_CONTRIBUIÇÕES).
-_SUBPASTA_PALAVRAS = {"efd_contribuicoes": ("SPED", "CONTRIBUI"), "sped_fiscal": ("SPED", "FISCAL")}
+_SUBPASTA_PALAVRAS = {"efd_contribuicoes": ("SPED", "CONTRIBUI"), "sped_fiscal": ("SPED", "FISCAL"), "efd_reinf": ("REINF",)}
 CABECALHO = ["codigo_dominio", "competencia", "rotina", "status", "arquivo", "sha256", "gerado_em"]
 _log = logging.getLogger(__name__)
 

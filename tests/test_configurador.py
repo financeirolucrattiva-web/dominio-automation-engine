@@ -244,6 +244,68 @@ class TestExecucao(Base):
             self.c.aprovar(salva["id"])
 
 
+class TestGuardarPdf(Base):
+    """Escolher a pasta de saída (como nos Livros) e guardar o PDF novo na pasta da empresa (docauto)."""
+
+    def montar(self, rodadas, escolher=True, publicar_ok=True):
+        publicados, leituras = [], iter(rodadas)
+        d = self.falsos.dispositivos()
+        d.escolher_pasta_saida = lambda: escolher
+        d.pdfs_saida = lambda: next(leituras, rodadas[-1])
+        d.publicar_pdf = lambda nome, doc, cod, ini, fim: (publicados.append((nome, doc, cod, ini, fim)), f"X/{cod}_{nome}")[1] if publicar_ok else None
+        self.n = getattr(self, "n", 0) + 1
+        return Configurador(self.pasta / f"cfg5_{self.n}", d, pasta_falhas=self.pasta / "falhas5"), publicados
+
+    PASSOS = [{"tipo": "escolher_pasta_saida"}, {"tipo": "guardar_pdf", "documento": "efd_reinf", "espera": 20}]
+    PARAMS = {"empresa_codigo": "68", "inicio": "2026-09-01", "fim": "2026-09-30"}
+
+    def test_parametros_exigidos_e_publicacao_dos_pdfs_novos(self):
+        antigo = {"velho.pdf": (10, 1)}
+        novo = {"velho.pdf": (10, 1), "Empresa 68 - REINF.pdf": (500, 7)}
+        c, publicados = self.montar([antigo, antigo, novo, novo, novo, novo])   # aparece, depois fica estável
+        salva = c.salvar("Reinf", self.PASSOS)
+        self.assertEqual(salva["parametros"], ["empresa_codigo", "fim", "inicio"])
+        with self.assertRaises(ConfiguradorErro):
+            c.testar(salva["id"], {"empresa_codigo": "68"})                     # faltou o período
+        resultado = c.testar(salva["id"], self.PARAMS, hoje=__import__("datetime").date(2026, 10, 30))
+        self.assertTrue(resultado["ok"], resultado)
+        self.assertEqual(publicados, [("Empresa 68 - REINF.pdf", "efd_reinf", "68", "2026-09-01", "2026-09-30")])  # só o novo
+        self.assertIn("1 PDF(s) guardado(s)", resultado["passos"][1]["detalhe"])
+
+    def test_sem_pdf_novo_estavel_falha(self):
+        antigo = {"velho.pdf": (10, 1)}
+        c, publicados = self.montar([antigo])
+        salva = c.salvar("Reinf", self.PASSOS[1:])
+        resultado = c.testar(salva["id"], self.PARAMS, hoje=__import__("datetime").date(2026, 10, 30))
+        self.assertFalse(resultado["ok"])
+        self.assertIn("Nenhum PDF novo e estável", resultado["mensagem"])
+        self.assertEqual(publicados, [])
+
+    def test_pdf_ainda_crescendo_nao_e_publicado_ate_estabilizar(self):
+        c, publicados = self.montar([{"a.pdf": (1, 1)}, {"a.pdf": (2, 2)}, {"a.pdf": (3, 3)}, {"a.pdf": (3, 3)}, {"a.pdf": (3, 3)}])
+        salva = c.salvar("Reinf", self.PASSOS[1:])
+        self.assertTrue(c.testar(salva["id"], self.PARAMS, hoje=__import__("datetime").date(2026, 10, 30))["ok"])
+        self.assertEqual(len(publicados), 1)
+
+    def test_docauto_sem_pasta_e_dialogo_nao_confirmado_param_a_rotina(self):
+        c, _ = self.montar([{}] + [{"a.pdf": (1, 1)}] * 6, publicar_ok=False)
+        salva = c.salvar("Reinf", self.PASSOS[1:])
+        resultado = c.testar(salva["id"], self.PARAMS, hoje=__import__("datetime").date(2026, 10, 30))
+        self.assertFalse(resultado["ok"])
+        self.assertIn("docauto não indicou a pasta", resultado["mensagem"])
+        c2, _ = self.montar([{}], escolher=False)
+        salva2 = c2.salvar("Pasta", self.PASSOS[:1])
+        falha = c2.testar(salva2["id"])
+        self.assertFalse(falha["ok"])
+        self.assertIn("Procurar Pasta", falha["mensagem"])
+
+    def test_documento_invalido_e_recusado(self):
+        for ruim in ({"tipo": "guardar_pdf"}, {"tipo": "guardar_pdf", "documento": "qualquer"},
+                     {"tipo": "guardar_pdf", "documento": "efd_reinf", "espera": 1}):
+            with self.subTest(ruim=ruim), self.assertRaises(ConfiguradorErro):
+                validar_passos([ruim], self.c._tamanho_captura)
+
+
 class TestPedidosAoClaude(Base):
     def test_pedido_leva_o_contexto_da_rotina_e_a_resposta_volta(self):
         self.falsos.achados = {}

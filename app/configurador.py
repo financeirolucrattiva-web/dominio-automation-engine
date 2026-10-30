@@ -26,7 +26,10 @@ PASTA = ROOT / "data" / "configurador"
 TIPOS_ALVO = ("clicar", "duplo_clique", "hover", "esperar_imagem")
 # trocar_empresa e voltar_tela_principal reaproveitam as funções já validadas nos lotes reais (F8 + código e a
 # subida até a tela azul); a empresa vem do parâmetro empresa_codigo, nunca de texto digitado no passo.
-TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos", "trocar_empresa", "voltar_tela_principal")
+TIPOS = TIPOS_ALVO + ("se_aparecer", "tecla", "digitar", "esperar_segundos", "trocar_empresa", "voltar_tela_principal",
+                      "escolher_pasta_saida", "guardar_pdf")
+# Documentos que "guardar_pdf" sabe encaminhar: o nome é a rotina do docauto (pasta e subpasta da empresa).
+DOCUMENTOS_PDF = ("efd_reinf", "resumo_acumulador")
 TECLAS = ("tab", "enter", "esc", "home", "end", "up", "down", "left", "right", "pageup", "pagedown", "f8")
 PARAMETROS = ("inicio", "fim", "competencia", "empresa_codigo")
 # Mesma regra das rotinas por texto: o configurador é só para gerar/ler, nunca para transmitir, retificar ou excluir.
@@ -53,8 +56,9 @@ class Dispositivos:
 
     def __init__(self, capturar, achar_template, clicar, clicar_duplo, passar_mouse, tecla, digitar,
                  assinatura, mudou, janela_ok, dormir=time.sleep, trocar_empresa=None, voltar_inicio=None,
-                 empresa_atual=None):
+                 empresa_atual=None, escolher_pasta_saida=None, pdfs_saida=None, publicar_pdf=None):
         self.trocar_empresa, self.voltar_inicio, self.empresa_atual = trocar_empresa, voltar_inicio, empresa_atual
+        self.escolher_pasta_saida, self.pdfs_saida, self.publicar_pdf = escolher_pasta_saida, pdfs_saida, publicar_pdf
         self.capturar, self.achar_template = capturar, achar_template
         self.clicar, self.clicar_duplo, self.passar_mouse = clicar, clicar_duplo, passar_mouse
         self.tecla, self.digitar = tecla, digitar
@@ -77,6 +81,39 @@ class Dispositivos:
             from app import dominio
             return dominio.voltar_ao_inicio(janela)
 
+        def escolher_pasta_saida():
+            """Mesmo fluxo dos Livros Fiscais: aguarda o diálogo 'Procurar Pasta' e navega até a pasta saida/ do servidor."""
+            from app import dominio, seletor_pasta
+            for _ in range(15):
+                if tela.achar_texto_ou_no_centro(tela.capturar_tela(), "Procurar Pasta", escala=4) is not None:
+                    break
+                time.sleep(1)
+            else:
+                return False
+            (ROOT / "saida").mkdir(exist_ok=True)
+            try:
+                seletor_pasta.selecionar_pasta(dominio.caminho_visto_pela_sessao_remota(ROOT / "saida"), tela.capturar_tela,
+                                               interacao.clicar, interacao.pressionar_tecla,
+                                               clicar_duplo=interacao.clicar_duplo, permitir_pasta_comum=True)
+            except seletor_pasta.SeletorPastaNaoConfirmado:
+                return False
+            return True
+
+        def pdfs_saida():
+            return {p.name: (p.stat().st_size, p.stat().st_mtime_ns) for p in (ROOT / "saida").glob("*.pdf")
+                    if p.is_file() and not p.is_symlink()}
+
+        def publicar_pdf(nome, documento, codigo, inicio, fim):
+            """Move o PDF da saída para a pasta da empresa (docauto) e registra o resultado; None se o docauto não responder."""
+            from app import arquivos, docauto
+            pasta = docauto.destino(codigo, inicio[:7], documento)
+            if pasta is None:
+                return None
+            destino = arquivos.nomear_relatorio_cadastrado(ROOT / "saida" / nome, ROOT / "saida", documento, f"Empresa {codigo}",
+                                                           inicio, fim, pasta_destino=pasta, codigo=str(int(codigo)))
+            docauto.registrar_resultado(codigo, inicio[:7], documento, "concluida", destino)
+            return str(destino)
+
         def empresa_atual():
             """Código da empresa no cabeçalho do Domínio, ou None se não der para ler (tela fora da principal)."""
             lida = tela.ler_empresa_selecionada(tela.capturar_tela())
@@ -85,7 +122,8 @@ class Dispositivos:
                    interacao.clicar, interacao.clicar_duplo, interacao.passar_mouse,
                    interacao.pressionar_tecla, interacao.digitar,
                    tela.assinatura_tela, tela.tela_mudou, janela_ok,
-                   trocar_empresa=trocar_empresa, voltar_inicio=voltar_inicio, empresa_atual=empresa_atual)
+                   trocar_empresa=trocar_empresa, voltar_inicio=voltar_inicio, empresa_atual=empresa_atual,
+                   escolher_pasta_saida=escolher_pasta_saida, pdfs_saida=pdfs_saida, publicar_pdf=publicar_pdf)
 
 
 def _rotulo(numero, valor, o_que):
@@ -199,8 +237,16 @@ def validar_passos(passos, tamanho_captura):
                 if not isinstance(texto, str) or not _TEXTO_LIVRE.fullmatch(texto):
                     raise ConfiguradorErro(f"Passo {numero}: texto fixo com até 60 letras, números e pontuação simples.")
                 item["texto"] = texto
-        elif tipo in ("trocar_empresa", "voltar_tela_principal"):
-            pass  # sem campos: a empresa vem do parâmetro empresa_codigo
+        elif tipo in ("trocar_empresa", "voltar_tela_principal", "escolher_pasta_saida"):
+            pass  # sem campos: a empresa vem do parâmetro empresa_codigo; a pasta é sempre a saida/ do servidor
+        elif tipo == "guardar_pdf":
+            if passo.get("documento") not in DOCUMENTOS_PDF:
+                raise ConfiguradorErro(f"Passo {numero}: escolha o documento: {', '.join(DOCUMENTOS_PDF)}.")
+            item["documento"] = passo["documento"]
+            espera = passo.get("espera", 90)
+            if not _inteiro(espera) or not 5 <= espera <= 300:
+                raise ConfiguradorErro(f"Passo {numero}: a espera pelo PDF vai de 5 a 300 segundos.")
+            item["espera"] = espera
         else:  # esperar_segundos
             segundos = passo.get("segundos")
             if not _inteiro(segundos) or not 1 <= segundos <= 30:
@@ -230,6 +276,8 @@ def validar_parametros_teste(passos, parametros, hoje=None):
     usados = {p["parametro"] for p in passos if p["tipo"] == "digitar" and "parametro" in p}
     if any(p["tipo"] == "trocar_empresa" for p in passos):
         usados.add("empresa_codigo")
+    if any(p["tipo"] == "guardar_pdf" for p in passos):
+        usados |= {"empresa_codigo", "inicio", "fim"}   # o destino depende da empresa e da competência
     parametros = parametros or {}
     if set(parametros) - usados:
         raise ConfiguradorErro("Parâmetro que a rotina não usa.")
@@ -350,7 +398,8 @@ class Configurador:
         return {"id": rotina_id, "nome": dados["nome"], "status": dados["status"],
                 "quantidade_passos": len(dados["passos"]),
                 "parametros": sorted({p["parametro"] for p in dados["passos"] if p.get("parametro")}
-                                     | ({"empresa_codigo"} if any(p["tipo"] == "trocar_empresa" for p in dados["passos"]) else set())),
+                                     | ({"empresa_codigo"} if any(p["tipo"] in ("trocar_empresa", "guardar_pdf") for p in dados["passos"]) else set())
+                                     | ({"inicio", "fim"} if any(p["tipo"] == "guardar_pdf" for p in dados["passos"]) else set())),
                 "ultimo_teste": teste and {"ok": teste["ok"], "em": teste["em"], "passo_falho": teste.get("passo_falho")}}
 
     def listar(self):
@@ -497,7 +546,7 @@ class Configurador:
         valores = validar_parametros_teste(dados["passos"], parametros, hoje)
         dispositivos = self._dispositivos or Dispositivos.reais()
         resultado = executar_passos(dados["passos"], self._pasta_rotina(rotina_id), valores, dispositivos,
-                                    sessao=sessao, pasta_falhas=self.pasta_falhas, rotina_id=rotina_id)
+                                    sessao=sessao, pasta_falhas=self.pasta_falhas, rotina_id=rotina_id, brutos=parametros)
         with _LOCK:
             atual = self._ler(rotina_id)
             if self._assinatura(atual) == self._assinatura(dados):
@@ -519,9 +568,13 @@ class Configurador:
         return self.obter(rotina_id)
 
 
-def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None, pasta_falhas=None, rotina_id="rotina"):
+def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None, pasta_falhas=None, rotina_id="rotina",
+                    brutos=None):
     """Toca os passos na ordem. Para no primeiro que falhar e devolve o que aconteceu em cada um."""
     registro, d = [], dispositivos
+    brutos = brutos or {}
+    # PDFs que já estavam na saída antes da rotina: só os novos ou alterados são encaminhados.
+    antes_pdfs = d.pdfs_saida() if d.pdfs_saida is not None and any(p["tipo"] == "guardar_pdf" for p in passos) else {}
 
     def esperar_mudanca(antes, tentativas=10):
         for _ in range(tentativas):
@@ -627,6 +680,42 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 return falhar(passo, f"Depois da troca o Domínio mostra a empresa {depois}, não a {alvo}. Parei.")
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
                              "detalhe": f"empresa {alvo} selecionada"})
+        elif tipo == "escolher_pasta_saida":
+            if d.escolher_pasta_saida is None:
+                return falhar(passo, "Escolha de pasta indisponível neste modo.")
+            if not d.escolher_pasta_saida():
+                return falhar(passo, "Não consegui escolher a pasta de saída no diálogo 'Procurar Pasta'; confira a tela.")
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": "pasta de saída do servidor selecionada"})
+        elif tipo == "guardar_pdf":
+            if d.pdfs_saida is None or d.publicar_pdf is None:
+                return falhar(passo, "Guardar PDF indisponível neste modo.")
+            novos, anterior, estaveis = {}, None, 0
+            for _ in range(passo["espera"]):
+                atuais = d.pdfs_saida()
+                novos = {n: v for n, v in atuais.items() if antes_pdfs.get(n) != v}
+                if novos and novos == anterior:
+                    estaveis += 1
+                    if estaveis >= 2:
+                        break
+                else:
+                    estaveis = 0
+                anterior = novos
+                d.dormir(1)
+            else:
+                return falhar(passo, f"Nenhum PDF novo e estável apareceu na pasta de saída em {passo['espera']} s.")
+            publicados, sem_destino = [], 0
+            for nome in sorted(novos):
+                destino = d.publicar_pdf(nome, passo["documento"], brutos["empresa_codigo"], brutos["inicio"], brutos["fim"])
+                if destino is None:
+                    sem_destino += 1
+                else:
+                    publicados.append(Path(destino).name)
+            if sem_destino:
+                detalhe = (f"{len(novos)} PDF(s) na pasta de saída, mas o docauto não indicou a pasta da empresa; "
+                           f"{len(publicados)} guardado(s). Confira o docauto e a pasta saida.")
+                return falhar(passo, detalhe)
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                             "detalhe": f"{len(publicados)} PDF(s) guardado(s) na pasta da empresa: " + ", ".join(publicados)})
         elif tipo == "voltar_tela_principal":
             if d.voltar_inicio is None:
                 return falhar(passo, "Volta à tela principal indisponível neste modo.")

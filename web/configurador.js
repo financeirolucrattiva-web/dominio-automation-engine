@@ -2,7 +2,7 @@
 // Configurador visual de rotinas: marca-se o alvo em um print da tela do Domínio (nada de texto exato por OCR).
 // Usa $, api e chave de app.js. O navegador só envia retângulos; o servidor recorta os modelos de imagem.
 const configuradorVisual=(()=>{
-  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal"};
+  const nomesTipo={clicar:"Clicar",duplo_clique:"Duplo clique",hover:"Passar o mouse",esperar_imagem:"Esperar imagem",se_aparecer:"Se aparecer",se_aparecer_clicar:"Se aparecer → clicar",se_aparecer_tecla:"Se aparecer → tecla",tecla:"Tecla",digitar:"Digitar",esperar_segundos:"Esperar",trocar_empresa:"Trocar de empresa",voltar_tela_principal:"Voltar à tela principal",escolher_pasta_saida:"Escolher pasta de saída",guardar_pdf:"Guardar PDF"};
   const teclas=["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"];
   const tiposAlvo=["clicar","duplo_clique","hover","esperar_imagem"];
   const nomesParametro={inicio:"Data inicial (AAAA-MM-DD)",fim:"Data final (AAAA-MM-DD)",competencia:"Competência (AAAA-MM)",empresa_codigo:"Código da empresa"};
@@ -110,6 +110,8 @@ const configuradorVisual=(()=>{
         if (passo.tipo==="esperar_imagem") campoEspera("espera até aparecer","segundos",15);
         else campoEspera("espera pelo alvo","espera",20);
       } else if (passo.tipo==="trocar_empresa") {item.append(document.createTextNode(" usa o parâmetro código da empresa (F8 + código, conferindo a empresa)"));}
+      else if (passo.tipo==="escolher_pasta_saida") {item.append(document.createTextNode(" navega no diálogo 'Procurar Pasta' até a pasta saida do servidor (como nos Livros Fiscais)"));}
+      else if (passo.tipo==="guardar_pdf") {item.append(document.createTextNode(` espera o PDF novo na saída e o guarda na pasta da empresa (${passo.documento}); usa empresa e período do teste`));}
       else if (passo.tipo==="voltar_tela_principal") {item.append(document.createTextNode(" fecha o que estiver aberto até a tela azul"));}
       else if (passo.tipo==="tecla") {item.append(document.createTextNode(` ${passo.tecla}`));}
       else if (passo.tipo==="digitar") {item.append(document.createTextNode(passo.parametro ? ` parâmetro: ${nomesParametro[passo.parametro]||passo.parametro}` : ` texto fixo: ${passo.texto}`));}
@@ -153,7 +155,8 @@ const configuradorVisual=(()=>{
     let passo;
     if (tipo.startsWith("alvo_")) {escolherModo(tipo.slice(5)); if (!imagem) {mensagem("Capturando a tela para você marcar o alvo..."); capturarTela();} else mensagem("Arraste um retângulo sobre o alvo na imagem."); return;}
     if (tipo==="tecla") passo={tipo,tecla:valor};
-    else if (tipo==="trocar_empresa" || tipo==="voltar_tela_principal") passo={tipo};
+    else if (tipo==="trocar_empresa" || tipo==="voltar_tela_principal" || tipo==="escolher_pasta_saida") passo={tipo};
+    else if (tipo==="guardar_pdf") passo={tipo,documento:valor};
     else if (tipo==="digitar_parametro") passo={tipo:"digitar",parametro:valor};
     else if (tipo==="digitar_texto") passo={tipo:"digitar",texto:valor};
     else passo={tipo:"esperar_segundos",segundos:Number(valor)};
@@ -166,8 +169,8 @@ const configuradorVisual=(()=>{
   }
   function ajustarCampoOutro() {
     const tipo=el("cv-outro-tipo").value, campo=el("cv-outro-valor"), lista=el("cv-outro-select");
-    const opcoes={tecla:["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"], digitar_parametro:Object.keys(nomesParametro)};
-    const semValor=tipo.startsWith("alvo_") || tipo==="trocar_empresa" || tipo==="voltar_tela_principal";
+    const opcoes={guardar_pdf:["efd_reinf","resumo_acumulador"],tecla:["tab","enter","esc","home","end","up","down","left","right","pageup","pagedown","f8"], digitar_parametro:Object.keys(nomesParametro)};
+    const semValor=tipo.startsWith("alvo_") || ["trocar_empresa","voltar_tela_principal","escolher_pasta_saida"].includes(tipo);
     el("cv-outro-valor").hidden=!!opcoes[tipo]||semValor; lista.hidden=!opcoes[tipo]; lista.replaceChildren();
     for (const o of opcoes[tipo]||[]) {const opcao=document.createElement("option"); opcao.value=o; opcao.textContent=tipo==="digitar_parametro"?nomesParametro[o]:o; lista.append(opcao);}
     campo.placeholder=tipo==="digitar_texto"?"Texto fixo (até 60 letras)":"Segundos (1 a 30)";
@@ -279,7 +282,7 @@ const configuradorVisual=(()=>{
     tela.addEventListener("mousemove",e=>{if (!arrasto) return; Object.assign(arrasto,retangulo(arrasto.origem,ponto(e))); desenhar();});
     window.addEventListener("mouseup",e=>{if (!arrasto) return; const r=retangulo(arrasto.origem,ponto(e)); arrasto=null; desenhar(); marcar(r);});
     el("cv-outro-tipo").addEventListener("change",ajustarCampoOutro); ajustarCampoOutro();
-    el("cv-adicionar").addEventListener("click",()=>{const t=el("cv-outro-tipo").value; if (t==="tecla"||t==="digitar_parametro") el("cv-outro-valor").value=el("cv-outro-select").value; adicionarOutro();});
+    el("cv-adicionar").addEventListener("click",()=>{const t=el("cv-outro-tipo").value; if (t==="tecla"||t==="digitar_parametro"||t==="guardar_pdf") el("cv-outro-valor").value=el("cv-outro-select").value; adicionarOutro();});
     el("cv-salvar").addEventListener("click",salvar); el("cv-novo").addEventListener("click",novo);
     el("cv-testar").addEventListener("click",testar); el("cv-aprovar").addEventListener("click",aprovar);
     el("cv-pedir").addEventListener("click",pedir);

@@ -26,6 +26,11 @@ PASSO A PASSO
    que estiver aberto ate a tela azul). A empresa vem do parametro 'codigo da empresa', pedido no teste. Se a troca ou
    a volta nao se confirmarem, a rotina para ali e nao segue com a empresa errada. Se o Dominio JA estiver na empresa
    pedida (lida no cabecalho), a troca e PULADA, como nas rotinas normais; depois de trocar, a empresa e conferida de novo.
+   SALVAR PDF NA PASTA DA EMPRESA (como os Livros Fiscais): depois de clicar na opcao de gerar PDF, use 'Escolher pasta
+   de saida' (navega no dialogo Procurar Pasta ate a pasta saida do servidor) e 'Guardar PDF na pasta da empresa'
+   (espera o PDF novo ficar estavel na saida e o move para a pasta da empresa pelo docauto, registrando no CSV).
+   Usa empresa e periodo (parametros). Limite atual: confere que o arquivo e novo e estavel, mas NAO le o conteudo
+   do PDF (tipo/periodo/CNPJ) como os Livros fazem.
    CLIQUE ANTECIPADO: se o alvo aparecer antes do tempo, a rotina age NA HORA (nao espera o tempo todo); so confere
    uma segunda leitura 0,4 s depois, com o alvo no mesmo lugar, para nao clicar num quadro ainda sendo desenhado.
    TEMPOS: toda espera por imagem e um MAXIMO, nao um tempo fixo: a rotina segue assim que a imagem aparece (confere
