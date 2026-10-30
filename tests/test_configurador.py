@@ -244,6 +244,38 @@ class TestExecucao(Base):
             self.c.aprovar(salva["id"])
 
 
+class TestErrosEEspera(Base):
+    def test_erro_inesperado_de_dispositivo_vira_falha_do_passo_com_o_nome_do_erro(self):
+        d = self.falsos.dispositivos()
+        d.escolher_pasta_saida = lambda: (_ for _ in ()).throw(RuntimeError("OCR nativo ainda ocupado"))
+        c = Configurador(self.pasta / "cfg6", d, pasta_falhas=self.pasta / "falhas6")
+        salva = c.salvar("Erro", [{"tipo": "tecla", "tecla": "tab"}, {"tipo": "escolher_pasta_saida"}])
+        resultado = c.testar(salva["id"])
+        self.assertFalse(resultado["ok"])
+        self.assertEqual(resultado["passo_falho"], 2)
+        self.assertIn("RuntimeError", resultado["mensagem"])
+        self.assertEqual(c.obter(salva["id"])["resultado_teste"]["passo_falho"], 2)      # o resultado é guardado
+        self.assertEqual(len(list((self.pasta / "falhas6").glob("*passo_02.png"))), 1)
+
+    def test_cancelamento_pelo_painel_nao_e_engolido(self):
+        from app.autenticacao import LoginRecusado
+        salva = self.c.salvar("Cancela", [{"tipo": "tecla", "tecla": "tab"}])
+        sessao = SimpleNamespace(verificar=lambda: (_ for _ in ()).throw(LoginRecusado("login_cancelado")))
+        with self.assertRaises(LoginRecusado):
+            self.c.testar(salva["id"], sessao=sessao)
+
+    def test_esperar_imagem_so_segue_com_a_tela_assentada(self):
+        self.falsos.achados = {"passo_01.png": (100, 60)}
+        salva = self.c.salvar("Assenta", [dict(self.passo("esperar_imagem"), segundos=5)])
+        leituras = {"n": 0}
+        d = self.c._dispositivos
+        d.mudou = lambda a, b: leituras.__setitem__("n", leituras["n"] + 1) or leituras["n"] <= 4   # muda 4 vezes e assenta
+        resultado = self.c.testar(salva["id"])
+        self.assertTrue(resultado["ok"])
+        self.assertGreaterEqual(leituras["n"], 7)                       # 4 mudanças + 3 leituras iguais
+        self.assertNotIn("não assentou", resultado["passos"][0]["detalhe"])
+
+
 class TestGuardarPdf(Base):
     """Escolher a pasta de saída (como nos Livros) e guardar o PDF novo na pasta da empresa (docauto)."""
 

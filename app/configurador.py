@@ -11,6 +11,7 @@ import datetime as dt
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import tempfile
@@ -19,6 +20,8 @@ import time
 import unicodedata
 import uuid
 from pathlib import Path
+
+from app.autenticacao import LoginRecusado
 
 ROOT = Path(__file__).resolve().parent.parent
 PASTA = ROOT / "data" / "configurador"
@@ -583,14 +586,14 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 return True
         return False
 
-    def esperar_estavel(tentativas=30):
-        """Espera a tela parar de mudar (duas leituras seguidas iguais): o GO-Global repinta devagar."""
+    def esperar_estavel(tentativas=30, leituras=2):
+        """Espera a tela parar de mudar (leituras seguidas iguais): o GO-Global repinta devagar."""
         anterior, estaveis = d.assinatura(d.capturar()), 0
         for _ in range(tentativas):
             d.dormir(0.5)
             atual = d.assinatura(d.capturar())
             estaveis = 0 if d.mudou(anterior, atual) else estaveis + 1
-            if estaveis >= 2:
+            if estaveis >= leituras:
                 return True
             anterior = atual
         return False
@@ -623,11 +626,7 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 pass
         return {"ok": False, "passo_falho": passo["indice"], "mensagem": detalhe, "passos": registro}
 
-    for passo in passos:
-        if sessao is not None:
-            sessao.verificar()
-        if not d.janela_ok():
-            return falhar(passo, "O Domínio saiu do foco; nada foi enviado neste passo.")
+    def executar_um(passo):
         tipo = passo["tipo"]
         if tipo in ("clicar", "duplo_clique", "hover"):
             posicao = procurar(passo, passo.get("espera", 20))
@@ -650,7 +649,7 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                     return falhar(passo, f"A tela '{passo['rotulo']}' não apareceu em {passo['espera']} s.")
                 registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
                                  "detalhe": f"{passo['rotulo']}: não apareceu; seguindo"})
-                continue
+                return None
             resposta = passo["resposta"]
             if resposta["tipo"] == "clicar":
                 dx, dy = passo["deslocamento"]
@@ -672,7 +671,7 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
                 # Igual às rotinas normais: já está na empresa certa, não repete o F8.
                 registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
                                  "detalhe": f"já estava na empresa {alvo}; troca pulada"})
-                continue
+                return None
             if not d.trocar_empresa(alvo):
                 return falhar(passo, f"Não consegui trocar para a empresa {alvo}; confira o Domínio.")
             depois = d.empresa_atual() if d.empresa_atual is not None else None
@@ -725,7 +724,10 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
         elif tipo == "esperar_imagem":
             if procurar(passo, passo["segundos"]) is None:
                 return falhar(passo, f"'{passo['rotulo']}' não apareceu em {passo['segundos']} s.")
-            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": f"{passo['rotulo']}: apareceu"})
+            # Um relatório pode mostrar o título antes de terminar de abrir: só segue com a tela parada por ~1,5 s.
+            assentou = esperar_estavel(40, leituras=3)
+            registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True,
+                             "detalhe": f"{passo['rotulo']}: apareceu" + ("" if assentou else " (a tela não assentou; seguindo)")})
         elif tipo == "tecla":
             d.tecla(passo["tecla"])
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": f"tecla {passo['tecla']}"})
@@ -737,4 +739,20 @@ def executar_passos(passos, pasta_rotina, parametros, dispositivos, sessao=None,
         else:
             d.dormir(passo["segundos"])
             registro.append({"indice": passo["indice"], "tipo": tipo, "ok": True, "detalhe": f"esperou {passo['segundos']} s"})
+        return None
+
+    for passo in passos:
+        if sessao is not None:
+            sessao.verificar()
+        if not d.janela_ok():
+            return falhar(passo, "O Domínio saiu do foco; nada foi enviado neste passo.")
+        try:
+            resposta = executar_um(passo)
+        except Exception as erro:  # noqa: BLE001 - erro de dispositivo vira falha visível do passo
+            if isinstance(erro, LoginRecusado):
+                raise  # cancelamento pelo painel
+            logging.getLogger(__name__).exception("Erro inesperado no passo %s do configurador", passo["indice"])
+            return falhar(passo, f"Erro inesperado no passo ({type(erro).__name__}): {str(erro)[:150]}")
+        if resposta is not None:
+            return resposta
     return {"ok": True, "passo_falho": None, "mensagem": "Todos os passos foram executados.", "passos": registro}

@@ -561,6 +561,8 @@ class ServicoExecucao:
         except Exception as erro:
             # Exceções de navegador podem conter senhas em traces; não registrar.
             if acao.startswith("configurador_"):
+                import logging
+                logging.getLogger(__name__).exception("Falha na operação %s do configurador", acao)  # sem credenciais aqui
                 from app.configurador import ConfiguradorErro
                 motivo = str(erro) if isinstance(erro, ConfiguradorErro) and str(erro) == "dominio_fora_de_foco" else "configurador_recusado"
                 self.sessao_login.fase("falha", motivo)
