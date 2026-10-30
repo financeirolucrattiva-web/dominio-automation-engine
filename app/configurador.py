@@ -87,7 +87,7 @@ class Dispositivos:
         def escolher_pasta_saida():
             """Mesmo fluxo dos Livros Fiscais: aguarda o diálogo 'Procurar Pasta' e navega até a pasta saida/ do servidor."""
             from app import dominio, seletor_pasta
-            for _ in range(15):
+            for _ in range(45):
                 if tela.achar_texto_ou_no_centro(tela.capturar_tela(), "Procurar Pasta", escala=4) is not None:
                     break
                 time.sleep(1)
