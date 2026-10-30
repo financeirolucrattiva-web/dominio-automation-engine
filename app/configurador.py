@@ -273,6 +273,12 @@ def _formatar_parametro(nome, valor):
     return valor
 
 
+def ordenar_parametros(nomes):
+    """Ordem de preenchimento natural (empresa, competência, data inicial, data final), não alfabética."""
+    return sorted(nomes, key=lambda n: ("empresa_codigo", "competencia", "inicio", "fim").index(n)
+                  if n in ("empresa_codigo", "competencia", "inicio", "fim") else 99)
+
+
 def _canonicos(parametros):
     """Datas em AAAA-MM-DD e competência em AAAA-MM, para o docauto (que exige esse formato)."""
     canon = dict(parametros or {})
@@ -303,6 +309,12 @@ def validar_parametros_teste(passos, parametros, hoje=None):
         for nome in ("inicio", "fim"):
             if nome in usados and dt.date.fromisoformat(parametros[nome]) >= hoje.replace(day=1):
                 raise ConfiguradorErro("Use somente competência passada e fechada.")
+        if {"inicio", "fim"} <= usados:
+            inicial, final = (dt.date.fromisoformat(parametros[n]) for n in ("inicio", "fim"))
+            if final < inicial:
+                raise ConfiguradorErro("A data final é anterior à inicial: confira a ordem dos campos.")
+            if any(p["tipo"] == "guardar_pdf" for p in passos) and (inicial.year, inicial.month) != (final.year, final.month):
+                raise ConfiguradorErro("Para guardar o PDF na pasta da empresa, use datas do mesmo mês.")
         if "competencia" in usados and dt.date.fromisoformat(parametros["competencia"] + "-01") >= hoje.replace(day=1):
             raise ConfiguradorErro("Use somente competência passada e fechada.")
     except ValueError as erro:
@@ -411,7 +423,7 @@ class Configurador:
         teste = dados.get("ultimo_teste")
         return {"id": rotina_id, "nome": dados["nome"], "status": dados["status"],
                 "quantidade_passos": len(dados["passos"]),
-                "parametros": sorted({p["parametro"] for p in dados["passos"] if p.get("parametro")}
+                "parametros": ordenar_parametros({p["parametro"] for p in dados["passos"] if p.get("parametro")}
                                      | ({"empresa_codigo"} if any(p["tipo"] in ("trocar_empresa", "guardar_pdf") for p in dados["passos"]) else set())
                                      | ({"inicio", "fim"} if any(p["tipo"] == "guardar_pdf" for p in dados["passos"]) else set())),
                 "ultimo_teste": teste and {"ok": teste["ok"], "em": teste["em"], "passo_falho": teste.get("passo_falho")}}

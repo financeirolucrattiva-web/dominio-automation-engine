@@ -322,7 +322,7 @@ class TestGuardarPdf(Base):
         novo = {"velho.pdf": (10, 1), "Empresa 68 - REINF.pdf": (500, 7)}
         c, publicados = self.montar([antigo, antigo, novo, novo, novo, novo])   # aparece, depois fica estável
         salva = c.salvar("Reinf", self.PASSOS)
-        self.assertEqual(salva["parametros"], ["empresa_codigo", "fim", "inicio"])
+        self.assertEqual(salva["parametros"], ["empresa_codigo", "inicio", "fim"])
         with self.assertRaises(ConfiguradorErro):
             c.testar(salva["id"], {"empresa_codigo": "68"})                     # faltou o período
         resultado = c.testar(salva["id"], self.PARAMS, hoje=__import__("datetime").date(2026, 10, 30))
@@ -356,6 +356,16 @@ class TestGuardarPdf(Base):
         falha = c2.testar(salva2["id"])
         self.assertFalse(falha["ok"])
         self.assertIn("Procurar Pasta", falha["mensagem"])
+
+    def test_datas_invertidas_ou_de_meses_diferentes_sao_recusadas_antes_de_rodar(self):
+        c, _ = self.montar([{}])
+        salva = c.salvar("Reinf", self.PASSOS)
+        hoje = __import__("datetime").date(2026, 10, 30)
+        with self.assertRaisesRegex(ConfiguradorErro, "data final é anterior"):
+            c.testar(salva["id"], {"empresa_codigo": "68", "inicio": "2026-09-30", "fim": "2026-09-01"}, hoje=hoje)
+        with self.assertRaisesRegex(ConfiguradorErro, "mesmo mês"):
+            c.testar(salva["id"], {"empresa_codigo": "68", "inicio": "2026-08-01", "fim": "2026-09-30"}, hoje=hoje)
+        self.assertEqual(c.listar()[0]["parametros"], ["empresa_codigo", "inicio", "fim"])   # ordem de preenchimento
 
     def test_documento_invalido_e_recusado(self):
         for ruim in ({"tipo": "guardar_pdf"}, {"tipo": "guardar_pdf", "documento": "qualquer"},
