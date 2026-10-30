@@ -53,6 +53,13 @@ PEDIR AJUSTE AO CLAUDE (no proprio painel)
   corrige com base no teste/print, publica a atualizacao e responde; a resposta aparece na lista do painel.
 - O Claude so age quando alguem abre a conversa no VS Code: nao e um chat em tempo real. Nada sai do PC.
 
+USAR EM LOTE (rotina aprovada)
+- Rotina APROVADA (e nao editada depois) aparece no painel como '<nome> (configurador)', junto das rotinas integradas.
+- Em Regimes, inclua a rotina na ordem desejada; no lote ela roda para cada empresa, com troca de empresa e retorno a tela
+  azul feitos pelo executor, e o resultado aparece no historico como as outras rotinas.
+- Sem repeticao automatica em modo seguro (repetir cliques nao e seguro): se falhar, o lote segue a regra normal de falha.
+- Editar a rotina derruba a aprovacao e ela sai do lote ate novo teste e aprovacao.
+
 REGRAS DE SEGURANCA (nao tem como burlar pelo painel)
 - Nunca transmitir, retificar, excluir ou enviar: a descricao do alvo com essas palavras e recusada.
 - Teclas limitadas a uma lista segura (sem Delete, sem Alt+F4).

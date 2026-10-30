@@ -584,6 +584,61 @@ class Configurador:
                 self._gravar(rotina_id, atual)
         return resultado
 
+    def capacidades_aprovadas(self):
+        """Rotinas aprovadas como capacidades `visual_<id>` do catálogo (alimenta lotes, regimes e o painel)."""
+        from app.capacidades import Capacidade, Parametro, Validacao
+        resultado = []
+        for r in self.listar():
+            if r["status"] != "aprovada":
+                continue
+            dados = self._ler(r["id"])
+            if (dados.get("ultimo_teste") or {}).get("assinatura") != self._assinatura(dados):
+                continue  # aprovação só vale para a versão testada
+            resultado.append(Capacidade(
+                id=f"visual_{r['id']}", nome=f"{r['nome']} (configurador)",
+                objetivo="Rotina criada no configurador visual, testada com supervisão e aprovada pela equipe.",
+                funcao="app.configurador.Configurador.executar_aprovada",
+                parametros=(Parametro("empresa_codigo", "str", True, "Código da empresa no Domínio."),
+                            Parametro("inicio", "str", True, "AAAA-MM-DD, competência passada e fechada."),
+                            Parametro("fim", "str", True, "Último dia da mesma competência.")),
+                contexto=("Domínio visível e calibrado, sessão Windows aberta.",),
+                precondicoes=("Tela principal reconhecida e empresa conferida pelo executor.",),
+                politica_periodo="Competência passada e fechada; nunca a corrente.",
+                operacoes_permitidas=("gerar", "ler"),
+                etapas=tuple(f"{p['indice']}. {p['tipo']}" + (f" — {p['rotulo']}" if p.get("rotulo") else "") for p in dados["passos"]),
+                resultado="bool; conclusão exige todos os passos e retorno à tela azul.",
+                checagens_atuais=("Executa exatamente os passos aprovados; alvos por imagem com espera e confirmação.",
+                                  "Para no primeiro passo que falhar e volta à tela azul."),
+                recuperacao=("Volta à tela principal ao falhar.",),
+                validacao=Validacao("Teste supervisionado aprovado no painel.", "Conteúdo dos arquivos não é lido pelo configurador.",
+                                    "Aprovada pela equipe nesta versão dos passos.", ()),
+                pendencias=(), status="integrada"))
+        return resultado
+
+    def executar_aprovada(self, rotina_id, empresa_codigo, inicio, fim, sessao=None):
+        """Executa uma rotina APROVADA (da versão testada) para uma empresa e uma competência passada e fechada."""
+        dados = self._ler(rotina_id)
+        teste = dados.get("ultimo_teste")
+        if dados["status"] != "aprovada" or not teste or not teste.get("ok") or teste.get("assinatura") != self._assinatura(dados):
+            raise ConfiguradorErro("A rotina não está aprovada nesta versão dos passos.")
+        try:  # competência passada e fechada, mesmo que a rotina não use datas
+            inicial, final = dt.date.fromisoformat(str(inicio)), dt.date.fromisoformat(str(fim))
+        except ValueError:
+            raise ConfiguradorErro("Datas inválidas (AAAA-MM-DD).") from None
+        if inicial > final or final >= dt.date.today().replace(day=1):
+            raise ConfiguradorErro("Use somente competência passada e fechada.")
+        usados = {p["parametro"] for p in dados["passos"] if p["tipo"] == "digitar" and p.get("parametro")}
+        if any(p["tipo"] == "trocar_empresa" for p in dados["passos"]) or any(p["tipo"] == "guardar_pdf" for p in dados["passos"]):
+            usados.add("empresa_codigo")
+        if any(p["tipo"] == "guardar_pdf" for p in dados["passos"]):
+            usados |= {"inicio", "fim"}
+        brutos = {n: v for n, v in {"empresa_codigo": str(int(empresa_codigo)), "inicio": inicio, "fim": fim,
+                                    "competencia": str(inicio)[:7]}.items() if n in usados}
+        valores = validar_parametros_teste(dados["passos"], brutos)
+        dispositivos = self._dispositivos or Dispositivos.reais()
+        return executar_passos(dados["passos"], self._pasta_rotina(rotina_id), valores, dispositivos, sessao=sessao,
+                               pasta_falhas=self.pasta_falhas, rotina_id=rotina_id, brutos=_canonicos(brutos))
+
     def aprovar(self, rotina_id):
         with _LOCK:
             dados = self._ler(rotina_id)

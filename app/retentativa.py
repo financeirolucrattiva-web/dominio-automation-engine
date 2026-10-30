@@ -28,8 +28,8 @@ def foi_sucesso(resultado):
 
 def pode_retentar(capacidade, eventos, *, foco_perdido=False, ja_retentou=False, otimizacoes_ativas=True):
     """Decide se a falha de `capacidade` pode ser repetida em modo seguro. `eventos` = os desta tarefa."""
-    if ja_retentou or foco_perdido or not otimizacoes_ativas:
-        return False
+    if ja_retentou or foco_perdido or not otimizacoes_ativas or str(capacidade).startswith("visual_"):
+        return False  # rotina visual: repetir cliques não é seguro
     if capacidade in ROTINAS_DE_GERACAO_UNICA:
         return "gerar_documento" not in _etapas(eventos)
     # Resumo / Livros (e livros individuais): só antes de o PDF ser aceito.

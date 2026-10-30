@@ -1,6 +1,7 @@
 """Configurador visual de rotinas: validação, recorte dos modelos, execução com dispositivos falsos, teste
 supervisionado, aprovação e a API completa. Nenhum desktop é tocado."""
 import importlib.util
+import uuid
 import tempfile
 import time
 import unittest
@@ -274,6 +275,84 @@ class TestErrosEEspera(Base):
         self.assertTrue(resultado["ok"])
         self.assertGreaterEqual(leituras["n"], 7)                       # 4 mudanças + 3 leituras iguais
         self.assertNotIn("não assentou", resultado["passos"][0]["detalhe"])
+
+
+class TestLote(Base):
+    """Rotina aprovada do configurador vira capacidade `visual_<id>`: aparece nos regimes, planeja e roda como tarefa."""
+
+    def setUp(self):
+        super().setUp()
+        from app import capacidades
+        self.falsos.achados = {"passo_01.png": (100, 60)}
+        self.salva = self.c.salvar("Rotina de lote", [self.passo("clicar"), {"tipo": "voltar_tela_principal"}])
+        d = self.c._dispositivos
+        d.voltar_inicio = lambda: True
+        capacidades.definir_provedor_dinamico(self.c.capacidades_aprovadas)
+        self.addCleanup(capacidades.definir_provedor_dinamico, None)
+
+    def aprovar(self):
+        self.assertTrue(self.c.testar(self.salva["id"])["ok"])
+        self.c.aprovar(self.salva["id"])
+
+    def test_so_a_rotina_aprovada_vira_capacidade(self):
+        from app import capacidades
+        self.assertEqual(capacidades.listar_capacidades_dinamicas(), ())
+        with self.assertRaises(ValueError):
+            capacidades.obter_capacidade(f"visual_{self.salva['id']}")
+        self.aprovar()
+        capacidade = capacidades.obter_capacidade(f"visual_{self.salva['id']}")
+        self.assertIn("Rotina de lote", capacidade.nome)
+        # editar derruba a aprovação: a capacidade some até novo teste
+        self.c.salvar("Rotina de lote", [self.passo("clicar"), {"tipo": "tecla", "tecla": "tab"}], self.salva["id"])
+        self.assertEqual(capacidades.listar_capacidades_dinamicas(), ())
+
+    def test_pedido_regime_e_planejamento_aceitam_a_rotina_aprovada(self):
+        from app.servidor import validar_pedido
+        self.aprovar()
+        pedido = {"request_id": str(uuid.uuid4()), "capacidade": f"visual_{self.salva['id']}", "empresa_codigo": "68",
+                  "inicio": "2026-09-01", "fim": "2026-09-30", "apuracao_confirmada": True}
+        validar_pedido(pedido, hoje=__import__("datetime").date(2026, 10, 30))
+        with self.assertRaises(ValueError):                                   # mês corrente continua recusado
+            validar_pedido(dict(pedido, inicio="2026-10-01", fim="2026-10-31"), hoje=__import__("datetime").date(2026, 10, 30))
+        with self.assertRaises(ValueError):                                   # id inexistente
+            validar_pedido(dict(pedido, capacidade="visual_" + "0" * 32), hoje=__import__("datetime").date(2026, 10, 30))
+
+    def test_executar_aprovada_so_roda_a_versao_aprovada(self):
+        with self.assertRaises(ConfiguradorErro):
+            self.c.executar_aprovada(self.salva["id"], "68", "2026-09-01", "2026-09-30")          # ainda rascunho
+        self.aprovar()
+        resultado = self.c.executar_aprovada(self.salva["id"], "68", "2026-09-01", "2026-09-30")
+        self.assertTrue(resultado["ok"], resultado)
+        self.assertIn(("clicar", 100, 60), self.falsos.acoes)
+        with self.assertRaises(ConfiguradorErro):                                                  # período corrente recusado
+            self.c.executar_aprovada(self.salva["id"], "68", "2099-01-01", "2099-01-31")
+
+    def test_executor_gera_eventos_e_so_conclui_com_tela_azul(self):
+        from unittest import mock
+        from app import executor_servidor
+        self.aprovar()
+        pedido = {"capacidade": f"visual_{self.salva['id']}", "empresa_codigo": "68", "inicio": "2026-09-01", "fim": "2026-09-30"}
+        executor = executor_servidor.ExecutorDominio()
+        executor._voltar_ao_inicio = lambda janela: True
+        eventos = []
+        with mock.patch("app.configurador.Configurador", lambda: self.c), \
+             mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_reconhecida"), \
+             mock.patch("app.estados.AcompanhamentoRotina._registrar", lambda s, e, st, ev=None: eventos.append((e, st, ev))):
+            self.assertTrue(executor._gerar_visual(pedido, {"hwnd": 1}))
+        self.assertIn(("fim", "concluido", "rotina_concluida"), eventos)
+        # sem tela azul confirmada, falha de encerramento: não conclui
+        eventos.clear()
+        with mock.patch("app.configurador.Configurador", lambda: self.c), \
+             mock.patch("app.dominio._verificar_retorno_tela_principal", return_value="tela_principal_nao_reconhecida"), \
+             mock.patch("app.estados.AcompanhamentoRotina._registrar", lambda s, e, st, ev=None: eventos.append((e, st, ev))):
+            executor._voltar_ao_inicio = lambda janela: False
+            self.assertFalse(executor._gerar_visual(pedido, {"hwnd": 1}))
+        self.assertNotIn(("fim", "concluido", "rotina_concluida"), eventos)
+
+    def test_nao_ha_retentativa_automatica_para_rotina_visual(self):
+        from app import retentativa
+        self.assertFalse(retentativa.pode_retentar("visual_" + "a" * 32, []))
+        self.assertTrue(retentativa.pode_retentar("resumo_acumulador", []))
 
 
 class TestRecuperacaoEDatas(Base):

@@ -270,9 +270,27 @@ def listar_capacidades():
     return _CAPACIDADES
 
 
+_PROVEDOR_DINAMICO = None
+
+
+def definir_provedor_dinamico(provedor):
+    """Liga o catálogo às rotinas APROVADAS do configurador visual (ids `visual_<id>`); nada é resolvido por nome."""
+    global _PROVEDOR_DINAMICO
+    _PROVEDOR_DINAMICO = provedor
+
+
+def listar_capacidades_dinamicas():
+    if _PROVEDOR_DINAMICO is None:
+        return ()
+    try:
+        return tuple(_PROVEDOR_DINAMICO())
+    except Exception:
+        return ()
+
+
 def obter_capacidade(identificador):
-    """Busca um ID exato no catálogo fixo; não resolve nomes de funções."""
-    for capacidade in _CAPACIDADES:
+    """Busca um ID exato no catálogo fixo (ou entre as rotinas aprovadas do configurador); não resolve nomes de funções."""
+    for capacidade in tuple(_CAPACIDADES) + listar_capacidades_dinamicas():
         if capacidade.id == identificador:
             return capacidade
     raise ValueError(f"Capacidade desconhecida: {identificador!r}")

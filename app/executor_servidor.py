@@ -25,6 +25,35 @@ class ExecutorDominio:
     def __call__(self, pedido, receber_evento):
         return self._executar(pedido, receber_evento)
 
+    def _gerar_visual(self, pedido, janela):
+        """Roda uma rotina APROVADA do configurador como tarefa/lote, com eventos e retorno à tela azul."""
+        from app import dominio, estados
+        from app.configurador import Configurador, ConfiguradorErro
+        acompanhamento = estados.AcompanhamentoRotina("rotina_visual")
+        acompanhamento.janela_dominio = janela
+        acompanhamento.iniciar("executar_passos")
+        try:
+            resultado = Configurador().executar_aprovada(pedido["capacidade"][len("visual_"):], pedido["empresa_codigo"],
+                                                         pedido["inicio"], pedido["fim"])
+        except ConfiguradorErro as erro:
+            print(f"Rotina visual recusada: {erro}", flush=True)
+            acompanhamento.concluir(False, "retorno_falha")
+            return False
+        if not resultado["ok"]:
+            print(f"Rotina visual parou no passo {resultado['passo_falho']}: {resultado['mensagem']}", flush=True)
+            acompanhamento.concluir(False, "retorno_falha")
+            return False
+        acompanhamento.confirmar("passos_visuais_concluidos")
+        acompanhamento.iniciar("encerrar")
+        if dominio._verificar_retorno_tela_principal(acompanhamento) != "tela_principal_reconhecida":
+            if not (self._voltar_ao_inicio(janela)
+                    and dominio._verificar_retorno_tela_principal(acompanhamento) == "tela_principal_reconhecida"):
+                acompanhamento.registrar_encerramento_inconclusivo()
+                return False
+        acompanhamento.confirmar("tela_principal_reconhecida")
+        acompanhamento.concluir(True)
+        return True
+
     def executar_em_lote(self, pedido, receber_evento):
         self._janela_lote = None
         return self._executar(pedido, receber_evento, em_lote=True)
@@ -109,6 +138,8 @@ class ExecutorDominio:
             "resumo_acumulador": dominio.gerar_resumo_acumulador,
             "livros_fiscais": dominio.gerar_livros_fiscais,
         }
+        if pedido["capacidade"].startswith("visual_"):
+            geradores[pedido["capacidade"]] = lambda **_: self._gerar_visual(pedido, janela)
         prefixo = f"servidor_{pedido['request_id'].replace('-', '')}_"
         def preparar_retomada():
             referencia = tela_principal.carregar_referencia()

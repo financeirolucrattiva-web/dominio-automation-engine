@@ -87,7 +87,9 @@ def main(argv=None):
         executor, modo = ExecutorDominio(), "windows"
         login = LoginWindows()
         from app.configurador import Configurador
+        from app import capacidades
         configurador = Configurador()
+        capacidades.definir_provedor_dinamico(configurador.capacidades_aprovadas)
     nome_banco = "servidor_simulado.sqlite3" if args.simular else "servidor.sqlite3"
     try:
         servico = ServicoExecucao(RepositorioTarefas(ROOT / "data" / nome_banco), executor, modo, login=login, configurador=configurador)

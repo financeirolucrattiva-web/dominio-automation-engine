@@ -264,7 +264,8 @@ def criar_app(servico, chave, pasta_saida=ROOT / "saida", pasta_rotinas=configur
                  "periodo": ("Escolha o mês e ano da competência, com a apuração fechada."
                              if item.id in ("sped_fiscal", "efd_contribuicoes", "livros_fiscais") else
                              "Usa o período informado nos campos. Confira se a apuração está fechada."),
-                 "pendencias": item.pendencias} for item in capacidades.listar_capacidades()]
+                 "pendencias": item.pendencias}
+                for item in tuple(capacidades.listar_capacidades()) + capacidades.listar_capacidades_dinamicas()]
 
     @app.get("/api/tarefas", dependencies=[Depends(autorizar)])
     def listar():

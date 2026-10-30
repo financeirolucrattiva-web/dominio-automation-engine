@@ -61,7 +61,7 @@ class ConfiguracaoLotes:
             "empresas": [dict(e) for e in banco.execute("SELECT * FROM empresas_painel ORDER BY rowid")],
             "destino_livros": destinos_livros.configuracao_para_painel(self.repositorio.caminho.parent),
             "rotinas": [{"id": c.id, "nome": c.nome, "status": "integrada", "quantidade_passos": None}
-                        for c in capacidades.listar_capacidades()] +
+                        for c in tuple(capacidades.listar_capacidades()) + capacidades.listar_capacidades_dinamicas()] +
                        [{"id": r["id"], "nome": r["nome"], "status": r["status"],
                          "quantidade_passos": len(json.loads(r["passos"]))}
                         for r in banco.execute("SELECT * FROM rotinas_cadastradas ORDER BY rowid")],
@@ -265,7 +265,7 @@ class ConfiguracaoLotes:
         plano = {"inicio": selecao["inicio"], "fim": selecao["fim"], "empresas": [], "quantidade_rotinas": 0}
         if piloto_presumido:
             plano.update(piloto_presumido=True, pendencias=[], quantidade_pendencias=0)
-        integradas = {c.id for c in capacidades.listar_capacidades()}
+        integradas = {c.id for c in tuple(capacidades.listar_capacidades()) + capacidades.listar_capacidades_dinamicas()}
         rotinas_cadastradas = {r['id']: r for r in cadastro['rotinas']}
         for codigo in codigos:
             empresa = empresas.get(codigo)
